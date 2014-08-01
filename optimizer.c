@@ -17,8 +17,6 @@
 
 #include <stdbool.h>
 
-#define ARRAY_SIZE(x) (sizeof(x) ? sizeof(x) / sizeof((x)[0]) : 0)
-
 /* TODO: Complete */
 static bool is_nop(union opcode op)
 {

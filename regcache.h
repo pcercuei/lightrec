@@ -12,28 +12,17 @@
  * Lesser General Public License for more details.
  */
 
-#ifndef __LIGHTREC_H__
-#define __LIGHTREC_H__
+#ifndef __REGCACHE_H__
+#define __REGCACHE_H__
 
-#include <stdint.h>
+#include "lightrec.h"
 
-#define __weak __attribute__((weak))
-#define __packed __attribute__((packed))
+u8 lightrec_alloc_reg_temp(jit_state_t *_jit);
+u8 lightrec_alloc_reg_out(jit_state_t *_jit, u8 reg);
+u8 lightrec_alloc_reg_in(jit_state_t *_jit, u8 reg);
 
-#define ARRAY_SIZE(x) (sizeof(x) ? sizeof(x) / sizeof((x)[0]) : 0)
+void lightrec_free_reg(jit_state_t *_jit, u8 jit_reg);
 
-/* Definition of jit_state_t (avoids inclusion of <lightning.h>) */
-struct jit_state;
-typedef struct jit_state jit_state_t;
+void lightrec_storeback_regs(jit_state_t *_jit);
 
-typedef uint64_t u64;
-typedef uint32_t u32;
-typedef uint16_t u16;
-typedef uint8_t  u8;
-
-typedef int64_t s64;
-typedef int32_t s32;
-typedef int16_t s16;
-typedef int8_t  s8;
-
-#endif /* __LIGHTREC_H__ */
+#endif /* __REGCACHE_H__ */
