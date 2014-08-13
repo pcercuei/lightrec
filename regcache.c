@@ -51,15 +51,12 @@ static struct native_register * alloc_temp(void)
 {
 	unsigned int i;
 
-	/* Try to allocate a non-dirty register first */
-	for (i = 0; i < ARRAY_SIZE(lightrec_regs); i++) {
-		struct native_register *nreg = &lightrec_regs[i];
-		if (!nreg->used && !nreg->dirty)
-			return nreg;
-	}
-
-	for (i = 0; i < ARRAY_SIZE(lightrec_regs); i++) {
-		struct native_register *nreg = &lightrec_regs[i];
+	/* We search the register list in reverse order. As temporaries are
+	 * meant to be used only in the emitter functions, they can be mapped to
+	 * caller-saved registers, as they won't have to be saved back to
+	 * memory. */
+	for (i = ARRAY_SIZE(lightrec_regs); i; i--) {
+		struct native_register *nreg = &lightrec_regs[i - 1];
 		if (!nreg->used)
 			return nreg;
 	}
@@ -79,7 +76,20 @@ static struct native_register * alloc_in_out(u8 reg)
 			return nreg;
 	}
 
-	return alloc_temp();
+	/* Try to allocate a non-dirty register */
+	for (i = 0; i < ARRAY_SIZE(lightrec_regs); i++) {
+		struct native_register *nreg = &lightrec_regs[i];
+		if (!nreg->used && !nreg->dirty)
+			return nreg;
+	}
+
+	for (i = 0; i < ARRAY_SIZE(lightrec_regs); i++) {
+		struct native_register *nreg = &lightrec_regs[i];
+		if (!nreg->used)
+			return nreg;
+	}
+
+	return NULL;
 }
 
 u8 lightrec_alloc_reg_temp(jit_state_t *_jit)
