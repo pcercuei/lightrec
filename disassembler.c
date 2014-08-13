@@ -49,7 +49,7 @@ struct opcode_list * lightrec_disassemble(const u32 *src)
 {
 	struct opcode_list_head head = { NULL };
 	bool stop_next = false;
-	struct opcode_list *curr, *last = NULL;
+	struct opcode_list *curr, *last;
 
 	for (last = NULL; ; last = curr) {
 		union opcode op;
@@ -61,10 +61,12 @@ struct opcode_list * lightrec_disassemble(const u32 *src)
 			return NULL;
 		}
 
-		if (!last)
+		if (!last) {
+			SLIST_NEXT(curr, next) = NULL;
 			SLIST_INSERT_HEAD(&head, curr, next);
-		else
+		} else {
 			SLIST_INSERT_AFTER(last, curr, next);
+		}
 
 		/* TODO: Take care of endianness */
 		op.opcode = *src++;
