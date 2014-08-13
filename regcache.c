@@ -96,7 +96,7 @@ u8 lightrec_alloc_reg_temp(jit_state_t *_jit)
 
 	/* If we get a dirty register, store back the old value */
 	if (nreg->dirty) {
-		jit_str_i(&register_cache[nreg->emulated_register], jit_reg);
+		jit_sti_i(&register_cache[nreg->emulated_register], jit_reg);
 		nreg->dirty = false;
 	}
 
@@ -120,7 +120,7 @@ u8 lightrec_alloc_reg_out(jit_state_t *_jit, u8 reg)
 	/* If we get a dirty register that doesn't correspond to the one
 	 * we're requesting, store back the old value */
 	if (nreg->dirty && nreg->emulated_register != reg) {
-		jit_str_i(&register_cache[nreg->emulated_register], jit_reg);
+		jit_sti_i(&register_cache[nreg->emulated_register], jit_reg);
 		nreg->dirty = false;
 	}
 
@@ -145,7 +145,7 @@ u8 lightrec_alloc_reg_in(jit_state_t *_jit, u8 reg)
 	/* If we get a dirty register that doesn't correspond to the one
 	 * we're requesting, store back the old value */
 	if (nreg->dirty && nreg->emulated_register != reg) {
-		jit_str_i(&register_cache[nreg->emulated_register], jit_reg);
+		jit_sti_i(&register_cache[nreg->emulated_register], jit_reg);
 		nreg->dirty = false;
 		nreg->loaded = false;
 	}
@@ -154,7 +154,7 @@ u8 lightrec_alloc_reg_in(jit_state_t *_jit, u8 reg)
 		nreg->loaded = true;
 
 		/* Load previous value from register cache */
-		jit_ldr_i(jit_reg, &register_cache[reg]);
+		jit_ldi_i(jit_reg, &register_cache[reg]);
 	}
 
 	nreg->used = true;
@@ -185,7 +185,7 @@ void lightrec_storeback_regs(jit_state_t *_jit)
 
 		if (nreg->dirty) {
 			u8 jit_reg = lightrec_reg_to_lightning(nreg);
-			jit_str_i(&register_cache[nreg->emulated_register],
+			jit_sti_i(&register_cache[nreg->emulated_register],
 					jit_reg);
 		}
 
