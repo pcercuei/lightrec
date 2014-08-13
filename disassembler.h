@@ -135,24 +135,24 @@ enum cp2_basic_opcodes {
 };
 
 __packed struct opcode_r {
-	u32 zero :6;
-	u32 rs   :5;
-	u32 rt   :5;
-	u32 rd   :5;
-	u32 imm  :5;
 	u32 op   :6;
+	u32 imm  :5;
+	u32 rd   :5;
+	u32 rt   :5;
+	u32 rs   :5;
+	u32 zero :6;
 };
 
 __packed struct opcode_i {
-	u32 op  :6;
-	u32 rs  :5;
-	u32 rt  :5;
 	u32 imm :16;
+	u32 rt  :5;
+	u32 rs  :5;
+	u32 op  :6;
 };
 
 __packed struct opcode_j {
-	u32 op  :6;
 	u32 imm :26;
+	u32 op  :6;
 };
 
 union opcode {
