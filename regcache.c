@@ -27,18 +27,24 @@ struct native_register {
 
 static struct native_register lightrec_regs[JIT_V_NUM + JIT_R_NUM];
 
+static inline u8 lightrec_reg_number(struct native_register *nreg)
+{
+	return (u8) (((uintptr_t) nreg - (uintptr_t) lightrec_regs)
+			/ sizeof(*nreg));
+}
+
 static inline u8 lightrec_reg_to_lightning(struct native_register *nreg)
 {
-	unsigned int offset = (nreg - &lightrec_regs[0]) / sizeof(*nreg);
+	u8 offset = lightrec_reg_number(nreg);
 	return offset < JIT_V_NUM ? JIT_V(offset) : JIT_R(offset - JIT_V_NUM);
 }
 
 static inline struct native_register * lightning_reg_to_lightrec(u8 reg)
 {
 	if ((jit_v(0) > jit_r(0)) ^ (reg > jit_r(0)))
-		return &lightrec_regs[jit_r(reg) - jit_r(0)];
+		return &lightrec_regs[JIT_V_NUM + reg - jit_r(0)];
 	else
-		return &lightrec_regs[jit_v(reg) - jit_v(0)];
+		return &lightrec_regs[reg - jit_v(0)];
 }
 
 static struct native_register * alloc_temp(void)
