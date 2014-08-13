@@ -173,11 +173,11 @@ void lightrec_free_reg(jit_state_t *_jit, u8 jit_reg)
 		nreg->dirty = true;
 }
 
-void lightrec_storeback_regs(jit_state_t *_jit)
+static void storeback_regs(jit_state_t *_jit, u8 start, u8 end)
 {
-	unsigned int i;
+	u8 i;
 
-	for (i = 0; i < ARRAY_SIZE(lightrec_regs); i++) {
+	for (i = start; i < end; i++) {
 		struct native_register *nreg = &lightrec_regs[i];
 
 		if (nreg->used)
@@ -193,4 +193,14 @@ void lightrec_storeback_regs(jit_state_t *_jit)
 		nreg->dirty = false;
 		nreg->used = false;
 	}
+}
+
+void lightrec_storeback_regs(jit_state_t *_jit)
+{
+	storeback_regs(_jit, JIT_V_NUM, ARRAY_SIZE(lightrec_regs));
+}
+
+void lightrec_storeback_all_regs(jit_state_t *_jit)
+{
+	storeback_regs(_jit, 0, ARRAY_SIZE(lightrec_regs));
 }
