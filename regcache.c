@@ -92,6 +92,14 @@ static struct native_register * alloc_in_out(u8 reg)
 	return NULL;
 }
 
+static void free_reg(struct native_register *nreg)
+{
+	/* Set output registers as dirty */
+	if (nreg->used && nreg->output)
+		nreg->dirty = true;
+	nreg->used = false;
+}
+
 u8 lightrec_alloc_reg_temp(jit_state_t *_jit)
 {
 	u8 jit_reg;
@@ -173,14 +181,12 @@ u8 lightrec_alloc_reg_in(jit_state_t *_jit, u8 reg)
 	return jit_reg;
 }
 
-void lightrec_free_reg(jit_state_t *_jit, u8 jit_reg)
+void lightrec_free_regs(void)
 {
-	struct native_register *nreg = lightning_reg_to_lightrec(jit_reg);
-	nreg->used = false;
+	unsigned int i;
 
-	/* Set output registers as dirty */
-	if (nreg->output)
-		nreg->dirty = true;
+	for (i = 0; i < ARRAY_SIZE(lightrec_regs); i++)
+		free_reg(&lightrec_regs[i]);
 }
 
 static void storeback_regs(jit_state_t *_jit, u8 start, u8 end)
