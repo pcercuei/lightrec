@@ -71,7 +71,7 @@ static struct native_register * alloc_in_out(u8 reg)
 	/* Try to find if the register is already mapped somewhere */
 	for (i = 0; i < ARRAY_SIZE(lightrec_regs); i++) {
 		struct native_register *nreg = &lightrec_regs[i];
-		if (!nreg->used && (nreg->loaded || nreg->dirty) &&
+		if ((nreg->loaded || nreg->dirty) &&
 				nreg->emulated_register == reg)
 			return nreg;
 	}
