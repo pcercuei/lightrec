@@ -126,6 +126,34 @@ u8 lightrec_alloc_reg_temp(jit_state_t *_jit)
 	return jit_reg;
 }
 
+u8 lightrec_alloc_reg_temp_with_value(jit_state_t *_jit, u32 value)
+{
+	unsigned int i;
+	u8 jit_reg;
+
+	/* Try to find a temp register that already contains the value */
+	for (i = ARRAY_SIZE(lightrec_rvals); i; i--) {
+		if (lightrec_rvals[i - 1].known &&
+				lightrec_rvals[i - 1].value == value) {
+			struct native_register *nreg =
+				lightning_reg_to_lightrec(i - 1);
+
+			if (!nreg->used && !nreg->dirty) {
+				nreg->output = false;
+				nreg->used = true;
+				return i - 1;
+			}
+		}
+	}
+
+	/* If not found, alloc a new temp register, and load the value */
+	jit_reg = lightrec_alloc_reg_temp(_jit);
+	lightrec_rvals[jit_reg].known = true;
+	lightrec_rvals[jit_reg].value = value;
+	jit_movi(jit_reg, value);
+	return jit_reg;
+}
+
 u8 lightrec_alloc_reg_out(jit_state_t *_jit, u8 reg)
 {
 	u8 jit_reg;
