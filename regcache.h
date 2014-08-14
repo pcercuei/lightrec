@@ -17,6 +17,15 @@
 
 #include "lightrec.h"
 
+#include <stdbool.h>
+
+struct register_value {
+	bool known;
+	u32 value;
+};
+
+extern struct register_value lightrec_rvals[];
+
 u8 lightrec_alloc_reg_temp(jit_state_t *_jit);
 u8 lightrec_alloc_reg_out(jit_state_t *_jit, u8 reg);
 u8 lightrec_alloc_reg_in(jit_state_t *_jit, u8 reg);

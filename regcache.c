@@ -16,7 +16,6 @@
 #include "regcache.h"
 
 #include <lightning.h>
-#include <stdbool.h>
 
 extern u32 register_cache[32];
 
@@ -24,6 +23,8 @@ struct native_register {
 	bool used, loaded, dirty, output;
 	u8 emulated_register;
 };
+
+struct register_value lightrec_rvals[JIT_V_NUM + JIT_R_NUM];
 
 static struct native_register lightrec_regs[JIT_V_NUM + JIT_R_NUM];
 
@@ -119,6 +120,7 @@ u8 lightrec_alloc_reg_temp(jit_state_t *_jit)
 		nreg->dirty = false;
 	}
 
+	lightrec_rvals[jit_reg].known = false;
 	nreg->output = false;
 	nreg->used = true;
 	return jit_reg;
@@ -144,6 +146,7 @@ u8 lightrec_alloc_reg_out(jit_state_t *_jit, u8 reg)
 		nreg->dirty = false;
 	}
 
+	lightrec_rvals[jit_reg].known = false;
 	nreg->used = true;
 	nreg->output = true;
 	nreg->emulated_register = reg;
@@ -178,6 +181,7 @@ u8 lightrec_alloc_reg_in(jit_state_t *_jit, u8 reg)
 		jit_ldi_i(jit_reg, &register_cache[reg]);
 	}
 
+	lightrec_rvals[jit_reg].known = false;
 	nreg->used = true;
 	nreg->output = false;
 	nreg->emulated_register = reg;
@@ -201,19 +205,19 @@ static void storeback_regs(jit_state_t *_jit, u8 start, u8 end)
 
 	for (i = start; i < end; i++) {
 		struct native_register *nreg = &lightrec_regs[i];
+		u8 jit_reg = lightrec_reg_to_lightning(nreg);
 
 		if (nreg->used)
 			WARNING("Found a used register when storing back!\n");
 
-		if (nreg->dirty) {
-			u8 jit_reg = lightrec_reg_to_lightning(nreg);
+		if (nreg->dirty)
 			jit_sti_i(&register_cache[nreg->emulated_register],
 					jit_reg);
-		}
 
 		nreg->loaded = false;
 		nreg->dirty = false;
 		nreg->used = false;
+		lightrec_rvals[jit_reg].known = false;
 	}
 }
 
