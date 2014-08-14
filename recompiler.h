@@ -17,7 +17,7 @@
 
 #include "lightrec.h"
 
-void rec_opcode(jit_state_t *_jit, union opcode op);
+void lightrec_rec_opcode(jit_state_t *_jit, union opcode op);
 
 __weak void rec_J(jit_state_t *, union opcode);
 __weak void rec_JAL(jit_state_t *, union opcode);

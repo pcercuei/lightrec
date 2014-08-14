@@ -181,7 +181,7 @@ static void rec_cp2_BASIC(jit_state_t *_jit, union opcode op)
 		emit_call_to_interpreter(_jit, op);
 }
 
-void rec_opcode(jit_state_t *_jit, union opcode op)
+void lightrec_rec_opcode(jit_state_t *_jit, union opcode op)
 {
 	void (*f)(jit_state_t *, union opcode) = rec_standard[op.i.op];
 	if (f)
