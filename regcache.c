@@ -111,6 +111,7 @@ u8 lightrec_alloc_reg_temp(jit_state_t *_jit)
 	}
 
 	jit_reg = lightrec_reg_to_lightning(nreg);
+	jit_note(__FILE__, __LINE__);
 
 	/* If we get a dirty register, store back the old value */
 	if (nreg->dirty) {
@@ -134,6 +135,7 @@ u8 lightrec_alloc_reg_out(jit_state_t *_jit, u8 reg)
 	}
 
 	jit_reg = lightrec_reg_to_lightning(nreg);
+	jit_note(__FILE__, __LINE__);
 
 	/* If we get a dirty register that doesn't correspond to the one
 	 * we're requesting, store back the old value */
@@ -159,6 +161,7 @@ u8 lightrec_alloc_reg_in(jit_state_t *_jit, u8 reg)
 	}
 
 	jit_reg = lightrec_reg_to_lightning(nreg);
+	jit_note(__FILE__, __LINE__);
 
 	/* If we get a dirty register that doesn't correspond to the one
 	 * we're requesting, store back the old value */
@@ -192,6 +195,9 @@ void lightrec_free_regs(void)
 static void storeback_regs(jit_state_t *_jit, u8 start, u8 end)
 {
 	u8 i;
+
+	jit_name(__func__);
+	jit_note(__FILE__, __LINE__);
 
 	for (i = start; i < end; i++) {
 		struct native_register *nreg = &lightrec_regs[i];
