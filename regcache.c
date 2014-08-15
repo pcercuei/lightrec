@@ -77,6 +77,15 @@ static struct native_register * alloc_in_out(u8 reg)
 			return nreg;
 	}
 
+	/* Try to allocate a non-dirty, non-loaded register.
+	 * Loaded registers may be re-used later, so it's better to avoid
+	 * re-using one if possible. */
+	for (i = 0; i < ARRAY_SIZE(lightrec_regs); i++) {
+		struct native_register *nreg = &lightrec_regs[i];
+		if (!nreg->used && !nreg->dirty && !nreg->loaded)
+			return nreg;
+	}
+
 	/* Try to allocate a non-dirty register */
 	for (i = 0; i < ARRAY_SIZE(lightrec_regs); i++) {
 		struct native_register *nreg = &lightrec_regs[i];
