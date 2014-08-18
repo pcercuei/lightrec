@@ -254,7 +254,6 @@ static void storeback_regs(jit_state_t *_jit, u8 start, u8 end)
 {
 	u8 i;
 
-	jit_name(__func__);
 	jit_note(__FILE__, __LINE__);
 
 	for (i = start; i < end; i++) {
