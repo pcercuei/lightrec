@@ -289,3 +289,9 @@ void lightrec_storeback_all_regs(jit_state_t *_jit)
 {
 	storeback_regs(_jit, 0, ARRAY_SIZE(lightrec_regs));
 }
+
+void lightrec_regcache_reset(void)
+{
+	memset(&lightrec_regs, 0, sizeof(lightrec_regs));
+	memset(&lightrec_rvals, 0, sizeof(lightrec_rvals));
+}
