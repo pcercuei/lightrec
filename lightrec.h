@@ -26,6 +26,14 @@
 struct jit_state;
 typedef struct jit_state jit_state_t;
 
+struct opcode_list;
+
+struct block {
+	jit_state_t *_jit;
+	struct opcode_list *opcode_list;
+	void (*function)(void);
+};
+
 typedef uint64_t u64;
 typedef uint32_t u32;
 typedef uint16_t u16;
@@ -35,5 +43,7 @@ typedef int64_t s64;
 typedef int32_t s32;
 typedef int16_t s16;
 typedef int8_t  s8;
+
+struct block * lightrec_recompile_block(const u32 *code);
 
 #endif /* __LIGHTREC_H__ */
