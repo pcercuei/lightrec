@@ -15,6 +15,7 @@
 #ifndef __RECOMPILER_H__
 #define __RECOMPILER_H__
 
+#include "disassembler.h"
 #include "lightrec.h"
 
 void lightrec_rec_opcode(jit_state_t *_jit, union opcode op);
