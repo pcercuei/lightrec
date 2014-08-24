@@ -179,9 +179,10 @@ u8 lightrec_alloc_reg_out(jit_state_t *_jit, u8 reg)
 	/* If we get a dirty register that doesn't correspond to the one
 	 * we're requesting, store back the old value */
 	if (nreg->dirty && nreg->emulated_register != reg) {
-		u32 addr = (u32) &register_cache[nreg->emulated_register];
+		uintptr_t addr = (uintptr_t)
+			&register_cache[nreg->emulated_register];
 		u8 jit_tmp = lightrec_alloc_reg_temp_with_value(_jit,
-				addr & 0xffff0000);
+				addr & ~0xffff);
 
 		jit_stxi_i(addr & 0xffff, jit_tmp, jit_reg);
 		free_reg(lightning_reg_to_lightrec(jit_tmp));
@@ -212,9 +213,10 @@ u8 lightrec_alloc_reg_in(jit_state_t *_jit, u8 reg)
 	/* If we get a dirty register that doesn't correspond to the one
 	 * we're requesting, store back the old value */
 	if (nreg->dirty && nreg->emulated_register != reg) {
-		u32 addr = (u32) &register_cache[nreg->emulated_register];
+		uintptr_t addr = (uintptr_t)
+			&register_cache[nreg->emulated_register];
 		u8 jit_tmp = lightrec_alloc_reg_temp_with_value(_jit,
-				addr & 0xffff0000);
+				addr & ~0xffff);
 
 		jit_stxi_i(addr & 0xffff, jit_tmp, jit_reg);
 		nreg->dirty = false;
@@ -224,9 +226,9 @@ u8 lightrec_alloc_reg_in(jit_state_t *_jit, u8 reg)
 	}
 
 	if (!nreg->loaded && !nreg->dirty) {
-		u32 addr = (u32) &register_cache[reg];
+		uintptr_t addr = (uintptr_t) &register_cache[reg];
 		u8 jit_tmp = lightrec_alloc_reg_temp_with_value(_jit,
-				addr & 0xffff0000);
+				addr & ~0xffff);
 
 		/* Load previous value from register cache */
 		jit_ldxi_i(jit_reg, jit_tmp, addr & 0xffff);
@@ -264,10 +266,10 @@ static void storeback_regs(jit_state_t *_jit, u8 start, u8 end)
 			WARNING("Found a used register when storing back!\n");
 
 		if (nreg->dirty) {
-			u32 addr = (u32)
+			uintptr_t addr = (uintptr_t)
 				&register_cache[nreg->emulated_register];
 			u8 jit_tmp = lightrec_alloc_reg_temp_with_value(_jit,
-					addr & 0xffff0000);
+					addr & ~0xffff);
 
 			jit_stxi_i(addr & 0xffff, jit_tmp, jit_reg);
 			free_reg(lightning_reg_to_lightrec(jit_tmp));
