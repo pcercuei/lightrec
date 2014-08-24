@@ -44,6 +44,11 @@ typedef int32_t s32;
 typedef int16_t s16;
 typedef int8_t  s8;
 
+extern uintptr_t end_of_block;
+
 struct block * lightrec_recompile_block(const u32 *code);
+
+void lightrec_init(char *argv0);
+void lightrec_execute(struct block *block);
 
 #endif /* __LIGHTREC_H__ */
