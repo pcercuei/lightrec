@@ -28,10 +28,7 @@ struct register_value {
 	u32 value;
 };
 
-extern struct register_value lightrec_rvals[];
-
 u8 lightrec_alloc_reg_temp(jit_state_t *_jit);
-u8 lightrec_alloc_reg_temp_with_value(jit_state_t *_jit, u32 value);
 u8 lightrec_alloc_reg_out(jit_state_t *_jit, u8 reg);
 u8 lightrec_alloc_reg_in(jit_state_t *_jit, u8 reg);
 

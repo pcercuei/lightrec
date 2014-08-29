@@ -23,8 +23,6 @@ struct native_register {
 	u8 emulated_register;
 };
 
-struct register_value lightrec_rvals[NUM_REGS + NUM_TEMPS];
-
 static struct native_register lightrec_regs[NUM_REGS + NUM_TEMPS];
 
 static inline u8 lightrec_reg_number(const struct native_register *nreg)
@@ -129,37 +127,8 @@ u8 lightrec_alloc_reg_temp(jit_state_t *_jit)
 		nreg->dirty = false;
 	}
 
-	lightrec_rvals[jit_reg].known = false;
 	nreg->output = false;
 	nreg->used = true;
-	return jit_reg;
-}
-
-u8 lightrec_alloc_reg_temp_with_value(jit_state_t *_jit, u32 value)
-{
-	unsigned int i;
-	u8 jit_reg;
-
-	/* Try to find a temp register that already contains the value */
-	for (i = ARRAY_SIZE(lightrec_rvals); i; i--) {
-		if (lightrec_rvals[i - 1].known &&
-				lightrec_rvals[i - 1].value == value) {
-			struct native_register *nreg =
-				lightning_reg_to_lightrec(i - 1);
-
-			if (!nreg->used && !nreg->dirty) {
-				nreg->output = false;
-				nreg->used = true;
-				return i - 1;
-			}
-		}
-	}
-
-	/* If not found, alloc a new temp register, and load the value */
-	jit_reg = lightrec_alloc_reg_temp(_jit);
-	lightrec_rvals[jit_reg].known = true;
-	lightrec_rvals[jit_reg].value = value;
-	jit_movi(jit_reg, value);
 	return jit_reg;
 }
 
@@ -187,7 +156,6 @@ u8 lightrec_alloc_reg_out(jit_state_t *_jit, u8 reg)
 		nreg->dirty = false;
 	}
 
-	lightrec_rvals[jit_reg].known = false;
 	nreg->used = true;
 	nreg->output = true;
 	nreg->emulated_register = reg;
@@ -227,7 +195,6 @@ u8 lightrec_alloc_reg_in(jit_state_t *_jit, u8 reg)
 		nreg->loaded = true;
 	}
 
-	lightrec_rvals[jit_reg].known = false;
 	nreg->used = true;
 	nreg->output = false;
 	nreg->emulated_register = reg;
@@ -265,7 +232,6 @@ static void storeback_regs(jit_state_t *_jit, u8 start, u8 end)
 		nreg->loaded = false;
 		nreg->dirty = false;
 		nreg->used = false;
-		lightrec_rvals[jit_reg].known = false;
 	}
 }
 
@@ -282,5 +248,4 @@ void lightrec_storeback_all_regs(jit_state_t *_jit)
 void lightrec_regcache_reset(void)
 {
 	memset(&lightrec_regs, 0, sizeof(lightrec_regs));
-	memset(&lightrec_rvals, 0, sizeof(lightrec_rvals));
 }

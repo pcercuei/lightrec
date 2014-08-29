@@ -69,13 +69,6 @@ void rec_special_ADDU(jit_state_t *_jit, union opcode op)
 	rt = lightrec_alloc_reg_in(_jit, op.r.rt);
 	rd = lightrec_alloc_reg_out(_jit, op.r.rd);
 
-	/* Propagate constants */
-	lightrec_rvals[rd].known = lightrec_rvals[rs].known
-		&& lightrec_rvals[rt].known;
-	if (lightrec_rvals[rd].known)
-		lightrec_rvals[rd].value = lightrec_rvals[rs].value +
-			lightrec_rvals[rd].value;
-
 	jit_note(__FILE__, __LINE__);
 	jit_addr(rd, rs, rt);
 
