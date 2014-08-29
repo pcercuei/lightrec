@@ -22,9 +22,9 @@ struct native_register {
 	u8 emulated_register;
 };
 
-struct register_value lightrec_rvals[JIT_V_NUM + JIT_R_NUM];
+struct register_value lightrec_rvals[NUM_REGS + NUM_TEMPS];
 
-static struct native_register lightrec_regs[JIT_V_NUM + JIT_R_NUM];
+static struct native_register lightrec_regs[NUM_REGS + NUM_TEMPS];
 
 static inline u8 lightrec_reg_number(const struct native_register *nreg)
 {
@@ -35,13 +35,13 @@ static inline u8 lightrec_reg_number(const struct native_register *nreg)
 static inline u8 lightrec_reg_to_lightning(const struct native_register *nreg)
 {
 	u8 offset = lightrec_reg_number(nreg);
-	return offset < JIT_V_NUM ? JIT_V(offset) : JIT_R(offset - JIT_V_NUM);
+	return offset < NUM_REGS ? JIT_V(offset) : JIT_R(offset - NUM_REGS);
 }
 
 static inline struct native_register * lightning_reg_to_lightrec(u8 reg)
 {
 	if ((jit_v(0) > jit_r(0)) ^ (reg > jit_r(0)))
-		return &lightrec_regs[JIT_V_NUM + reg - jit_r(0)];
+		return &lightrec_regs[NUM_REGS + reg - jit_r(0)];
 	else
 		return &lightrec_regs[reg - jit_v(0)];
 }
@@ -283,7 +283,7 @@ static void storeback_regs(jit_state_t *_jit, u8 start, u8 end)
 
 void lightrec_storeback_regs(jit_state_t *_jit)
 {
-	storeback_regs(_jit, JIT_V_NUM, ARRAY_SIZE(lightrec_regs));
+	storeback_regs(_jit, NUM_REGS, ARRAY_SIZE(lightrec_regs));
 }
 
 void lightrec_storeback_all_regs(jit_state_t *_jit)

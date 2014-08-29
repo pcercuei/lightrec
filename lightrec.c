@@ -46,8 +46,12 @@ static struct block * generate_wrapper_block(void)
 	jit_getarg(JIT_RA0, jit_arg());
 
 	/* Force all callee-saved registers to be pushed on the stack */
-	for (i = 0; i < JIT_V_NUM; i++)
+	for (i = 0; i < NUM_REGS; i++)
 		jit_movr(JIT_V(i), JIT_V(i));
+
+	/* Pass lightrec_state structure to blocks, using the last callee-saved
+	 * register that Lightning provides */
+	jit_movi(LIGHTREC_REG_STATE, &lightrec_state);
 
 	/* Call the block's code */
 	jit_jmpr(JIT_RA0);
