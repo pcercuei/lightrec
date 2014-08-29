@@ -34,6 +34,14 @@ struct block {
 	void (*function)(void);
 };
 
+struct lightrec_state {
+	uint32_t reg_cache[32];
+	uintptr_t end_of_block;
+	struct block *current;
+};
+
+extern struct lightrec_state lightrec_state;
+
 typedef uint64_t u64;
 typedef uint32_t u32;
 typedef uint16_t u16;
@@ -43,8 +51,6 @@ typedef int64_t s64;
 typedef int32_t s32;
 typedef int16_t s16;
 typedef int8_t  s8;
-
-extern uintptr_t end_of_block;
 
 struct block * lightrec_recompile_block(const u32 *code);
 

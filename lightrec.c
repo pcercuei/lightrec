@@ -20,8 +20,7 @@
 #include <lightning.h>
 #include <string.h>
 
-/* When exiting, the recompiled code will jump to that address */
-uintptr_t end_of_block;
+struct lightrec_state lightrec_state;
 
 static struct block *wrapper;
 
@@ -63,7 +62,8 @@ static struct block * generate_wrapper_block(void)
 	block->function = jit_emit();
 	block->opcode_list = NULL;
 
-	end_of_block = (uintptr_t) jit_address(addr);
+	/* When exiting, the recompiled code will jump to that address */
+	lightrec_state.end_of_block = (uintptr_t) jit_address(addr);
 
 	jit_clear_state();
 	jit_disassemble();
@@ -124,5 +124,7 @@ void lightrec_execute_block(struct block *block)
 void lightrec_init(char *argv0)
 {
 	init_jit(argv0);
+
+	memset(&lightrec_state, 0, sizeof(lightrec_state));
 	wrapper = generate_wrapper_block();
 }

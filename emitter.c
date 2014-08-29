@@ -25,7 +25,7 @@ void emit_call_to_interpreter(jit_state_t *_jit, union opcode op)
 static uintptr_t __get_jump_address_cb(u32 pc)
 {
 	/* TODO: Recompile the block located at pc, and return its address */
-	return end_of_block;
+	return lightrec_state.end_of_block;
 }
 
 static void lightrec_emit_end_of_block(jit_state_t *_jit,

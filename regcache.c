@@ -17,8 +17,6 @@
 
 #include <lightning.h>
 
-extern u32 register_cache[32];
-
 struct native_register {
 	bool used, loaded, dirty, output;
 	u8 emulated_register;
@@ -125,7 +123,8 @@ u8 lightrec_alloc_reg_temp(jit_state_t *_jit)
 
 	/* If we get a dirty register, store back the old value */
 	if (nreg->dirty) {
-		jit_sti_i(&register_cache[nreg->emulated_register], jit_reg);
+		u32 *addr = &lightrec_state.reg_cache[nreg->emulated_register];
+		jit_sti_i(addr, jit_reg);
 		nreg->dirty = false;
 	}
 
@@ -180,7 +179,7 @@ u8 lightrec_alloc_reg_out(jit_state_t *_jit, u8 reg)
 	 * we're requesting, store back the old value */
 	if (nreg->dirty && nreg->emulated_register != reg) {
 		uintptr_t addr = (uintptr_t)
-			&register_cache[nreg->emulated_register];
+			&lightrec_state.reg_cache[nreg->emulated_register];
 		u8 jit_tmp = lightrec_alloc_reg_temp_with_value(_jit,
 				addr & ~0xffff);
 
@@ -214,7 +213,7 @@ u8 lightrec_alloc_reg_in(jit_state_t *_jit, u8 reg)
 	 * we're requesting, store back the old value */
 	if (nreg->dirty && nreg->emulated_register != reg) {
 		uintptr_t addr = (uintptr_t)
-			&register_cache[nreg->emulated_register];
+			&lightrec_state.reg_cache[nreg->emulated_register];
 		u8 jit_tmp = lightrec_alloc_reg_temp_with_value(_jit,
 				addr & ~0xffff);
 
@@ -226,7 +225,7 @@ u8 lightrec_alloc_reg_in(jit_state_t *_jit, u8 reg)
 	}
 
 	if (!nreg->loaded && !nreg->dirty) {
-		uintptr_t addr = (uintptr_t) &register_cache[reg];
+		uintptr_t addr = (uintptr_t) &lightrec_state.reg_cache[reg];
 		u8 jit_tmp = lightrec_alloc_reg_temp_with_value(_jit,
 				addr & ~0xffff);
 
@@ -266,8 +265,8 @@ static void storeback_regs(jit_state_t *_jit, u8 start, u8 end)
 			WARNING("Found a used register when storing back!\n");
 
 		if (nreg->dirty) {
-			uintptr_t addr = (uintptr_t)
-				&register_cache[nreg->emulated_register];
+			uintptr_t addr = (uintptr_t) &lightrec_state.reg_cache[
+				nreg->emulated_register];
 			u8 jit_tmp = lightrec_alloc_reg_temp_with_value(_jit,
 					addr & ~0xffff);
 
