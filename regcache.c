@@ -16,6 +16,7 @@
 #include "regcache.h"
 
 #include <lightning.h>
+#include <stddef.h>
 
 struct native_register {
 	bool used, loaded, dirty, output;
@@ -178,13 +179,10 @@ u8 lightrec_alloc_reg_out(jit_state_t *_jit, u8 reg)
 	/* If we get a dirty register that doesn't correspond to the one
 	 * we're requesting, store back the old value */
 	if (nreg->dirty && nreg->emulated_register != reg) {
-		uintptr_t addr = (uintptr_t)
-			&lightrec_state.reg_cache[nreg->emulated_register];
-		u8 jit_tmp = lightrec_alloc_reg_temp_with_value(_jit,
-				addr & ~0xffff);
+		s16 offset = offsetof(struct lightrec_state, reg_cache)
+			+ (nreg->emulated_register << 2);
 
-		jit_stxi_i(addr & 0xffff, jit_tmp, jit_reg);
-		free_reg(lightning_reg_to_lightrec(jit_tmp));
+		jit_stxi_i(offset, LIGHTREC_REG_STATE, jit_reg);
 
 		nreg->dirty = false;
 	}
@@ -212,28 +210,21 @@ u8 lightrec_alloc_reg_in(jit_state_t *_jit, u8 reg)
 	/* If we get a dirty register that doesn't correspond to the one
 	 * we're requesting, store back the old value */
 	if (nreg->dirty && nreg->emulated_register != reg) {
-		uintptr_t addr = (uintptr_t)
-			&lightrec_state.reg_cache[nreg->emulated_register];
-		u8 jit_tmp = lightrec_alloc_reg_temp_with_value(_jit,
-				addr & ~0xffff);
+		s16 offset = offsetof(struct lightrec_state, reg_cache)
+			+ (nreg->emulated_register << 2);
 
-		jit_stxi_i(addr & 0xffff, jit_tmp, jit_reg);
+		jit_stxi_i(offset, LIGHTREC_REG_STATE, jit_reg);
 		nreg->dirty = false;
 		nreg->loaded = false;
-
-		free_reg(lightning_reg_to_lightrec(jit_tmp));
 	}
 
 	if (!nreg->loaded && !nreg->dirty) {
-		uintptr_t addr = (uintptr_t) &lightrec_state.reg_cache[reg];
-		u8 jit_tmp = lightrec_alloc_reg_temp_with_value(_jit,
-				addr & ~0xffff);
+		s16 offset = offsetof(struct lightrec_state, reg_cache)
+			+ (reg << 2);
 
 		/* Load previous value from register cache */
-		jit_ldxi_i(jit_reg, jit_tmp, addr & 0xffff);
+		jit_ldxi_i(jit_reg, LIGHTREC_REG_STATE, offset);
 		nreg->loaded = true;
-
-		free_reg(lightning_reg_to_lightrec(jit_tmp));
 	}
 
 	lightrec_rvals[jit_reg].known = false;
@@ -265,13 +256,10 @@ static void storeback_regs(jit_state_t *_jit, u8 start, u8 end)
 			WARNING("Found a used register when storing back!\n");
 
 		if (nreg->dirty) {
-			uintptr_t addr = (uintptr_t) &lightrec_state.reg_cache[
-				nreg->emulated_register];
-			u8 jit_tmp = lightrec_alloc_reg_temp_with_value(_jit,
-					addr & ~0xffff);
+			s16 offset = offsetof(struct lightrec_state, reg_cache)
+				+ (nreg->emulated_register << 2);
 
-			jit_stxi_i(addr & 0xffff, jit_tmp, jit_reg);
-			free_reg(lightning_reg_to_lightrec(jit_tmp));
+			jit_stxi_i(offset, LIGHTREC_REG_STATE, jit_reg);
 		}
 
 		nreg->loaded = false;
