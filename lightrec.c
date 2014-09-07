@@ -132,11 +132,13 @@ void lightrec_free_block(struct block *block)
 	free(block);
 }
 
-void lightrec_init(char *argv0)
+void lightrec_init(char *argv0, struct lightrec_mem_map *map)
 {
 	init_jit(argv0);
 
 	memset(&lightrec_state, 0, sizeof(lightrec_state));
+	lightrec_state.mem_map = map;
+
 	wrapper = generate_wrapper_block();
 }
 
