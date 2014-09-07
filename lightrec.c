@@ -125,10 +125,23 @@ void lightrec_execute_block(struct block *block)
 	func((void *) block->function);
 }
 
+void lightrec_free_block(struct block *block)
+{
+	lightrec_free_opcode_list(block->opcode_list);
+	_jit_destroy_state(block->_jit);
+	free(block);
+}
+
 void lightrec_init(char *argv0)
 {
 	init_jit(argv0);
 
 	memset(&lightrec_state, 0, sizeof(lightrec_state));
 	wrapper = generate_wrapper_block();
+}
+
+void lightrec_destroy(void)
+{
+	lightrec_free_block(wrapper);
+	finish_jit();
 }
