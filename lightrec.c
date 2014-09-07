@@ -24,6 +24,20 @@ struct lightrec_state lightrec_state;
 
 static struct block *wrapper;
 
+static const u32 * find_code_address(u32 pc)
+{
+	struct lightrec_mem_map *map = lightrec_state.mem_map;
+	unsigned int i;
+
+	for (i = 0; i < map->nb_maps; i++) {
+		if (pc >= map->maps[i].pc &&
+				pc < map->maps[i].pc + map->maps[i].length)
+			return map->maps[i].address + (pc - map->maps[i].pc);
+	}
+
+	return NULL;
+}
+
 static struct block * generate_wrapper_block(void)
 {
 	struct block *block;
@@ -82,11 +96,14 @@ err_no_mem:
 	return NULL;
 }
 
-struct block * lightrec_recompile_block(const u32 *code)
+struct block * lightrec_recompile_block(u32 pc)
 {
 	struct opcode_list *elm, *list;
 	struct block *block;
 	jit_state_t *_jit;
+	const u32 *code = find_code_address(pc);
+	if (!code)
+		return NULL;
 
 	block = malloc(sizeof(*block));
 	if (!block)

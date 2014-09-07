@@ -62,7 +62,7 @@ typedef int32_t s32;
 typedef int16_t s16;
 typedef int8_t  s8;
 
-struct block * lightrec_recompile_block(const u32 *code);
+struct block * lightrec_recompile_block(u32 pc);
 void lightrec_free_block(struct block *block);
 
 void lightrec_init(char *argv0, struct lightrec_mem_map *map);
