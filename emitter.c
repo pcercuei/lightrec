@@ -34,7 +34,7 @@ static void lightrec_emit_end_of_block(jit_state_t *_jit,
 {
 	jit_name(__func__);
 	lightrec_free_regs();
-	lightrec_storeback_all_regs(_jit);
+	lightrec_storeback_regs(_jit);
 
 	jit_note(__FILE__, __LINE__);
 

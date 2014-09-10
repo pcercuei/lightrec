@@ -35,11 +35,6 @@ u8 lightrec_alloc_reg_in(jit_state_t *_jit, u8 reg);
 void lightrec_regcache_reset(void);
 
 void lightrec_free_regs(void);
-
-/* Store back caller-saved registers */
 void lightrec_storeback_regs(jit_state_t *_jit);
-
-/* Store back all registers */
-void lightrec_storeback_all_regs(jit_state_t *_jit);
 
 #endif /* __REGCACHE_H__ */

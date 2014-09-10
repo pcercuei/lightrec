@@ -209,18 +209,15 @@ void lightrec_free_regs(void)
 		free_reg(&lightrec_regs[i]);
 }
 
-static void storeback_regs(jit_state_t *_jit, u8 start, u8 end)
+void lightrec_storeback_regs(jit_state_t *_jit)
 {
 	u8 i;
 
 	jit_note(__FILE__, __LINE__);
 
-	for (i = start; i < end; i++) {
+	for (i = 0; i < ARRAY_SIZE(lightrec_regs); i++) {
 		struct native_register *nreg = &lightrec_regs[i];
 		u8 jit_reg = lightrec_reg_to_lightning(nreg);
-
-		if (nreg->used)
-			WARNING("Found a used register when storing back!\n");
 
 		if (nreg->dirty) {
 			s16 offset = offsetof(struct lightrec_state, reg_cache)
@@ -228,21 +225,7 @@ static void storeback_regs(jit_state_t *_jit, u8 start, u8 end)
 
 			jit_stxi_i(offset, LIGHTREC_REG_STATE, jit_reg);
 		}
-
-		nreg->loaded = false;
-		nreg->dirty = false;
-		nreg->used = false;
 	}
-}
-
-void lightrec_storeback_regs(jit_state_t *_jit)
-{
-	storeback_regs(_jit, NUM_REGS, ARRAY_SIZE(lightrec_regs));
-}
-
-void lightrec_storeback_all_regs(jit_state_t *_jit)
-{
-	storeback_regs(_jit, 0, ARRAY_SIZE(lightrec_regs));
 }
 
 void lightrec_regcache_reset(void)
