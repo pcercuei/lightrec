@@ -119,12 +119,14 @@ struct block * lightrec_recompile_block(u32 pc)
 
 	lightrec_regcache_reset();
 
-	for (elm = list; elm; elm = SLIST_NEXT(elm, next))
-		lightrec_rec_opcode(_jit, elm->opcode);
-
 	block->_jit = _jit;
-	block->function = jit_emit();
 	block->opcode_list = list;
+
+	for (elm = list; elm; elm = SLIST_NEXT(elm, next), pc += 4) {
+		lightrec_rec_opcode(_jit, elm->opcode, block, pc);
+	}
+
+	block->function = jit_emit();
 	return block;
 
 err_free_list:

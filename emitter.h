@@ -17,6 +17,7 @@
 
 #include "disassembler.h"
 
-void emit_call_to_interpreter(jit_state_t *_jit, union opcode op);
+void emit_call_to_interpreter(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc);
 
 #endif /* __EMITTER_H__ */

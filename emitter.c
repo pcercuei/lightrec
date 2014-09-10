@@ -17,7 +17,8 @@
 
 #include <lightning.h>
 
-void emit_call_to_interpreter(jit_state_t *_jit, union opcode op)
+void emit_call_to_interpreter(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
 {
 	/* TODO: Generate something... */
 }
@@ -48,18 +49,21 @@ static void lightrec_emit_end_of_block(jit_state_t *_jit,
 	jit_jmpr(JIT_R0);
 }
 
-void rec_special_JR(jit_state_t *_jit, union opcode op)
+void rec_special_JR(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
 {
 	u8 rs = lightrec_alloc_reg_in(_jit, op.r.rs);
 	lightrec_emit_end_of_block(_jit, rs, 0);
 }
 
-void rec_J(jit_state_t *_jit, union opcode op)
+void rec_J(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
 {
 	lightrec_emit_end_of_block(_jit, 0, op.j.imm);
 }
 
-void rec_special_ADDU(jit_state_t *_jit, union opcode op)
+void rec_special_ADDU(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
 {
 	u8 rs, rt, rd;
 

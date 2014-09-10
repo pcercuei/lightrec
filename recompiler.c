@@ -15,15 +15,24 @@
 #include "emitter.h"
 #include "disassembler.h"
 #include "recompiler.h"
+#include "lightrec.h"
+
+typedef void (*lightrec_rec_func_t)(jit_state_t *, union opcode,
+		const struct block *, u32);
 
 /* Forward declarations */
-static void rec_SPECIAL(jit_state_t *_jit, union opcode op);
-static void rec_REGIMM(jit_state_t *_jit, union opcode op);
-static void rec_CP0(jit_state_t *_jit, union opcode op);
-static void rec_CP2(jit_state_t *_jit, union opcode op);
-static void rec_cp2_BASIC(jit_state_t *_jit, union opcode op);
+static void rec_SPECIAL(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc);
+static void rec_REGIMM(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc);
+static void rec_CP0(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc);
+static void rec_CP2(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc);
+static void rec_cp2_BASIC(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc);
 
-static void (*rec_standard[64])(jit_state_t *, union opcode) = {
+static lightrec_rec_func_t rec_standard[64] = {
 	[OP_SPECIAL]		= rec_SPECIAL,
 	[OP_REGIMM]		= rec_REGIMM,
 	[OP_J]			= rec_J,
@@ -59,7 +68,7 @@ static void (*rec_standard[64])(jit_state_t *, union opcode) = {
 	[OP_HLE]		= rec_HLE,
 };
 
-static void (*rec_special[64])(jit_state_t *, union opcode) = {
+static lightrec_rec_func_t rec_special[64] = {
 	[OP_SPECIAL_SLL]	= rec_special_SLL,
 	[OP_SPECIAL_SRL]	= rec_special_SRL,
 	[OP_SPECIAL_SRA]	= rec_special_SRA,
@@ -89,14 +98,14 @@ static void (*rec_special[64])(jit_state_t *, union opcode) = {
 	[OP_SPECIAL_SLTU]	= rec_special_SLTU,
 };
 
-static void (*rec_regimm[32])(jit_state_t *, union opcode) = {
+static lightrec_rec_func_t rec_regimm[64] = {
 	[OP_REGIMM_BLTZ]	= rec_regimm_BLTZ,
 	[OP_REGIMM_BGEZ]	= rec_regimm_BGEZ,
 	[OP_REGIMM_BLTZAL]	= rec_regimm_BLTZAL,
 	[OP_REGIMM_BGEZAL]	= rec_regimm_BGEZAL,
 };
 
-static void (*rec_cp0[32])(jit_state_t *, union opcode) = {
+static lightrec_rec_func_t rec_cp0[64] = {
 	[OP_CP0_MFC0]		= rec_cp0_MFC0,
 	[OP_CP0_CFC0]		= rec_cp0_CFC0,
 	[OP_CP0_MTC0]		= rec_cp0_MTC0,
@@ -104,7 +113,7 @@ static void (*rec_cp0[32])(jit_state_t *, union opcode) = {
 	[OP_CP0_RFE]		= rec_cp0_RFE,
 };
 
-static void (*rec_cp2[64])(jit_state_t *, union opcode) = {
+static lightrec_rec_func_t rec_cp2[64] = {
 	[OP_CP2_BASIC]		= rec_cp2_BASIC,
 	[OP_CP2_RTPS]		= rec_cp2_RTPS,
 	[OP_CP2_NCLIP]		= rec_cp2_NCLIP,
@@ -129,63 +138,69 @@ static void (*rec_cp2[64])(jit_state_t *, union opcode) = {
 	[OP_CP2_NCCT]		= rec_cp2_NCCT,
 };
 
-static void (*rec_cp2_basic[32])(jit_state_t *, union opcode) = {
+static lightrec_rec_func_t rec_cp2_basic[64] = {
 	[OP_CP2_BASIC_MFC2]	= rec_cp2_basic_MFC2,
 	[OP_CP2_BASIC_CFC2]	= rec_cp2_basic_CFC2,
 	[OP_CP2_BASIC_MTC2]	= rec_cp2_basic_MTC2,
 	[OP_CP2_BASIC_CTC2]	= rec_cp2_basic_CTC2,
 };
 
-static void rec_SPECIAL(jit_state_t *_jit, union opcode op)
+static void rec_SPECIAL(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
 {
-	void (*f)(jit_state_t *, union opcode) = rec_special[op.r.op];
+	lightrec_rec_func_t f = rec_special[op.r.op];
 	if (f)
-		(*f)(_jit, op);
+		(*f)(_jit, op, block, pc);
 	else
-		emit_call_to_interpreter(_jit, op);
+		emit_call_to_interpreter(_jit, op, block, pc);
 }
 
-static void rec_REGIMM(jit_state_t *_jit, union opcode op)
+static void rec_REGIMM(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
 {
-	void (*f)(jit_state_t *, union opcode) = rec_regimm[op.r.rt];
+	lightrec_rec_func_t f = rec_regimm[op.r.rt];
 	if (f)
-		(*f)(_jit, op);
+		(*f)(_jit, op, block, pc);
 	else
-		emit_call_to_interpreter(_jit, op);
+		emit_call_to_interpreter(_jit, op, block, pc);
 }
 
-static void rec_CP0(jit_state_t *_jit, union opcode op)
+static void rec_CP0(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
 {
-	void (*f)(jit_state_t *, union opcode) = rec_cp0[op.r.rs];
+	lightrec_rec_func_t f = rec_cp0[op.r.rs];
 	if (f)
-		(*f)(_jit, op);
+		(*f)(_jit, op, block, pc);
 	else
-		emit_call_to_interpreter(_jit, op);
+		emit_call_to_interpreter(_jit, op, block, pc);
 }
 
-static void rec_CP2(jit_state_t *_jit, union opcode op)
+static void rec_CP2(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
 {
-	void (*f)(jit_state_t *, union opcode) = rec_cp2[op.r.op];
+	lightrec_rec_func_t f = rec_cp2[op.r.op];
 	if (f)
-		(*f)(_jit, op);
+		(*f)(_jit, op, block, pc);
 	else
-		emit_call_to_interpreter(_jit, op);
+		emit_call_to_interpreter(_jit, op, block, pc);
 }
 
-static void rec_cp2_BASIC(jit_state_t *_jit, union opcode op)
+static void rec_cp2_BASIC(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
 {
-	void (*f)(jit_state_t *, union opcode) = rec_cp2_basic[op.r.rs];
+	lightrec_rec_func_t f = rec_cp2_basic[op.r.rs];
 	if (f)
-		(*f)(_jit, op);
+		(*f)(_jit, op, block, pc);
 	else
-		emit_call_to_interpreter(_jit, op);
+		emit_call_to_interpreter(_jit, op, block, pc);
 }
 
-void lightrec_rec_opcode(jit_state_t *_jit, union opcode op)
+void lightrec_rec_opcode(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
 {
-	void (*f)(jit_state_t *, union opcode) = rec_standard[op.i.op];
+	lightrec_rec_func_t f = rec_standard[op.i.op];
 	if (f)
-		(*f)(_jit, op);
+		(*f)(_jit, op, block, pc);
 	else
-		emit_call_to_interpreter(_jit, op);
+		emit_call_to_interpreter(_jit, op, block, pc);
 }
