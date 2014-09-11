@@ -196,3 +196,68 @@ void rec_regimm_BGEZ(jit_state_t *_jit, union opcode op,
 
 	lightrec_free_regs();
 }
+
+static void rec_alu_imm(jit_state_t *_jit, union opcode op,
+		jit_code_t code, bool sign_extend)
+{
+	u8 rs = lightrec_alloc_reg_in(_jit, op.i.rs),
+	   rt = lightrec_alloc_reg_out(_jit, op.i.rt);
+
+	jit_note(__FILE__, __LINE__);
+	if (sign_extend)
+		jit_new_node_www(code, rt, rs, (s32)(s16) op.i.imm);
+	else
+		jit_new_node_www(code, rt, rs, (u32)(u16) op.i.imm);
+
+	lightrec_free_regs();
+}
+
+void rec_ADDIU(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
+{
+	jit_name(__func__);
+	rec_alu_imm(_jit, op, jit_code_addi, false);
+}
+
+void rec_ADDI(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
+{
+	/* TODO: Handle the exception? */
+	jit_name(__func__);
+	rec_alu_imm(_jit, op, jit_code_addi, false);
+}
+
+void rec_SLTIU(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
+{
+	jit_name(__func__);
+	rec_alu_imm(_jit, op, jit_code_lti_u, true);
+}
+
+void rec_SLTI(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
+{
+	jit_name(__func__);
+	rec_alu_imm(_jit, op, jit_code_lti, true);
+}
+
+void rec_ANDI(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
+{
+	jit_name(__func__);
+	rec_alu_imm(_jit, op, jit_code_andi, false);
+}
+
+void rec_ORI(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
+{
+	jit_name(__func__);
+	rec_alu_imm(_jit, op, jit_code_ori, false);
+}
+
+void rec_XORI(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
+{
+	jit_name(__func__);
+	rec_alu_imm(_jit, op, jit_code_xori, false);
+}
