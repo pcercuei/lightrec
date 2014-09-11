@@ -76,23 +76,6 @@ void rec_J(jit_state_t *_jit, union opcode op,
 	lightrec_emit_end_of_block(_jit, 0, op.j.imm);
 }
 
-void rec_special_ADDU(jit_state_t *_jit, union opcode op,
-		const struct block *block, u32 pc)
-{
-	u8 rs, rt, rd;
-
-	jit_name(__func__);
-
-	rs = lightrec_alloc_reg_in(_jit, op.r.rs);
-	rt = lightrec_alloc_reg_in(_jit, op.r.rt);
-	rd = lightrec_alloc_reg_out(_jit, op.r.rd);
-
-	jit_note(__FILE__, __LINE__);
-	jit_addr(rd, rs, rt);
-
-	lightrec_free_regs();
-}
-
 void rec_BNE(jit_state_t *_jit, union opcode op,
 		const struct block *block, u32 pc)
 {
@@ -212,6 +195,19 @@ static void rec_alu_imm(jit_state_t *_jit, union opcode op,
 	lightrec_free_regs();
 }
 
+static void rec_alu_special(jit_state_t *_jit, union opcode op,
+		jit_code_t code)
+{
+	u8 rs = lightrec_alloc_reg_in(_jit, op.r.rs),
+	   rt = lightrec_alloc_reg_in(_jit, op.r.rt),
+	   rd = lightrec_alloc_reg_out(_jit, op.r.rd);
+
+	jit_note(__FILE__, __LINE__);
+	jit_new_node_www(code, rd, rt, rs);
+
+	lightrec_free_regs();
+}
+
 void rec_ADDIU(jit_state_t *_jit, union opcode op,
 		const struct block *block, u32 pc)
 {
@@ -260,4 +256,87 @@ void rec_XORI(jit_state_t *_jit, union opcode op,
 {
 	jit_name(__func__);
 	rec_alu_imm(_jit, op, jit_code_xori, false);
+}
+
+void rec_special_ADDU(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
+{
+	jit_name(__func__);
+	rec_alu_special(_jit, op, jit_code_addr);
+}
+
+void rec_special_ADD(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
+{
+	/* TODO: Handle the exception? */
+	jit_name(__func__);
+	rec_alu_special(_jit, op, jit_code_addr);
+}
+
+void rec_special_SUBU(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
+{
+	jit_name(__func__);
+	rec_alu_special(_jit, op, jit_code_subr);
+}
+
+void rec_special_SUB(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
+{
+	/* TODO: Handle the exception? */
+	jit_name(__func__);
+	rec_alu_special(_jit, op, jit_code_subr);
+}
+
+void rec_special_AND(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
+{
+	jit_name(__func__);
+	rec_alu_special(_jit, op, jit_code_andr);
+}
+
+void rec_special_OR(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
+{
+	jit_name(__func__);
+	rec_alu_special(_jit, op, jit_code_orr);
+}
+
+void rec_special_XOR(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
+{
+	jit_name(__func__);
+	rec_alu_special(_jit, op, jit_code_xorr);
+}
+
+void rec_special_NOR(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
+{
+	rec_alu_special(_jit, op, jit_code_xorr);
+	u8 rs, rt, rd;
+
+	jit_name(__func__);
+	rs = lightrec_alloc_reg_in(_jit, op.r.rs);
+	rt = lightrec_alloc_reg_in(_jit, op.r.rt);
+	rd = lightrec_alloc_reg_out(_jit, op.r.rd);
+
+	jit_note(__FILE__, __LINE__);
+	jit_orr(rd, rt, rs);
+	jit_negr(rd, rd);
+
+	lightrec_free_regs();
+}
+
+void rec_special_SLTU(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
+{
+	jit_name(__func__);
+	rec_alu_special(_jit, op, jit_code_ltr_u);
+}
+
+void rec_special_SLT(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
+{
+	jit_name(__func__);
+	rec_alu_special(_jit, op, jit_code_ltr);
 }
