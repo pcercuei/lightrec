@@ -32,6 +32,7 @@ struct block {
 	jit_state_t *_jit;
 	struct opcode_list *opcode_list;
 	void (*function)(void);
+	uint32_t pc;
 };
 
 struct lightrec_mem_map {

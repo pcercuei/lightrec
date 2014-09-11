@@ -119,6 +119,7 @@ struct block * lightrec_recompile_block(u32 pc)
 
 	lightrec_regcache_reset();
 
+	block->pc = pc;
 	block->_jit = _jit;
 	block->opcode_list = list;
 
