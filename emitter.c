@@ -12,6 +12,7 @@
  * Lesser General Public License for more details.
  */
 
+#include "blockcache.h"
 #include "emitter.h"
 #include "regcache.h"
 
@@ -25,8 +26,20 @@ void emit_call_to_interpreter(jit_state_t *_jit, union opcode op,
 
 static uintptr_t __get_jump_address_cb(u32 pc)
 {
-	/* TODO: Recompile the block located at pc, and return its address */
-	return lightrec_state.end_of_block;
+	struct block *new;
+
+	if (lightrec_state.stop)
+		return lightrec_state.end_of_block;
+
+	new = lightrec_find_block(pc);
+	if (!new) {
+		new = lightrec_recompile_block(pc);
+		if (!new)
+			return lightrec_state.end_of_block;
+		lightrec_register_block(new);
+	}
+
+	return (uintptr_t) new->function;
 }
 
 static void lightrec_emit_end_of_block(jit_state_t *_jit,

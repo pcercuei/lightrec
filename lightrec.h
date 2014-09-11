@@ -15,6 +15,7 @@
 #ifndef __LIGHTREC_H__
 #define __LIGHTREC_H__
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #define __weak __attribute__((weak))
@@ -49,6 +50,7 @@ struct lightrec_state {
 	uint32_t reg_cache[32];
 	uintptr_t end_of_block;
 	struct block *current;
+	bool stop;
 };
 
 extern struct lightrec_state lightrec_state;
