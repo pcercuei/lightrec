@@ -84,9 +84,6 @@ static struct block * generate_wrapper_block(void)
 	/* When exiting, the recompiled code will jump to that address */
 	lightrec_state.end_of_block = (uintptr_t) jit_address(addr);
 
-	jit_clear_state();
-	jit_disassemble();
-
 	/* We're done! */
 	return block;
 
