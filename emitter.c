@@ -17,6 +17,7 @@
 #include "regcache.h"
 
 #include <lightning.h>
+#include <stddef.h>
 
 void emit_call_to_interpreter(jit_state_t *_jit, union opcode op,
 		const struct block *block, u32 pc)
@@ -43,11 +44,19 @@ static uintptr_t __get_jump_address_cb(u32 pc)
 }
 
 static void lightrec_emit_end_of_block(jit_state_t *_jit,
-		u8 reg_new_pc, u32 imm)
+		u8 reg_new_pc, u32 imm, u32 link)
 {
 	lightrec_storeback_regs(_jit);
 
 	jit_note(__FILE__, __LINE__);
+
+	if (link) {
+		/* Update the $ra register */
+		s16 offset = offsetof(struct lightrec_state, reg_cache)
+			+ (31 << 2);
+		jit_movi(JIT_R0, link);
+		jit_stxi_i(offset, LIGHTREC_REG_STATE, JIT_R0);
+	}
 
 	/* FIXME: This may not work on all architectures */
 	if (!reg_new_pc)
@@ -66,14 +75,30 @@ void rec_special_JR(jit_state_t *_jit, union opcode op,
 	u8 rs = lightrec_alloc_reg_in(_jit, op.r.rs);
 
 	jit_name(__func__);
-	lightrec_emit_end_of_block(_jit, rs, 0);
+	lightrec_emit_end_of_block(_jit, rs, 0, 0);
+}
+
+void rec_special_JALR(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
+{
+	u8 rs = lightrec_alloc_reg_in(_jit, op.r.rs);
+
+	jit_name(__func__);
+	lightrec_emit_end_of_block(_jit, rs, 0, pc + 8);
 }
 
 void rec_J(jit_state_t *_jit, union opcode op,
 		const struct block *block, u32 pc)
 {
 	jit_name(__func__);
-	lightrec_emit_end_of_block(_jit, 0, op.j.imm);
+	lightrec_emit_end_of_block(_jit, 0, op.j.imm, 0);
+}
+
+void rec_JAL(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
+{
+	jit_name(__func__);
+	lightrec_emit_end_of_block(_jit, 0, op.j.imm, pc + 8);
 }
 
 void rec_BNE(jit_state_t *_jit, union opcode op,
@@ -88,7 +113,7 @@ void rec_BNE(jit_state_t *_jit, union opcode op,
 
 	addr = jit_beqr(rs, rt);
 	lightrec_emit_end_of_block(_jit, 0,
-			pc + 4 + (s16) (op.i.imm << 2));
+			pc + 4 + (s16) (op.i.imm << 2), 0);
 	jit_patch(addr);
 
 	lightrec_free_regs();
@@ -106,7 +131,7 @@ void rec_BEQ(jit_state_t *_jit, union opcode op,
 
 	addr = jit_bner(rs, rt);
 	lightrec_emit_end_of_block(_jit, 0,
-			pc + 4 + (s16) (op.i.imm << 2));
+			pc + 4 + (s16) (op.i.imm << 2), 0);
 	jit_patch(addr);
 
 	lightrec_free_regs();
@@ -123,7 +148,7 @@ void rec_BLEZ(jit_state_t *_jit, union opcode op,
 
 	addr = jit_bgti(rs, 0);
 	lightrec_emit_end_of_block(_jit, 0,
-			pc + 4 + (s16) (op.i.imm << 2));
+			pc + 4 + (s16) (op.i.imm << 2), 0);
 	jit_patch(addr);
 
 	lightrec_free_regs();
@@ -140,7 +165,7 @@ void rec_BGTZ(jit_state_t *_jit, union opcode op,
 
 	addr = jit_blei(rs, 0);
 	lightrec_emit_end_of_block(_jit, 0,
-			pc + 4 + (s16) (op.i.imm << 2));
+			pc + 4 + (s16) (op.i.imm << 2), 0);
 	jit_patch(addr);
 
 	lightrec_free_regs();
@@ -157,7 +182,24 @@ void rec_regimm_BLTZ(jit_state_t *_jit, union opcode op,
 
 	addr = jit_bgei(rs, 0);
 	lightrec_emit_end_of_block(_jit, 0,
-			pc + 4 + (s16) (op.i.imm << 2));
+			pc + 4 + (s16) (op.i.imm << 2), 0);
+	jit_patch(addr);
+
+	lightrec_free_regs();
+}
+
+void rec_regimm_BLTZAL(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
+{
+	u8 rs;
+	jit_node_t *addr;
+
+	jit_name(__func__);
+	rs = lightrec_alloc_reg_in(_jit, op.i.rs);
+
+	addr = jit_bgei(rs, 0);
+	lightrec_emit_end_of_block(_jit, 0,
+			pc + 4 + (s16) (op.i.imm << 2), pc + 8);
 	jit_patch(addr);
 
 	lightrec_free_regs();
@@ -174,7 +216,24 @@ void rec_regimm_BGEZ(jit_state_t *_jit, union opcode op,
 
 	addr = jit_blti(rs, 0);
 	lightrec_emit_end_of_block(_jit, 0,
-			pc + 4 + (s16) (op.i.imm << 2));
+			pc + 4 + (s16) (op.i.imm << 2), 0);
+	jit_patch(addr);
+
+	lightrec_free_regs();
+}
+
+void rec_regimm_BGEZAL(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
+{
+	u8 rs;
+	jit_node_t *addr;
+
+	jit_name(__func__);
+	rs = lightrec_alloc_reg_in(_jit, op.i.rs);
+
+	addr = jit_blti(rs, 0);
+	lightrec_emit_end_of_block(_jit, 0,
+			pc + 4 + (s16) (op.i.imm << 2), pc + 8);
 	jit_patch(addr);
 
 	lightrec_free_regs();
