@@ -12,6 +12,7 @@
  * Lesser General Public License for more details.
  */
 
+#include "blockcache.h"
 #include "debug.h"
 #include "lightrec.h"
 #include "recompiler.h"
@@ -164,6 +165,7 @@ void lightrec_init(char *argv0, struct lightrec_mem_map *map)
 
 void lightrec_destroy(void)
 {
+	lightrec_free_block_cache();
 	lightrec_free_block(wrapper);
 	finish_jit();
 }

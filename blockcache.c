@@ -36,3 +36,12 @@ void lightrec_register_block(struct block *block)
 		lightrec_free_block(old);
 	block_lut[(block->pc >> 2) & (LUT_SIZE - 1)] = block;
 }
+
+void lightrec_free_block_cache(void)
+{
+	unsigned int i;
+
+	for (i = 0; i < LUT_SIZE; i++)
+		if (block_lut[i])
+			lightrec_free_block(block_lut[i]);
+}

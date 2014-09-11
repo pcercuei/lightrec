@@ -20,4 +20,6 @@
 struct block * lightrec_find_block(u32 pc);
 void lightrec_register_block(struct block *block);
 
+void lightrec_free_block_cache(void);
+
 #endif /* __BLOCKCACHE_H__ */
