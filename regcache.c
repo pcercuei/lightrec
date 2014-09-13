@@ -122,13 +122,18 @@ u8 lightrec_alloc_reg_temp(jit_state_t *_jit)
 
 	/* If we get a dirty register, store back the old value */
 	if (nreg->dirty) {
-		u32 *addr = &lightrec_state.reg_cache[nreg->emulated_register];
-		jit_sti_i(addr, jit_reg);
+		s16 offset = offsetof(struct lightrec_state, reg_cache)
+			+ (nreg->emulated_register << 2);
+
+		jit_stxi_i(offset, LIGHTREC_REG_STATE, jit_reg);
+
 		nreg->dirty = false;
 	}
 
+	nreg->loaded = false;
 	nreg->output = false;
 	nreg->used = true;
+	nreg->emulated_register = 0;
 	return jit_reg;
 }
 
