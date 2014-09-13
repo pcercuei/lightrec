@@ -15,6 +15,7 @@
 #include "blockcache.h"
 #include "debug.h"
 #include "emitter.h"
+#include "recompiler.h"
 #include "regcache.h"
 
 #include <lightning.h>
@@ -49,19 +50,29 @@ static uintptr_t __get_jump_address_cb(u32 pc)
 	return (uintptr_t) new->function;
 }
 
-static int lightrec_emit_end_of_block(jit_state_t *_jit,
-		u8 reg_new_pc, u32 imm, u32 link)
+static struct opcode_list * find_delay_slot(const struct block *block, u32 pc)
 {
-	lightrec_storeback_regs(_jit);
+	struct opcode_list *elm = block->opcode_list;
+	u32 pc_addr;
 
+	for (pc_addr = block->pc; pc_addr <= pc; pc_addr += 4)
+		elm = SLIST_NEXT(elm, next);
+	return elm;
+}
+
+static int lightrec_emit_end_of_block(jit_state_t *_jit,
+		const struct block *block, u32 pc,
+		u8 reg_new_pc, u32 imm, u32 link,
+		struct opcode_list *delay_slot)
+{
 	jit_note(__FILE__, __LINE__);
 
 	if (link) {
 		/* Update the $ra register */
 		s16 offset = offsetof(struct lightrec_state, reg_cache)
 			+ (31 << 2);
-		jit_movi(JIT_R0, link);
-		jit_stxi_i(offset, LIGHTREC_REG_STATE, JIT_R0);
+		jit_movi(JIT_RA0, link);
+		jit_stxi_i(offset, LIGHTREC_REG_STATE, JIT_RA0);
 	}
 
 	/* FIXME: This may not work on all architectures */
@@ -69,6 +80,11 @@ static int lightrec_emit_end_of_block(jit_state_t *_jit,
 		jit_movi(JIT_RA0, imm);
 	else
 		jit_movr(JIT_RA0, reg_new_pc);
+
+	/* Recompile the delay slot */
+	lightrec_rec_opcode(_jit, delay_slot->opcode, block, pc + 4);
+
+	lightrec_storeback_regs(_jit);
 
 	jit_calli(&__get_jump_address_cb);
 	jit_retval(JIT_R0);
@@ -79,38 +95,46 @@ static int lightrec_emit_end_of_block(jit_state_t *_jit,
 int rec_special_JR(jit_state_t *_jit, union opcode op,
 		const struct block *block, u32 pc)
 {
+	struct opcode_list *elm = find_delay_slot(block, pc);
 	u8 rs = lightrec_alloc_reg_in(_jit, op.r.rs);
 
 	jit_name(__func__);
-	return lightrec_emit_end_of_block(_jit, rs, 0, 0);
+	return lightrec_emit_end_of_block(_jit, block, pc, rs, 0, 0, elm);
 }
 
 int rec_special_JALR(jit_state_t *_jit, union opcode op,
 		const struct block *block, u32 pc)
 {
+	struct opcode_list *elm = find_delay_slot(block, pc);
 	u8 rs = lightrec_alloc_reg_in(_jit, op.r.rs);
 
 	jit_name(__func__);
-	return lightrec_emit_end_of_block(_jit, rs, 0, pc + 8);
+	return lightrec_emit_end_of_block(_jit, block, pc, rs, 0, pc + 8, elm);
 }
 
 int rec_J(jit_state_t *_jit, union opcode op,
 		const struct block *block, u32 pc)
 {
+	struct opcode_list *elm = find_delay_slot(block, pc);
+
 	jit_name(__func__);
-	return lightrec_emit_end_of_block(_jit, 0, op.j.imm, 0);
+	return lightrec_emit_end_of_block(_jit, block, pc, 0, op.j.imm, 0, elm);
 }
 
 int rec_JAL(jit_state_t *_jit, union opcode op,
 		const struct block *block, u32 pc)
 {
+	struct opcode_list *elm = find_delay_slot(block, pc);
+
 	jit_name(__func__);
-	return lightrec_emit_end_of_block(_jit, 0, op.j.imm, pc + 8);
+	return lightrec_emit_end_of_block(_jit, block,
+			pc, 0, op.j.imm, pc + 8, elm);
 }
 
 static int rec_b(jit_state_t *_jit, union opcode op,
-		u32 pc, jit_code_t code)
+		const struct block *block, u32 pc, jit_code_t code)
 {
+	struct opcode_list *delay_slot = find_delay_slot(block, pc);
 	u8 rs, rt;
 	jit_node_t *addr;
 
@@ -119,17 +143,21 @@ static int rec_b(jit_state_t *_jit, union opcode op,
 	rt = lightrec_alloc_reg_in(_jit, op.i.rt);
 
 	addr = jit_new_node_pww(code, NULL, rs, rt);
-	lightrec_emit_end_of_block(_jit, 0,
-			pc + 4 + (s16) (op.i.imm << 2), 0);
+	lightrec_emit_end_of_block(_jit, block, pc, 0,
+			pc + 4 + (s16) (op.i.imm << 2), 0, delay_slot);
 	jit_patch(addr);
 
+	if (1 /* TODO: BL opcodes */)
+		lightrec_rec_opcode(_jit, delay_slot->opcode, block, pc + 4);
+
 	lightrec_free_regs();
-	return 0;
+	return SKIP_DELAY_SLOT;
 }
 
 static int rec_bz(jit_state_t *_jit, union opcode op,
-		u32 pc, jit_code_t code, u32 link)
+		const struct block *block, u32 pc, jit_code_t code, u32 link)
 {
+	struct opcode_list *delay_slot = find_delay_slot(block, pc);
 	u8 rs;
 	jit_node_t *addr;
 
@@ -137,68 +165,71 @@ static int rec_bz(jit_state_t *_jit, union opcode op,
 	rs = lightrec_alloc_reg_in(_jit, op.i.rs);
 
 	addr = jit_new_node_pww(code, NULL, rs, 0);
-	lightrec_emit_end_of_block(_jit, 0,
-			pc + 4 + (s16) (op.i.imm << 2), link);
+	lightrec_emit_end_of_block(_jit, block, pc, 0,
+			pc + 4 + (s16) (op.i.imm << 2), link, delay_slot);
 	jit_patch(addr);
 
+	if (1 /* TODO: BL opcodes */)
+		lightrec_rec_opcode(_jit, delay_slot->opcode, block, pc + 4);
+
 	lightrec_free_regs();
-	return 0;
+	return SKIP_DELAY_SLOT;
 }
 
 int rec_BNE(jit_state_t *_jit, union opcode op,
 		const struct block *block, u32 pc)
 {
 	jit_name(__func__);
-	return rec_b(_jit, op, pc, jit_code_beqr);
+	return rec_b(_jit, op, block, pc, jit_code_beqr);
 }
 
 int rec_BEQ(jit_state_t *_jit, union opcode op,
 		const struct block *block, u32 pc)
 {
 	jit_name(__func__);
-	return rec_b(_jit, op, pc, jit_code_bner);
+	return rec_b(_jit, op, block, pc, jit_code_bner);
 }
 
 int rec_BLEZ(jit_state_t *_jit, union opcode op,
 		const struct block *block, u32 pc)
 {
 	jit_name(__func__);
-	return rec_bz(_jit, op, pc, jit_code_bgti, 0);
+	return rec_bz(_jit, op, block, pc, jit_code_bgti, 0);
 }
 
 int rec_BGTZ(jit_state_t *_jit, union opcode op,
 		const struct block *block, u32 pc)
 {
 	jit_name(__func__);
-	return rec_bz(_jit, op, pc, jit_code_blei, 0);
+	return rec_bz(_jit, op, block, pc, jit_code_blei, 0);
 }
 
 int rec_regimm_BLTZ(jit_state_t *_jit, union opcode op,
 		const struct block *block, u32 pc)
 {
 	jit_name(__func__);
-	return rec_bz(_jit, op, pc, jit_code_bgei, 0);
+	return rec_bz(_jit, op, block, pc, jit_code_bgei, 0);
 }
 
 int rec_regimm_BLTZAL(jit_state_t *_jit, union opcode op,
 		const struct block *block, u32 pc)
 {
 	jit_name(__func__);
-	return rec_bz(_jit, op, pc, jit_code_bgei, pc + 8);
+	return rec_bz(_jit, op, block, pc, jit_code_bgei, pc + 8);
 }
 
 int rec_regimm_BGEZ(jit_state_t *_jit, union opcode op,
 		const struct block *block, u32 pc)
 {
 	jit_name(__func__);
-	return rec_bz(_jit, op, pc, jit_code_blti, 0);
+	return rec_bz(_jit, op, block, pc, jit_code_blti, 0);
 }
 
 int rec_regimm_BGEZAL(jit_state_t *_jit, union opcode op,
 		const struct block *block, u32 pc)
 {
 	jit_name(__func__);
-	return rec_bz(_jit, op, pc, jit_code_blti, pc + 8);
+	return rec_bz(_jit, op, block, pc, jit_code_blti, pc + 8);
 }
 
 static int rec_alu_imm(jit_state_t *_jit, union opcode op,

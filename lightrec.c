@@ -14,6 +14,7 @@
 
 #include "blockcache.h"
 #include "debug.h"
+#include "emitter.h"
 #include "lightrec.h"
 #include "recompiler.h"
 #include "regcache.h"
@@ -99,6 +100,7 @@ struct block * lightrec_recompile_block(u32 pc)
 	struct opcode_list *elm, *list;
 	struct block *block;
 	jit_state_t *_jit;
+	bool skip_next = false;
 	const u32 *code = find_code_address(pc);
 	if (!code)
 		return NULL;
@@ -122,7 +124,15 @@ struct block * lightrec_recompile_block(u32 pc)
 	block->opcode_list = list;
 
 	for (elm = list; elm; elm = SLIST_NEXT(elm, next), pc += 4) {
-		lightrec_rec_opcode(_jit, elm->opcode, block, pc);
+		int ret;
+
+		if (skip_next) {
+			skip_next = false;
+			continue;
+		}
+
+		ret = lightrec_rec_opcode(_jit, elm->opcode, block, pc);
+		skip_next = ret == SKIP_DELAY_SLOT;
 	}
 
 	block->function = jit_emit();

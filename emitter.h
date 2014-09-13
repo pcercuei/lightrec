@@ -17,6 +17,8 @@
 
 #include "disassembler.h"
 
+#define SKIP_DELAY_SLOT 1
+
 int emit_call_to_interpreter(jit_state_t *_jit, union opcode op,
 		const struct block *block, u32 pc);
 
