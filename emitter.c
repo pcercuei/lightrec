@@ -36,14 +36,14 @@ static uintptr_t __get_jump_address_cb(u32 pc)
 {
 	struct block *new;
 
-	if (lightrec_state.stop)
-		return lightrec_state.end_of_block;
+	if (lightrec_state->stop)
+		return lightrec_state->end_of_block;
 
 	new = lightrec_find_block(pc);
 	if (!new) {
 		new = lightrec_recompile_block(pc);
 		if (!new)
-			return lightrec_state.end_of_block;
+			return lightrec_state->end_of_block;
 		lightrec_register_block(new);
 	}
 

@@ -22,19 +22,18 @@
 #include <lightning.h>
 #include <string.h>
 
-struct lightrec_state lightrec_state;
+struct lightrec_state *lightrec_state;
 
 static struct block *wrapper;
 
 static const u32 * find_code_address(u32 pc)
 {
-	struct lightrec_mem_map *map = lightrec_state.mem_map;
+	struct lightrec_mem_map *map = lightrec_state->mem_map;
 	unsigned int i;
 
-	for (i = 0; i < map->nb_maps; i++) {
-		if (pc >= map->maps[i].pc &&
-				pc < map->maps[i].pc + map->maps[i].length)
-			return map->maps[i].address + (pc - map->maps[i].pc);
+	for (i = 0; i < lightrec_state->nb_maps; i++) {
+		if (pc >= map[i].pc && pc < map[i].pc + map[i].length)
+			return map[i].address + (pc - map[i].pc);
 	}
 
 	return NULL;
@@ -67,7 +66,7 @@ static struct block * generate_wrapper_block(void)
 
 	/* Pass lightrec_state structure to blocks, using the last callee-saved
 	 * register that Lightning provides */
-	jit_movi(LIGHTREC_REG_STATE, &lightrec_state);
+	jit_movi(LIGHTREC_REG_STATE, lightrec_state);
 
 	/* Call the block's code */
 	jit_jmpr(JIT_RA0);
@@ -83,7 +82,7 @@ static struct block * generate_wrapper_block(void)
 	block->opcode_list = NULL;
 
 	/* When exiting, the recompiled code will jump to that address */
-	lightrec_state.end_of_block = (uintptr_t) jit_address(addr);
+	lightrec_state->end_of_block = (uintptr_t) jit_address(addr);
 
 	/* We're done! */
 	return block;
@@ -160,12 +159,15 @@ void lightrec_free_block(struct block *block)
 	free(block);
 }
 
-void lightrec_init(char *argv0, struct lightrec_mem_map *map)
+void lightrec_init(char *argv0, struct lightrec_mem_map *map, unsigned int nb)
 {
 	init_jit(argv0);
 
-	memset(&lightrec_state, 0, sizeof(lightrec_state));
-	lightrec_state.mem_map = map;
+	lightrec_state = calloc(1, sizeof(*lightrec_state)
+			+ nb * sizeof(struct lightrec_mem_map));
+
+	lightrec_state->nb_maps = nb;
+	memcpy(lightrec_state->mem_map, map, nb * sizeof(*map));
 
 	wrapper = generate_wrapper_block();
 }

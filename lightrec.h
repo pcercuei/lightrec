@@ -37,23 +37,21 @@ struct block {
 };
 
 struct lightrec_mem_map {
-	unsigned int nb_maps;
-	struct {
-		uint32_t pc;
-		void *address;
-		unsigned long length;
-	} maps[];
+	uint32_t pc;
+	void *address;
+	unsigned long length;
 };
 
 struct lightrec_state {
-	struct lightrec_mem_map *mem_map;
 	uint32_t reg_cache[34];
 	uintptr_t end_of_block;
 	struct block *current;
 	bool stop;
+	unsigned int nb_maps;
+	struct lightrec_mem_map mem_map[];
 };
 
-extern struct lightrec_state lightrec_state;
+extern struct lightrec_state *lightrec_state;
 
 typedef uint64_t u64;
 typedef uint32_t u32;
@@ -68,7 +66,7 @@ typedef int8_t  s8;
 struct block * lightrec_recompile_block(u32 pc);
 void lightrec_free_block(struct block *block);
 
-void lightrec_init(char *argv0, struct lightrec_mem_map *map);
+void lightrec_init(char *argv0, struct lightrec_mem_map *map, unsigned int nb);
 void lightrec_destroy(void);
 
 void lightrec_execute(struct block *block);
