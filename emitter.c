@@ -208,14 +208,17 @@ static void rec_alu_imm(jit_state_t *_jit, union opcode op,
 }
 
 static void rec_alu_special(jit_state_t *_jit, union opcode op,
-		jit_code_t code)
+		jit_code_t code, bool invert_rs_rt)
 {
 	u8 rs = lightrec_alloc_reg_in(_jit, op.r.rs),
 	   rt = lightrec_alloc_reg_in(_jit, op.r.rt),
 	   rd = lightrec_alloc_reg_out(_jit, op.r.rd);
 
 	jit_note(__FILE__, __LINE__);
-	jit_new_node_www(code, rd, rt, rs);
+	if (invert_rs_rt)
+		jit_new_node_www(code, rd, rt, rs);
+	else
+		jit_new_node_www(code, rd, rs, rt);
 
 	lightrec_free_regs();
 }
@@ -274,7 +277,7 @@ void rec_special_ADDU(jit_state_t *_jit, union opcode op,
 		const struct block *block, u32 pc)
 {
 	jit_name(__func__);
-	rec_alu_special(_jit, op, jit_code_addr);
+	rec_alu_special(_jit, op, jit_code_addr, false);
 }
 
 void rec_special_ADD(jit_state_t *_jit, union opcode op,
@@ -282,14 +285,14 @@ void rec_special_ADD(jit_state_t *_jit, union opcode op,
 {
 	/* TODO: Handle the exception? */
 	jit_name(__func__);
-	rec_alu_special(_jit, op, jit_code_addr);
+	rec_alu_special(_jit, op, jit_code_addr, false);
 }
 
 void rec_special_SUBU(jit_state_t *_jit, union opcode op,
 		const struct block *block, u32 pc)
 {
 	jit_name(__func__);
-	rec_alu_special(_jit, op, jit_code_subr);
+	rec_alu_special(_jit, op, jit_code_subr, false);
 }
 
 void rec_special_SUB(jit_state_t *_jit, union opcode op,
@@ -297,34 +300,34 @@ void rec_special_SUB(jit_state_t *_jit, union opcode op,
 {
 	/* TODO: Handle the exception? */
 	jit_name(__func__);
-	rec_alu_special(_jit, op, jit_code_subr);
+	rec_alu_special(_jit, op, jit_code_subr, false);
 }
 
 void rec_special_AND(jit_state_t *_jit, union opcode op,
 		const struct block *block, u32 pc)
 {
 	jit_name(__func__);
-	rec_alu_special(_jit, op, jit_code_andr);
+	rec_alu_special(_jit, op, jit_code_andr, false);
 }
 
 void rec_special_OR(jit_state_t *_jit, union opcode op,
 		const struct block *block, u32 pc)
 {
 	jit_name(__func__);
-	rec_alu_special(_jit, op, jit_code_orr);
+	rec_alu_special(_jit, op, jit_code_orr, false);
 }
 
 void rec_special_XOR(jit_state_t *_jit, union opcode op,
 		const struct block *block, u32 pc)
 {
 	jit_name(__func__);
-	rec_alu_special(_jit, op, jit_code_xorr);
+	rec_alu_special(_jit, op, jit_code_xorr, false);
 }
 
 void rec_special_NOR(jit_state_t *_jit, union opcode op,
 		const struct block *block, u32 pc)
 {
-	rec_alu_special(_jit, op, jit_code_xorr);
+	rec_alu_special(_jit, op, jit_code_xorr, false);
 	u8 rs, rt, rd;
 
 	jit_name(__func__);
@@ -343,12 +346,12 @@ void rec_special_SLTU(jit_state_t *_jit, union opcode op,
 		const struct block *block, u32 pc)
 {
 	jit_name(__func__);
-	rec_alu_special(_jit, op, jit_code_ltr_u);
+	rec_alu_special(_jit, op, jit_code_ltr_u, false);
 }
 
 void rec_special_SLT(jit_state_t *_jit, union opcode op,
 		const struct block *block, u32 pc)
 {
 	jit_name(__func__);
-	rec_alu_special(_jit, op, jit_code_ltr);
+	rec_alu_special(_jit, op, jit_code_ltr, false);
 }
