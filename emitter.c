@@ -276,6 +276,20 @@ void rec_XORI(jit_state_t *_jit, union opcode op,
 	rec_alu_imm(_jit, op, jit_code_xori, false);
 }
 
+void rec_LUI(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
+{
+	u8 rt;
+
+	jit_name(__func__);
+	rt = lightrec_alloc_reg_out(_jit, op.i.rt);
+
+	jit_note(__FILE__, __LINE__);
+	jit_movi(rt, op.i.imm << 16);
+
+	lightrec_free_regs();
+}
+
 void rec_special_ADDU(jit_state_t *_jit, union opcode op,
 		const struct block *block, u32 pc)
 {
