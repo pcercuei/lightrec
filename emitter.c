@@ -355,3 +355,57 @@ void rec_special_SLT(jit_state_t *_jit, union opcode op,
 	jit_name(__func__);
 	rec_alu_special(_jit, op, jit_code_ltr, false);
 }
+
+void rec_special_SLLV(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
+{
+	jit_name(__func__);
+	rec_alu_special(_jit, op, jit_code_lshr, true);
+}
+
+void rec_special_SRLV(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
+{
+	jit_name(__func__);
+	rec_alu_special(_jit, op, jit_code_rshr_u, true);
+}
+
+void rec_special_SRAV(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
+{
+	jit_name(__func__);
+	rec_alu_special(_jit, op, jit_code_rshr, true);
+}
+
+static void rec_alu_shift(jit_state_t *_jit, union opcode op,
+		jit_code_t code)
+{
+	u8 rt = lightrec_alloc_reg_in(_jit, op.r.rt),
+	   rd = lightrec_alloc_reg_out(_jit, op.r.rd);
+
+	jit_note(__FILE__, __LINE__);
+	jit_new_node_www(code, rd, rt, op.r.imm);
+
+	lightrec_free_regs();
+}
+
+void rec_special_SLL(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
+{
+	jit_name(__func__);
+	rec_alu_shift(_jit, op, jit_code_lshi);
+}
+
+void rec_special_SRL(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
+{
+	jit_name(__func__);
+	rec_alu_shift(_jit, op, jit_code_rshi_u);
+}
+
+void rec_special_SRA(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
+{
+	jit_name(__func__);
+	rec_alu_shift(_jit, op, jit_code_rshi);
+}
