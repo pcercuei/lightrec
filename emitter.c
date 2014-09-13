@@ -101,142 +101,95 @@ void rec_JAL(jit_state_t *_jit, union opcode op,
 	lightrec_emit_end_of_block(_jit, 0, op.j.imm, pc + 8);
 }
 
-void rec_BNE(jit_state_t *_jit, union opcode op,
-		const struct block *block, u32 pc)
+static void rec_b(jit_state_t *_jit, union opcode op,
+		u32 pc, jit_code_t code)
 {
 	u8 rs, rt;
 	jit_node_t *addr;
 
-	jit_name(__func__);
+	jit_note(__FILE__, __LINE__);
 	rs = lightrec_alloc_reg_in(_jit, op.i.rs);
 	rt = lightrec_alloc_reg_in(_jit, op.i.rt);
 
-	addr = jit_beqr(rs, rt);
+	addr = jit_new_node_pww(code, NULL, rs, rt);
 	lightrec_emit_end_of_block(_jit, 0,
 			pc + 4 + (s16) (op.i.imm << 2), 0);
 	jit_patch(addr);
 
 	lightrec_free_regs();
+}
+
+static void rec_bz(jit_state_t *_jit, union opcode op,
+		u32 pc, jit_code_t code, u32 link)
+{
+	u8 rs;
+	jit_node_t *addr;
+
+	jit_note(__FILE__, __LINE__);
+	rs = lightrec_alloc_reg_in(_jit, op.i.rs);
+
+	addr = jit_new_node_pww(code, NULL, rs, 0);
+	lightrec_emit_end_of_block(_jit, 0,
+			pc + 4 + (s16) (op.i.imm << 2), link);
+	jit_patch(addr);
+
+	lightrec_free_regs();
+}
+
+void rec_BNE(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
+{
+	jit_name(__func__);
+	rec_b(_jit, op, pc, jit_code_beqr);
 }
 
 void rec_BEQ(jit_state_t *_jit, union opcode op,
 		const struct block *block, u32 pc)
 {
-	u8 rs, rt;
-	jit_node_t *addr;
-
 	jit_name(__func__);
-	rs = lightrec_alloc_reg_in(_jit, op.i.rs);
-	rt = lightrec_alloc_reg_in(_jit, op.i.rt);
-
-	addr = jit_bner(rs, rt);
-	lightrec_emit_end_of_block(_jit, 0,
-			pc + 4 + (s16) (op.i.imm << 2), 0);
-	jit_patch(addr);
-
-	lightrec_free_regs();
+	rec_b(_jit, op, pc, jit_code_bner);
 }
 
 void rec_BLEZ(jit_state_t *_jit, union opcode op,
 		const struct block *block, u32 pc)
 {
-	u8 rs;
-	jit_node_t *addr;
-
 	jit_name(__func__);
-	rs = lightrec_alloc_reg_in(_jit, op.i.rs);
-
-	addr = jit_bgti(rs, 0);
-	lightrec_emit_end_of_block(_jit, 0,
-			pc + 4 + (s16) (op.i.imm << 2), 0);
-	jit_patch(addr);
-
-	lightrec_free_regs();
+	rec_bz(_jit, op, pc, jit_code_bgti, 0);
 }
 
 void rec_BGTZ(jit_state_t *_jit, union opcode op,
 		const struct block *block, u32 pc)
 {
-	u8 rs;
-	jit_node_t *addr;
-
 	jit_name(__func__);
-	rs = lightrec_alloc_reg_in(_jit, op.i.rs);
-
-	addr = jit_blei(rs, 0);
-	lightrec_emit_end_of_block(_jit, 0,
-			pc + 4 + (s16) (op.i.imm << 2), 0);
-	jit_patch(addr);
-
-	lightrec_free_regs();
+	rec_bz(_jit, op, pc, jit_code_blei, 0);
 }
 
 void rec_regimm_BLTZ(jit_state_t *_jit, union opcode op,
 		const struct block *block, u32 pc)
 {
-	u8 rs;
-	jit_node_t *addr;
-
 	jit_name(__func__);
-	rs = lightrec_alloc_reg_in(_jit, op.i.rs);
-
-	addr = jit_bgei(rs, 0);
-	lightrec_emit_end_of_block(_jit, 0,
-			pc + 4 + (s16) (op.i.imm << 2), 0);
-	jit_patch(addr);
-
-	lightrec_free_regs();
+	rec_bz(_jit, op, pc, jit_code_bgei, 0);
 }
 
 void rec_regimm_BLTZAL(jit_state_t *_jit, union opcode op,
 		const struct block *block, u32 pc)
 {
-	u8 rs;
-	jit_node_t *addr;
-
 	jit_name(__func__);
-	rs = lightrec_alloc_reg_in(_jit, op.i.rs);
-
-	addr = jit_bgei(rs, 0);
-	lightrec_emit_end_of_block(_jit, 0,
-			pc + 4 + (s16) (op.i.imm << 2), pc + 8);
-	jit_patch(addr);
-
-	lightrec_free_regs();
+	rec_bz(_jit, op, pc, jit_code_bgei, pc + 8);
 }
 
 void rec_regimm_BGEZ(jit_state_t *_jit, union opcode op,
 		const struct block *block, u32 pc)
 {
-	u8 rs;
-	jit_node_t *addr;
-
 	jit_name(__func__);
-	rs = lightrec_alloc_reg_in(_jit, op.i.rs);
-
-	addr = jit_blti(rs, 0);
-	lightrec_emit_end_of_block(_jit, 0,
-			pc + 4 + (s16) (op.i.imm << 2), 0);
-	jit_patch(addr);
-
-	lightrec_free_regs();
+	rec_bz(_jit, op, pc, jit_code_blti, 0);
 }
 
 void rec_regimm_BGEZAL(jit_state_t *_jit, union opcode op,
 		const struct block *block, u32 pc)
 {
-	u8 rs;
-	jit_node_t *addr;
-
 	jit_name(__func__);
-	rs = lightrec_alloc_reg_in(_jit, op.i.rs);
-
-	addr = jit_blti(rs, 0);
-	lightrec_emit_end_of_block(_jit, 0,
-			pc + 4 + (s16) (op.i.imm << 2), pc + 8);
-	jit_patch(addr);
-
-	lightrec_free_regs();
+	rec_bz(_jit, op, pc, jit_code_blti, pc + 8);
 }
 
 static void rec_alu_imm(jit_state_t *_jit, union opcode op,
