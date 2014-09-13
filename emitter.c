@@ -334,7 +334,7 @@ void rec_special_NOR(jit_state_t *_jit, union opcode op,
 
 	jit_note(__FILE__, __LINE__);
 	jit_orr(rd, rt, rs);
-	jit_negr(rd, rd);
+	jit_comr(rd, rd);
 
 	lightrec_free_regs();
 }
