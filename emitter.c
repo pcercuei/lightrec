@@ -19,6 +19,9 @@
 #include <lightning.h>
 #include <stddef.h>
 
+#define REG_LO 32
+#define REG_HI 33
+
 void emit_call_to_interpreter(jit_state_t *_jit, union opcode op,
 		const struct block *block, u32 pc)
 {
@@ -408,4 +411,80 @@ void rec_special_SRA(jit_state_t *_jit, union opcode op,
 {
 	jit_name(__func__);
 	rec_alu_shift(_jit, op, jit_code_rshi);
+}
+
+static void rec_alu_mult_div(jit_state_t *_jit, union opcode op,
+		jit_code_t code)
+{
+	u8 rs = lightrec_alloc_reg_in(_jit, op.r.rs),
+	   rt = lightrec_alloc_reg_in(_jit, op.r.rt),
+	   lo = lightrec_alloc_reg_out(_jit, REG_LO),
+	   hi = lightrec_alloc_reg_out(_jit, REG_HI);
+
+	jit_note(__FILE__, __LINE__);
+	jit_new_node_qww(code, lo, hi, rs, rt);
+
+	lightrec_free_regs();
+}
+
+void rec_special_MULT(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
+{
+	jit_name(__func__);
+	rec_alu_mult_div(_jit, op, jit_code_qmulr);
+}
+
+void rec_special_MULTU(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
+{
+	jit_name(__func__);
+	rec_alu_mult_div(_jit, op, jit_code_qmulr_u);
+}
+
+void rec_special_DIV(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
+{
+	jit_name(__func__);
+	rec_alu_mult_div(_jit, op, jit_code_qdivr);
+}
+
+void rec_special_DIVU(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
+{
+	jit_name(__func__);
+	rec_alu_mult_div(_jit, op, jit_code_qdivr_u);
+}
+
+static void rec_alu_mv_lo_hi(jit_state_t *_jit, u8 dst, u8 src)
+{
+	src = lightrec_alloc_reg_in(_jit, src);
+	dst = lightrec_alloc_reg_out(_jit, dst);
+
+	jit_movr(dst, src);
+
+	lightrec_free_regs();
+}
+
+void rec_special_MFHI(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
+{
+	rec_alu_mv_lo_hi(_jit, op.r.rd, REG_HI);
+}
+
+void rec_special_MTHI(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
+{
+	rec_alu_mv_lo_hi(_jit, REG_HI, op.r.rs);
+}
+
+void rec_special_MFLO(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
+{
+	rec_alu_mv_lo_hi(_jit, op.r.rd, REG_LO);
+}
+
+void rec_special_MTLO(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
+{
+	rec_alu_mv_lo_hi(_jit, REG_LO, op.r.rs);
 }

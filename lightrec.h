@@ -47,7 +47,7 @@ struct lightrec_mem_map {
 
 struct lightrec_state {
 	struct lightrec_mem_map *mem_map;
-	uint32_t reg_cache[32];
+	uint32_t reg_cache[34];
 	uintptr_t end_of_block;
 	struct block *current;
 	bool stop;
