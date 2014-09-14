@@ -569,13 +569,13 @@ static u8 load_store_address_lookup(jit_state_t *_jit, u8 native_rs)
 	u8 rs = lightrec_alloc_reg_in(_jit, native_rs),
 	   tmp1 = lightrec_alloc_reg_temp(_jit),
 	   tmp2 = lightrec_alloc_reg_temp(_jit),
-	   cpt = lightrec_alloc_reg_temp(_jit),
 	   ptr = lightrec_alloc_reg_temp(_jit);
 	jit_node_t *loop_top, *addr, *addr2, *addr3, *to_end;
 
-	jit_movi(cpt, lightrec_state->nb_maps);
 	jit_addi(ptr, LIGHTREC_REG_STATE,
-			offsetof(struct lightrec_state, mem_map));
+			offsetof(struct lightrec_state, mem_map) +
+			(lightrec_state->nb_maps - 1) *
+			sizeof(struct lightrec_mem_map));
 
 	loop_top = jit_label();
 	jit_ldxi_i(tmp1, ptr, offsetof(struct lightrec_mem_map, pc));
@@ -592,9 +592,8 @@ static u8 load_store_address_lookup(jit_state_t *_jit, u8 native_rs)
 
 	jit_patch(addr);
 	jit_patch(addr2);
-	jit_subi(cpt, cpt, 1);
-	jit_addi(ptr, ptr, sizeof(struct lightrec_mem_map));
-	addr3 = jit_bnei(cpt, 0);
+	jit_subi(ptr, ptr, sizeof(struct lightrec_mem_map));
+	addr3 = jit_bger(ptr, LIGHTREC_REG_STATE);
 
 	jit_patch_at(addr3, loop_top);
 
@@ -605,7 +604,6 @@ static u8 load_store_address_lookup(jit_state_t *_jit, u8 native_rs)
 
 	lightrec_free_reg(rs);
 	lightrec_free_reg(tmp2);
-	lightrec_free_reg(cpt);
 	lightrec_free_reg(ptr);
 	return tmp1;
 }
