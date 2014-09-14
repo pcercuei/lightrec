@@ -130,6 +130,10 @@ struct block * lightrec_recompile_block(u32 pc)
 			continue;
 		}
 
+		/* Don't recompile NOPs */
+		if (!elm->opcode.opcode)
+			continue;
+
 		ret = lightrec_rec_opcode(_jit, elm->opcode, block, pc);
 		skip_next = ret == SKIP_DELAY_SLOT;
 	}
