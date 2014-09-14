@@ -551,3 +551,125 @@ int rec_special_MTLO(jit_state_t *_jit, union opcode op,
 	jit_name(__func__);
 	return rec_alu_mv_lo_hi(_jit, REG_LO, op.r.rs);
 }
+
+static void __segfault_cb(u32 addr)
+{
+	/* TODO: Handle the segmentation fault? */
+	ERROR("Segmentation fault in recompiled code! Addr=0x%08x\n", addr);
+}
+
+static u8 load_store_address_lookup(jit_state_t *_jit, u8 native_rs)
+{
+	u8 rs = lightrec_alloc_reg_in(_jit, native_rs),
+	   tmp1 = lightrec_alloc_reg_temp(_jit),
+	   tmp2 = lightrec_alloc_reg_temp(_jit),
+	   cpt = lightrec_alloc_reg_temp(_jit),
+	   ptr = lightrec_alloc_reg_temp(_jit);
+	jit_node_t *loop_top, *addr, *addr2, *addr3, *to_end;
+
+	jit_movi(cpt, lightrec_state->nb_maps);
+	jit_addi(ptr, LIGHTREC_REG_STATE,
+			offsetof(struct lightrec_state, mem_map));
+
+	loop_top = jit_label();
+	jit_ldxi_i(tmp1, ptr, offsetof(struct lightrec_mem_map, pc));
+	addr = jit_bltr(rs, tmp1);
+
+	jit_ldxi_i(tmp2, ptr, offsetof(struct lightrec_mem_map, length));
+	jit_addr(tmp2, tmp1, tmp2);
+	addr2 = jit_bger(rs, tmp2);
+
+	jit_ldxi(tmp2, ptr, offsetof(struct lightrec_mem_map, address));
+	jit_subr(tmp1, rs, tmp1);
+	jit_addr(tmp1, tmp1, tmp2);
+	to_end = jit_jmpi();
+
+	jit_patch(addr);
+	jit_patch(addr2);
+	jit_subi(cpt, cpt, 1);
+	jit_addi(ptr, ptr, sizeof(struct lightrec_mem_map));
+	addr3 = jit_bnei(cpt, 0);
+
+	jit_patch_at(addr3, loop_top);
+
+	jit_movr(JIT_RA0, rs);
+	jit_calli(&__segfault_cb);
+
+	jit_patch(to_end);
+
+	lightrec_free_reg(rs);
+	lightrec_free_reg(tmp2);
+	lightrec_free_reg(cpt);
+	lightrec_free_reg(ptr);
+	return tmp1;
+}
+
+static int rec_store(jit_state_t *_jit, union opcode op, jit_code_t code)
+{
+	u8 addr = load_store_address_lookup(_jit, op.i.rs),
+	   rt = lightrec_alloc_reg_in(_jit, op.i.rt);
+
+	jit_new_node_www(code, (s16) op.i.imm, addr, rt);
+
+	lightrec_free_regs();
+	return 0;
+}
+
+static int rec_load(jit_state_t *_jit, union opcode op, jit_code_t code)
+{
+	u8 addr = load_store_address_lookup(_jit, op.i.rs),
+	   rt = lightrec_alloc_reg_out(_jit, op.i.rt);
+
+	jit_new_node_www(code, rt, addr, (s16) op.i.imm);
+
+	lightrec_free_regs();
+	return 0;
+}
+
+int rec_SB(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
+{
+	return rec_store(_jit, op, jit_code_stxi_c);
+}
+
+int rec_SH(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
+{
+	return rec_store(_jit, op, jit_code_stxi_s);
+}
+
+int rec_SW(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
+{
+	return rec_store(_jit, op, jit_code_stxi_i);
+}
+
+int rec_LB(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
+{
+	return rec_load(_jit, op, jit_code_ldxi_c);
+}
+
+int rec_LBU(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
+{
+	return rec_load(_jit, op, jit_code_ldxi_uc);
+}
+
+int rec_LH(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
+{
+	return rec_load(_jit, op, jit_code_ldxi_s);
+}
+
+int rec_LHU(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
+{
+	return rec_load(_jit, op, jit_code_ldxi_us);
+}
+
+int rec_LW(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
+{
+	return rec_load(_jit, op, jit_code_ldxi_i);
+}

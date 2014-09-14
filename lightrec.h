@@ -38,8 +38,8 @@ struct block {
 
 struct lightrec_mem_map {
 	uint32_t pc;
+	uint32_t length;
 	void *address;
-	unsigned long length;
 };
 
 struct lightrec_state {
