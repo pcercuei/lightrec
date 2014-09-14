@@ -95,7 +95,7 @@ static int lightrec_emit_end_of_block(jit_state_t *_jit,
 	jit_calli(&__get_jump_address_cb);
 	jit_retval(JIT_R0);
 	jit_jmpr(JIT_R0);
-	return 0;
+	return SKIP_DELAY_SLOT;
 }
 
 int rec_special_JR(jit_state_t *_jit, union opcode op,
