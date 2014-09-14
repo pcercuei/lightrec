@@ -150,10 +150,23 @@ err_no_mem:
 	return NULL;
 }
 
-void lightrec_execute_block(struct block *block)
+u32 lightrec_execute(u32 pc)
 {
 	void (*func)(void *) = (void (*)(void *)) wrapper->function;
+	struct block *block = lightrec_find_block(pc);
+
+	if (!block) {
+		block = lightrec_recompile_block(pc);
+		if (!block) {
+			ERROR("Unable to recompile block at PC 0x%x\n", pc);
+			return pc;
+		}
+
+		lightrec_register_block(block);
+	}
+
 	func((void *) block->function);
+	return lightrec_state->next_pc;
 }
 
 void lightrec_free_block(struct block *block)

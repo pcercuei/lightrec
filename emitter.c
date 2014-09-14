@@ -65,12 +65,13 @@ static int lightrec_emit_end_of_block(jit_state_t *_jit,
 		u8 reg_new_pc, u32 imm, u32 link,
 		struct opcode_list *delay_slot)
 {
+	u32 offset;
+
 	jit_note(__FILE__, __LINE__);
 
 	if (link) {
 		/* Update the $ra register */
-		s16 offset = offsetof(struct lightrec_state, reg_cache)
-			+ (31 << 2);
+		offset = offsetof(struct lightrec_state, reg_cache) + (31 << 2);
 		jit_movi(JIT_RA0, link);
 		jit_stxi_i(offset, LIGHTREC_REG_STATE, JIT_RA0);
 	}
@@ -80,6 +81,11 @@ static int lightrec_emit_end_of_block(jit_state_t *_jit,
 		jit_movi(JIT_RA0, imm);
 	else
 		jit_movr(JIT_RA0, reg_new_pc);
+
+	/* Store the next PC in the lightrec_state structure,
+	 * in case we exit the dynarec after this block */
+	offset = offsetof(struct lightrec_state, next_pc);
+	jit_stxi_i(offset, LIGHTREC_REG_STATE, JIT_RA0);
 
 	/* Recompile the delay slot */
 	lightrec_rec_opcode(_jit, delay_slot->opcode, block, pc + 4);
