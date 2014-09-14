@@ -207,6 +207,11 @@ u8 lightrec_alloc_reg_in(jit_state_t *_jit, u8 reg)
 	return jit_reg;
 }
 
+void lightrec_free_reg(u8 jit_reg)
+{
+	free_reg(lightning_reg_to_lightrec(jit_reg));
+}
+
 void lightrec_free_regs(void)
 {
 	unsigned int i;
