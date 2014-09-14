@@ -39,10 +39,11 @@ static inline u8 lightrec_reg_to_lightning(const struct native_register *nreg)
 
 static inline struct native_register * lightning_reg_to_lightrec(u8 reg)
 {
-	if ((jit_v(0) > jit_r(0)) ^ (reg > jit_r(0)))
-		return &lightrec_regs[NUM_REGS + reg - jit_r(0)];
+	if ((JIT_V0 > JIT_R0 && reg >= JIT_V0) ||
+			(JIT_V0 < JIT_R0 && reg < JIT_R0))
+		return &lightrec_regs[reg - JIT_V0];
 	else
-		return &lightrec_regs[reg - jit_v(0)];
+		return &lightrec_regs[NUM_REGS + reg - JIT_R0];
 }
 
 static struct native_register * alloc_temp(void)
