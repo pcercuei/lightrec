@@ -38,4 +38,6 @@ void lightrec_free_reg(u8 jit_reg);
 void lightrec_free_regs(void);
 void lightrec_storeback_regs(jit_state_t *_jit);
 
+void lightrec_invalidate_reg(jit_state_t *_jit, u8 jit_reg);
+
 #endif /* __REGCACHE_H__ */

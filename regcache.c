@@ -212,6 +212,27 @@ void lightrec_free_reg(u8 jit_reg)
 	free_reg(lightning_reg_to_lightrec(jit_reg));
 }
 
+void lightrec_invalidate_reg(jit_state_t *_jit, u8 jit_reg)
+{
+	struct native_register *nreg = lightning_reg_to_lightrec(jit_reg);
+
+	if (nreg->used) {
+		ERROR("Unable to invalidate a register in use\n");
+		return;
+	}
+
+	if (nreg->dirty) {
+		s16 offset = offsetof(struct lightrec_state, reg_cache)
+			+ (nreg->emulated_register << 2);
+
+		jit_stxi_i(offset, LIGHTREC_REG_STATE, jit_reg);
+	}
+
+	nreg->dirty = false;
+	nreg->loaded = false;
+	nreg->emulated_register = 0;
+}
+
 void lightrec_free_regs(void)
 {
 	unsigned int i;
