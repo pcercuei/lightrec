@@ -20,11 +20,13 @@
 #include "regcache.h"
 
 #include <lightning.h>
+#include <stddef.h>
 #include <string.h>
 
 struct lightrec_state *lightrec_state;
 
 static struct block *wrapper;
+static struct block *addr_lookup;
 
 static const u32 * find_code_address(u32 pc)
 {
@@ -36,6 +38,91 @@ static const u32 * find_code_address(u32 pc)
 			return map[i].address + (pc - map[i].pc);
 	}
 
+	return NULL;
+}
+
+static void __segfault_cb(unsigned long addr)
+{
+	/* TODO: Handle the segmentation fault? */
+	ERROR("Segmentation fault in recompiled code! Addr=0x%lx\n", addr);
+}
+
+static struct block * generate_address_lookup_block(void)
+{
+	struct block *block;
+	jit_state_t *_jit;
+	jit_node_t *loop_top, *addr, *addr2, *addr3, *to_end;
+
+	block = malloc(sizeof(*block));
+	if (!block)
+		goto err_no_mem;
+
+	_jit = jit_new_state();
+	if (!_jit)
+		goto err_free_block;
+
+	jit_prolog();
+	jit_getarg(JIT_RA0, jit_arg());
+
+	jit_name("address_lookup");
+	jit_note(__FILE__, __LINE__);
+
+	/* Make the LIGHTREC_REG_STATE register point to lightrec_state->mem_map
+	 * just for the algorithm, to save one register */
+	jit_addi(LIGHTREC_REG_STATE, LIGHTREC_REG_STATE,
+			offsetof(struct lightrec_state, mem_map));
+
+	/* Make JIT_V0 point to the last map */
+	jit_addi(JIT_V0, LIGHTREC_REG_STATE, (lightrec_state->nb_maps - 1) *
+			sizeof(struct lightrec_mem_map));
+
+	loop_top = jit_label();
+
+	/* Test if addr >= curr_map->pc */
+	jit_ldxi_i(JIT_R0, JIT_V0, offsetof(struct lightrec_mem_map, pc));
+	addr = jit_bltr_u(JIT_RA0, JIT_R0);
+
+	/* Test if addr < curr_map->pc + curr_map->length */
+	jit_ldxi_i(JIT_V1, JIT_V0, offsetof(struct lightrec_mem_map, length));
+	jit_addr(JIT_V1, JIT_R0, JIT_V1);
+	addr2 = jit_bger_u(JIT_RA0, JIT_V1);
+
+	/* Found: calculate address and jump to end */
+	jit_ldxi(JIT_V1, JIT_V0, offsetof(struct lightrec_mem_map, address));
+	jit_subr(JIT_R0, JIT_RA0, JIT_R0);
+	jit_addr(JIT_R0, JIT_R0, JIT_V1);
+	to_end = jit_jmpi();
+
+	jit_patch(addr);
+	jit_patch(addr2);
+
+	/* End of loop: test JIT_V0 == LIGHTREC_REG_STATE, continue if true */
+	jit_subi(JIT_V0, JIT_V0, sizeof(struct lightrec_mem_map));
+	addr3 = jit_bger_u(JIT_V0, LIGHTREC_REG_STATE);
+	jit_patch_at(addr3, loop_top);
+
+	/* TODO: Handle segfault */
+	jit_calli(&__segfault_cb);
+
+	jit_patch(to_end);
+
+	/* Reset LIGHTREC_REG_STATE to its correct value */
+	jit_subi(LIGHTREC_REG_STATE, LIGHTREC_REG_STATE,
+			offsetof(struct lightrec_state, mem_map));
+
+	/* And return the address to the caller */
+	jit_retval(JIT_R0);
+	jit_epilog();
+
+	block->_jit = _jit;
+	block->function = jit_emit();
+	block->opcode_list = NULL;
+	return block;
+
+err_free_block:
+	free(block);
+err_no_mem:
+	ERROR("Unable to compile wrapper: Out of memory\n");
 	return NULL;
 }
 
@@ -187,11 +274,17 @@ void lightrec_init(char *argv0, struct lightrec_mem_map *map, unsigned int nb)
 	memcpy(lightrec_state->mem_map, map, nb * sizeof(*map));
 
 	wrapper = generate_wrapper_block();
+
+	addr_lookup = generate_address_lookup_block();
+	lightrec_state->addr_lookup = addr_lookup->function;
 }
 
 void lightrec_destroy(void)
 {
 	lightrec_free_block_cache();
 	lightrec_free_block(wrapper);
+	lightrec_free_block(addr_lookup);
 	finish_jit();
+
+	free(lightrec_state);
 }

@@ -47,6 +47,7 @@ struct lightrec_state {
 	uint32_t next_pc;
 	uintptr_t end_of_block;
 	struct block *current;
+	void (*addr_lookup)(void);
 	bool stop;
 	unsigned int nb_maps;
 	struct lightrec_mem_map mem_map[];
