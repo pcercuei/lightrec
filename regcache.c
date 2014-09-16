@@ -19,6 +19,7 @@
 #include <stddef.h>
 
 struct native_register {
+	struct native_register *addr_reg;
 	bool used, loaded, dirty, output;
 	u8 emulated_register;
 };
@@ -103,8 +104,10 @@ static struct native_register * alloc_in_out(u8 reg)
 static void free_reg(struct native_register *nreg)
 {
 	/* Set output registers as dirty */
-	if (nreg->used && nreg->output && nreg->emulated_register != 0)
+	if (nreg->used && nreg->output && nreg->emulated_register != 0) {
 		nreg->dirty = true;
+		nreg->addr_reg = NULL;
+	}
 	nreg->used = false;
 }
 
@@ -131,6 +134,7 @@ u8 lightrec_alloc_reg_temp(jit_state_t *_jit)
 		nreg->dirty = false;
 	}
 
+	nreg->addr_reg = NULL;
 	nreg->loaded = false;
 	nreg->output = false;
 	nreg->used = true;
@@ -162,6 +166,7 @@ u8 lightrec_alloc_reg_out(jit_state_t *_jit, u8 reg)
 		nreg->dirty = false;
 	}
 
+	nreg->addr_reg = NULL;
 	nreg->used = true;
 	nreg->output = true;
 	nreg->emulated_register = reg;
@@ -216,7 +221,7 @@ void lightrec_free_reg(u8 jit_reg)
 	free_reg(lightning_reg_to_lightrec(jit_reg));
 }
 
-void lightrec_invalidate_reg(jit_state_t *_jit, u8 jit_reg)
+static void lightrec_invalidate_reg(jit_state_t *_jit, u8 jit_reg)
 {
 	struct native_register *nreg = lightning_reg_to_lightrec(jit_reg);
 
@@ -232,6 +237,7 @@ void lightrec_invalidate_reg(jit_state_t *_jit, u8 jit_reg)
 		jit_stxi_i(offset, LIGHTREC_REG_STATE, jit_reg);
 	}
 
+	nreg->addr_reg = NULL;
 	nreg->dirty = false;
 	nreg->loaded = false;
 	nreg->emulated_register = 0;
@@ -267,4 +273,32 @@ void lightrec_storeback_regs(jit_state_t *_jit)
 void lightrec_regcache_reset(void)
 {
 	memset(&lightrec_regs, 0, sizeof(lightrec_regs));
+}
+
+u8 lightrec_alloc_reg_in_address(jit_state_t *_jit, u8 reg)
+{
+	u8 addr, rs = lightrec_alloc_reg_in(_jit, reg);
+	struct native_register *tmpreg, *nreg = lightning_reg_to_lightrec(rs);
+
+	/* Reuse the previous temp register if it wasn't invalidated */
+	if (nreg->addr_reg && nreg->addr_reg->addr_reg == nreg)
+		return lightrec_reg_to_lightning(nreg->addr_reg);
+
+	jit_movr(JIT_RA0, rs);
+	lightrec_free_regs();
+	lightrec_invalidate_reg(_jit, JIT_R0);
+
+	jit_ldxi(JIT_R0, LIGHTREC_REG_STATE,
+			offsetof(struct lightrec_state, addr_lookup));
+	jit_callr(JIT_R0);
+
+	addr = lightrec_alloc_reg_temp(_jit);
+	tmpreg = lightning_reg_to_lightrec(addr);
+
+	/* Link the two registers */
+	tmpreg->addr_reg = nreg;
+	nreg->addr_reg = tmpreg;
+
+	jit_retval(addr);
+	return addr;
 }

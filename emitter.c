@@ -564,22 +564,10 @@ static int rec_store(jit_state_t *_jit, union opcode op, jit_code_t code)
 	u8 rt, rs;
 
 	jit_name(__func__);
-	rs = lightrec_alloc_reg_in(_jit, op.i.rs);
-
-	jit_note(__FILE__, __LINE__);
-	jit_movr(JIT_RA0, rs);
-	lightrec_free_regs();
-
-	lightrec_invalidate_reg(_jit, JIT_R0);
-
-	jit_ldxi(JIT_R0, LIGHTREC_REG_STATE,
-			offsetof(struct lightrec_state, addr_lookup));
-	jit_callr(JIT_R0);
-	jit_retval(JIT_RA0);
-
+	rs = lightrec_alloc_reg_in_address(_jit, op.i.rs);
 	rt = lightrec_alloc_reg_in(_jit, op.i.rt);
 
-	jit_new_node_www(code, (s16) op.i.imm, JIT_RA0, rt);
+	jit_new_node_www(code, (s16) op.i.imm, rs, rt);
 
 	lightrec_free_regs();
 	return 0;
@@ -590,22 +578,10 @@ static int rec_load(jit_state_t *_jit, union opcode op, jit_code_t code)
 	u8 rt, rs;
 
 	jit_name(__func__);
-	rs = lightrec_alloc_reg_in(_jit, op.i.rs);
-
-	jit_note(__FILE__, __LINE__);
-	jit_movr(JIT_RA0, rs);
-	lightrec_free_regs();
-
-	lightrec_invalidate_reg(_jit, JIT_R0);
-
-	jit_ldxi(JIT_R0, LIGHTREC_REG_STATE,
-			offsetof(struct lightrec_state, addr_lookup));
-	jit_callr(JIT_R0);
-	jit_retval(JIT_RA0);
-
+	rs = lightrec_alloc_reg_in_address(_jit, op.i.rs);
 	rt = lightrec_alloc_reg_out(_jit, op.i.rt);
 
-	jit_new_node_www(code, rt, JIT_RA0, (s16) op.i.imm);
+	jit_new_node_www(code, rt, rs, (s16) op.i.imm);
 
 	lightrec_free_regs();
 	return 0;
