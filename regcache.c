@@ -70,7 +70,7 @@ static struct native_register * alloc_in_out(u8 reg)
 	/* Try to find if the register is already mapped somewhere */
 	for (i = 0; i < ARRAY_SIZE(lightrec_regs); i++) {
 		struct native_register *nreg = &lightrec_regs[i];
-		if ((nreg->loaded || nreg->dirty) &&
+		if ((!reg || nreg->loaded || nreg->dirty) &&
 				nreg->emulated_register == reg)
 			return nreg;
 	}
@@ -103,7 +103,7 @@ static struct native_register * alloc_in_out(u8 reg)
 static void free_reg(struct native_register *nreg)
 {
 	/* Set output registers as dirty */
-	if (nreg->used && nreg->output)
+	if (nreg->used && nreg->output && nreg->emulated_register != 0)
 		nreg->dirty = true;
 	nreg->used = false;
 }
@@ -192,7 +192,7 @@ u8 lightrec_alloc_reg_in(jit_state_t *_jit, u8 reg)
 		nreg->loaded = false;
 	}
 
-	if (!nreg->loaded && !nreg->dirty) {
+	if (!nreg->loaded && !nreg->dirty && reg != 0) {
 		s16 offset = offsetof(struct lightrec_state, reg_cache)
 			+ (reg << 2);
 
@@ -200,6 +200,10 @@ u8 lightrec_alloc_reg_in(jit_state_t *_jit, u8 reg)
 		jit_ldxi_i(jit_reg, LIGHTREC_REG_STATE, offset);
 		nreg->loaded = true;
 	}
+
+	/* Clear register r0 before use */
+	if (reg == 0)
+		jit_movi(jit_reg, 0);
 
 	nreg->used = true;
 	nreg->output = false;
