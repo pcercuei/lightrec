@@ -124,7 +124,8 @@ int rec_J(jit_state_t *_jit, union opcode op,
 	struct opcode_list *elm = find_delay_slot(block, pc);
 
 	jit_name(__func__);
-	return lightrec_emit_end_of_block(_jit, block, pc, 0, op.j.imm, 0, elm);
+	return lightrec_emit_end_of_block(_jit, block,
+			pc, 0, op.j.imm << 2, 0, elm);
 }
 
 int rec_JAL(jit_state_t *_jit, union opcode op,
@@ -134,7 +135,7 @@ int rec_JAL(jit_state_t *_jit, union opcode op,
 
 	jit_name(__func__);
 	return lightrec_emit_end_of_block(_jit, block,
-			pc, 0, op.j.imm, pc + 8, elm);
+			pc, 0, op.j.imm << 2, pc + 8, elm);
 }
 
 static int rec_b(jit_state_t *_jit, union opcode op,
