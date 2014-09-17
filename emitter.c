@@ -276,7 +276,7 @@ int rec_ADDIU(jit_state_t *_jit, union opcode op,
 		const struct block *block, u32 pc)
 {
 	jit_name(__func__);
-	return rec_alu_imm(_jit, op, jit_code_addi, false);
+	return rec_alu_imm(_jit, op, jit_code_addi, true);
 }
 
 int rec_ADDI(jit_state_t *_jit, union opcode op,
@@ -284,7 +284,7 @@ int rec_ADDI(jit_state_t *_jit, union opcode op,
 {
 	/* TODO: Handle the exception? */
 	jit_name(__func__);
-	return rec_alu_imm(_jit, op, jit_code_addi, false);
+	return rec_alu_imm(_jit, op, jit_code_addi, true);
 }
 
 int rec_SLTIU(jit_state_t *_jit, union opcode op,
