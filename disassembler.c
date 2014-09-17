@@ -20,11 +20,11 @@
 
 static bool is_unconditional_jump(union opcode op)
 {
-	if (op.r.zero == OP_SPECIAL)
-		return op.r.op == OP_SPECIAL_JR;
-
 	switch (op.i.op) {
+	case OP_SPECIAL:
+		return op.r.op == OP_SPECIAL_JR || op.r.op == OP_SPECIAL_JALR;
 	case OP_J:
+	case OP_JAL:
 		return true;
 	case OP_BEQ:
 	case OP_BLEZ:
