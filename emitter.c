@@ -60,6 +60,25 @@ static struct opcode_list * find_delay_slot(const struct block *block, u32 pc)
 	return elm;
 }
 
+static bool delay_slot_trashed_jit_ra0(union opcode op)
+{
+	switch (op.i.op) {
+	case OP_LB:
+	case OP_LBU:
+	case OP_LH:
+	case OP_LHU:
+	case OP_LW:
+	case OP_LWL:
+	case OP_LWR:
+	case OP_SB:
+	case OP_SH:
+	case OP_SW:
+		return true;
+	default:
+		return false;
+	};
+}
+
 static int lightrec_emit_end_of_block(jit_state_t *_jit,
 		const struct block *block, u32 pc,
 		u8 reg_new_pc, u32 imm, u32 link,
@@ -76,7 +95,6 @@ static int lightrec_emit_end_of_block(jit_state_t *_jit,
 		jit_stxi_i(offset, LIGHTREC_REG_STATE, JIT_RA0);
 	}
 
-	/* FIXME: This may not work on all architectures */
 	if (!reg_new_pc)
 		jit_movi(JIT_RA0, imm);
 	else
@@ -92,6 +110,12 @@ static int lightrec_emit_end_of_block(jit_state_t *_jit,
 
 	lightrec_storeback_regs(_jit);
 
+	/* Reload the next PC if it's no more in JIT_RA0 */
+	if (delay_slot_trashed_jit_ra0(delay_slot->opcode))
+		jit_ldxi_i(JIT_RA0, LIGHTREC_REG_STATE, offset);
+
+	/* FIXME: Passing the next PC as parameter in JIT_RA0
+	 * may not work on all architectures */
 	jit_calli(&__get_jump_address_cb);
 	jit_retval(JIT_R0);
 	jit_jmpr(JIT_R0);
