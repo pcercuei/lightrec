@@ -106,7 +106,8 @@ static int lightrec_emit_end_of_block(jit_state_t *_jit,
 	jit_stxi_i(offset, LIGHTREC_REG_STATE, JIT_RA0);
 
 	/* Recompile the delay slot */
-	lightrec_rec_opcode(_jit, delay_slot->opcode, block, pc + 4);
+	if (delay_slot->opcode.opcode)
+		lightrec_rec_opcode(_jit, delay_slot->opcode, block, pc + 4);
 
 	lightrec_storeback_regs(_jit);
 
@@ -178,7 +179,7 @@ static int rec_b(jit_state_t *_jit, union opcode op,
 			pc + 4 + (s16) (op.i.imm << 2), 0, delay_slot);
 	jit_patch(addr);
 
-	if (1 /* TODO: BL opcodes */)
+	if (delay_slot->opcode.opcode /* TODO: BL opcodes */)
 		lightrec_rec_opcode(_jit, delay_slot->opcode, block, pc + 4);
 
 	lightrec_free_regs();
@@ -200,7 +201,7 @@ static int rec_bz(jit_state_t *_jit, union opcode op,
 			pc + 4 + (s16) (op.i.imm << 2), link, delay_slot);
 	jit_patch(addr);
 
-	if (1 /* TODO: BL opcodes */)
+	if (delay_slot->opcode.opcode /* TODO: BL opcodes */)
 		lightrec_rec_opcode(_jit, delay_slot->opcode, block, pc + 4);
 
 	lightrec_free_regs();
