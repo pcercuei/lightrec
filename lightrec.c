@@ -245,7 +245,8 @@ err_no_mem:
 u32 lightrec_execute(u32 pc)
 {
 	void (*func)(void *) = (void (*)(void *)) wrapper->function;
-	struct block *block = lightrec_find_block(pc);
+	struct block *block = lightrec_find_block(
+			lightrec_state->block_cache, pc);
 
 	if (!block) {
 		block = lightrec_recompile_block(pc);
@@ -254,7 +255,7 @@ u32 lightrec_execute(u32 pc)
 			return pc;
 		}
 
-		lightrec_register_block(block);
+		lightrec_register_block(lightrec_state->block_cache, block);
 	}
 
 	func((void *) block->function);
@@ -274,6 +275,7 @@ void lightrec_init(char *argv0, struct lightrec_mem_map *map, unsigned int nb)
 
 	lightrec_state = calloc(1, sizeof(*lightrec_state)
 			+ nb * sizeof(struct lightrec_mem_map));
+	lightrec_state->block_cache = lightrec_blockcache_init();
 
 	lightrec_state->nb_maps = nb;
 	memcpy(lightrec_state->mem_map, map, nb * sizeof(*map));
@@ -286,7 +288,7 @@ void lightrec_init(char *argv0, struct lightrec_mem_map *map, unsigned int nb)
 
 void lightrec_destroy(void)
 {
-	lightrec_free_block_cache();
+	lightrec_free_block_cache(lightrec_state->block_cache);
 	lightrec_free_block(wrapper);
 	lightrec_free_block(addr_lookup);
 	finish_jit();

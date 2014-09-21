@@ -17,9 +17,12 @@
 
 #include "lightrec.h"
 
-struct block * lightrec_find_block(u32 pc);
-void lightrec_register_block(struct block *block);
+struct blockcache;
 
-void lightrec_free_block_cache(void);
+struct block * lightrec_find_block(struct blockcache *cache, u32 pc);
+void lightrec_register_block(struct blockcache *cache, struct block *block);
+
+struct blockcache * lightrec_blockcache_init(void);
+void lightrec_free_block_cache(struct blockcache *cache);
 
 #endif /* __BLOCKCACHE_H__ */

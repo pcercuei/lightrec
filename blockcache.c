@@ -12,36 +12,50 @@
  * Lesser General Public License for more details.
  */
 
+#include "blockcache.h"
 #include "debug.h"
 #include "lightrec.h"
+
+#include <stdlib.h>
 
 /* Must be power of two */
 #define LUT_SIZE 0x4000
 
-static struct block * block_lut[LUT_SIZE];
+struct blockcache {
+	struct block * lut[LUT_SIZE];
+};
 
-struct block * lightrec_find_block(u32 pc)
+struct block * lightrec_find_block(struct blockcache *cache, u32 pc)
 {
-	struct block *block = block_lut[(pc >> 2) & (LUT_SIZE - 1)];
+	struct block *block = cache->lut[(pc >> 2) & (LUT_SIZE - 1)];
 	if (block && block->pc == pc)
 		return block;
 	else
 		return NULL;
 }
 
-void lightrec_register_block(struct block *block)
+void lightrec_register_block(struct blockcache *cache, struct block *block)
 {
-	struct block *old = block_lut[(block->pc >> 2) & (LUT_SIZE - 1)];
-	if (old && old->pc != block->pc)
+	struct block *old = cache->lut[(block->pc >> 2) & (LUT_SIZE - 1)];
+	if (old && old->pc != block->pc) {
+		WARNING("Freeing old block at pc 0x%x\n", old->pc);
 		lightrec_free_block(old);
-	block_lut[(block->pc >> 2) & (LUT_SIZE - 1)] = block;
+	}
+
+	cache->lut[(block->pc >> 2) & (LUT_SIZE - 1)] = block;
 }
 
-void lightrec_free_block_cache(void)
+void lightrec_free_block_cache(struct blockcache *cache)
 {
 	unsigned int i;
 
 	for (i = 0; i < LUT_SIZE; i++)
-		if (block_lut[i])
-			lightrec_free_block(block_lut[i]);
+		if (cache->lut[i])
+			lightrec_free_block(cache->lut[i]);
+	free(cache);
+}
+
+struct blockcache * lightrec_blockcache_init(void)
+{
+	return calloc(1, sizeof(struct blockcache));
 }

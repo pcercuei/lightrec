@@ -39,12 +39,12 @@ static uintptr_t __get_jump_address_cb(struct lightrec_state *state)
 	if (state->stop)
 		return state->end_of_block;
 
-	new = lightrec_find_block(state->next_pc);
+	new = lightrec_find_block(state->block_cache, state->next_pc);
 	if (!new) {
 		new = lightrec_recompile_block(state->next_pc);
 		if (!new)
 			return state->end_of_block;
-		lightrec_register_block(new);
+		lightrec_register_block(state->block_cache, new);
 	}
 
 	return (uintptr_t) new->function;
