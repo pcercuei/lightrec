@@ -46,15 +46,13 @@ struct lightrec_state {
 	uint32_t reg_cache[34];
 	uint32_t next_pc;
 	uintptr_t end_of_block;
-	struct block *current;
+	struct block *wrapper, *addr_lookup_block;
 	struct blockcache *block_cache;
 	void (*addr_lookup)(void);
 	bool stop;
 	unsigned int nb_maps;
 	struct lightrec_mem_map mem_map[];
 };
-
-extern struct lightrec_state *lightrec_state;
 
 typedef uint64_t u64;
 typedef uint32_t u32;
@@ -66,12 +64,13 @@ typedef int32_t s32;
 typedef int16_t s16;
 typedef int8_t  s8;
 
-struct block * lightrec_recompile_block(u32 pc);
+struct block * lightrec_recompile_block(struct lightrec_state *state, u32 pc);
 void lightrec_free_block(struct block *block);
 
-void lightrec_init(char *argv0, struct lightrec_mem_map *map, unsigned int nb);
-void lightrec_destroy(void);
+struct lightrec_state * lightrec_init(char *argv0,
+		struct lightrec_mem_map *map, unsigned int nb);
+void lightrec_destroy(struct lightrec_state *state);
 
-u32 lightrec_execute(u32 pc);
+u32 lightrec_execute(struct lightrec_state *state, u32 pc);
 
 #endif /* __LIGHTREC_H__ */

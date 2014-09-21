@@ -23,17 +23,12 @@
 #include <stddef.h>
 #include <string.h>
 
-struct lightrec_state *lightrec_state;
-
-static struct block *wrapper;
-static struct block *addr_lookup;
-
-static const u32 * find_code_address(u32 pc)
+static const u32 * find_code_address(struct lightrec_state *state, u32 pc)
 {
-	struct lightrec_mem_map *map = lightrec_state->mem_map;
+	struct lightrec_mem_map *map = state->mem_map;
 	unsigned int i;
 
-	for (i = 0; i < lightrec_state->nb_maps; i++) {
+	for (i = 0; i < state->nb_maps; i++) {
 		if (pc >= map[i].pc && pc < map[i].pc + map[i].length)
 			return map[i].address + (pc - map[i].pc);
 	}
@@ -47,7 +42,7 @@ static void __segfault_cb(unsigned long addr)
 	ERROR("Segmentation fault in recompiled code! Addr=0x%lx\n", addr);
 }
 
-static struct block * generate_address_lookup_block(void)
+static struct block * generate_address_lookup_block(unsigned int nb_maps)
 {
 	struct block *block;
 	jit_state_t *_jit;
@@ -73,7 +68,7 @@ static struct block * generate_address_lookup_block(void)
 			offsetof(struct lightrec_state, mem_map));
 
 	/* Make JIT_V0 point to the last map */
-	jit_addi(JIT_V0, LIGHTREC_REG_STATE, (lightrec_state->nb_maps - 1) *
+	jit_addi(JIT_V0, LIGHTREC_REG_STATE, (nb_maps - 1) *
 			sizeof(struct lightrec_mem_map));
 
 	loop_top = jit_label();
@@ -126,7 +121,7 @@ err_no_mem:
 	return NULL;
 }
 
-static struct block * generate_wrapper_block(void)
+static struct block * generate_wrapper_block(struct lightrec_state *state)
 {
 	struct block *block;
 	jit_state_t *_jit;
@@ -153,7 +148,7 @@ static struct block * generate_wrapper_block(void)
 
 	/* Pass lightrec_state structure to blocks, using the last callee-saved
 	 * register that Lightning provides */
-	jit_movi(LIGHTREC_REG_STATE, lightrec_state);
+	jit_movi(LIGHTREC_REG_STATE, state);
 
 	/* Call the block's code */
 	jit_jmpr(JIT_RA0);
@@ -169,7 +164,7 @@ static struct block * generate_wrapper_block(void)
 	block->opcode_list = NULL;
 
 	/* When exiting, the recompiled code will jump to that address */
-	lightrec_state->end_of_block = (uintptr_t) jit_address(addr);
+	state->end_of_block = (uintptr_t) jit_address(addr);
 
 	/* We're done! */
 	return block;
@@ -181,13 +176,13 @@ err_no_mem:
 	return NULL;
 }
 
-struct block * lightrec_recompile_block(u32 pc)
+struct block * lightrec_recompile_block(struct lightrec_state *state, u32 pc)
 {
 	struct opcode_list *elm, *list;
 	struct block *block;
 	jit_state_t *_jit;
 	bool skip_next = false;
-	const u32 *code = find_code_address(pc);
+	const u32 *code = find_code_address(state, pc);
 	if (!code)
 		return NULL;
 
@@ -242,24 +237,23 @@ err_no_mem:
 	return NULL;
 }
 
-u32 lightrec_execute(u32 pc)
+u32 lightrec_execute(struct lightrec_state *state, u32 pc)
 {
-	void (*func)(void *) = (void (*)(void *)) wrapper->function;
-	struct block *block = lightrec_find_block(
-			lightrec_state->block_cache, pc);
+	void (*func)(void *) = (void (*)(void *)) state->wrapper->function;
+	struct block *block = lightrec_find_block(state->block_cache, pc);
 
 	if (!block) {
-		block = lightrec_recompile_block(pc);
+		block = lightrec_recompile_block(state, pc);
 		if (!block) {
 			ERROR("Unable to recompile block at PC 0x%x\n", pc);
 			return pc;
 		}
 
-		lightrec_register_block(lightrec_state->block_cache, block);
+		lightrec_register_block(state->block_cache, block);
 	}
 
 	func((void *) block->function);
-	return lightrec_state->next_pc;
+	return state->next_pc;
 }
 
 void lightrec_free_block(struct block *block)
@@ -269,29 +263,32 @@ void lightrec_free_block(struct block *block)
 	free(block);
 }
 
-void lightrec_init(char *argv0, struct lightrec_mem_map *map, unsigned int nb)
+struct lightrec_state * lightrec_init(char *argv0,
+		struct lightrec_mem_map *map, unsigned int nb)
 {
+	struct lightrec_state *state;
+
 	init_jit(argv0);
 
-	lightrec_state = calloc(1, sizeof(*lightrec_state)
-			+ nb * sizeof(struct lightrec_mem_map));
-	lightrec_state->block_cache = lightrec_blockcache_init();
+	state = calloc(1, sizeof(*state) + nb * sizeof(*map));
+	state->block_cache = lightrec_blockcache_init();
 
-	lightrec_state->nb_maps = nb;
-	memcpy(lightrec_state->mem_map, map, nb * sizeof(*map));
+	state->nb_maps = nb;
+	memcpy(state->mem_map, map, nb * sizeof(*map));
 
-	wrapper = generate_wrapper_block();
+	state->wrapper = generate_wrapper_block(state);
 
-	addr_lookup = generate_address_lookup_block();
-	lightrec_state->addr_lookup = addr_lookup->function;
+	state->addr_lookup_block = generate_address_lookup_block(nb);
+	state->addr_lookup = state->addr_lookup_block->function;
+	return state;
 }
 
-void lightrec_destroy(void)
+void lightrec_destroy(struct lightrec_state *state)
 {
-	lightrec_free_block_cache(lightrec_state->block_cache);
-	lightrec_free_block(wrapper);
-	lightrec_free_block(addr_lookup);
+	lightrec_free_block_cache(state->block_cache);
+	lightrec_free_block(state->wrapper);
+	lightrec_free_block(state->addr_lookup_block);
 	finish_jit();
 
-	free(lightrec_state);
+	free(state);
 }
