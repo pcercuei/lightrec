@@ -226,6 +226,11 @@ struct block * lightrec_recompile_block(u32 pc)
 	}
 
 	block->function = jit_emit();
+
+#if (LOG_LEVEL >= DEBUG_L)
+	DEBUG("Recompiling block at PC: 0x%x\n", block->pc);
+	jit_disassemble();
+#endif
 	return block;
 
 err_free_list:
