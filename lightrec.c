@@ -106,7 +106,7 @@ static struct block * generate_address_lookup_block(unsigned int nb_maps)
 			offsetof(struct lightrec_state, mem_map));
 
 	/* And return the address to the caller */
-	jit_retval(JIT_R0);
+	jit_retr(JIT_R0);
 	jit_epilog();
 
 	block->_jit = _jit;

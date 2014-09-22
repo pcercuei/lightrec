@@ -288,11 +288,11 @@ u8 lightrec_alloc_reg_in_address(jit_state_t *_jit, u8 reg)
 	lightrec_free_regs();
 	lightrec_invalidate_reg(_jit, JIT_R0);
 
-	jit_ldxi(JIT_R0, LIGHTREC_REG_STATE,
-			offsetof(struct lightrec_state, addr_lookup));
-	jit_callr(JIT_R0);
-
 	addr = lightrec_alloc_reg_temp(_jit);
+	jit_ldxi(addr, LIGHTREC_REG_STATE,
+			offsetof(struct lightrec_state, addr_lookup));
+	jit_callr(addr);
+
 	tmpreg = lightning_reg_to_lightrec(addr);
 
 	/* Link the two registers */
