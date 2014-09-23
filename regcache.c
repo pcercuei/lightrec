@@ -221,28 +221,6 @@ void lightrec_free_reg(u8 jit_reg)
 	free_reg(lightning_reg_to_lightrec(jit_reg));
 }
 
-static void lightrec_invalidate_reg(jit_state_t *_jit, u8 jit_reg)
-{
-	struct native_register *nreg = lightning_reg_to_lightrec(jit_reg);
-
-	if (nreg->used) {
-		ERROR("Unable to invalidate a register in use\n");
-		return;
-	}
-
-	if (nreg->dirty) {
-		s16 offset = offsetof(struct lightrec_state, reg_cache)
-			+ (nreg->emulated_register << 2);
-
-		jit_stxi_i(offset, LIGHTREC_REG_STATE, jit_reg);
-	}
-
-	nreg->addr_reg = NULL;
-	nreg->dirty = false;
-	nreg->loaded = false;
-	nreg->emulated_register = 0;
-}
-
 void lightrec_free_regs(void)
 {
 	unsigned int i;
@@ -286,12 +264,15 @@ u8 lightrec_alloc_reg_in_address(jit_state_t *_jit, u8 reg)
 
 	jit_movr(JIT_RA0, rs);
 	lightrec_free_regs();
-	lightrec_invalidate_reg(_jit, JIT_R0);
 
 	addr = lightrec_alloc_reg_temp(_jit);
 	jit_ldxi(addr, LIGHTREC_REG_STATE,
 			offsetof(struct lightrec_state, addr_lookup));
 	jit_callr(addr);
+
+	/* The address lookup block returns its value in JIT_RA0
+	 * instead of JIT_R0, so that we don't trash a register. */
+	jit_movr(addr, JIT_RA0);
 
 	tmpreg = lightning_reg_to_lightrec(addr);
 
@@ -299,6 +280,5 @@ u8 lightrec_alloc_reg_in_address(jit_state_t *_jit, u8 reg)
 	tmpreg->addr_reg = nreg;
 	nreg->addr_reg = tmpreg;
 
-	jit_retval(addr);
 	return addr;
 }

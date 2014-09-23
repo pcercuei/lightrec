@@ -23,6 +23,10 @@
 #include <stddef.h>
 #include <string.h>
 
+#if JIT_V_NUM < 4
+#error "At least 4 callee-saved registers are needed"
+#endif
+
 static const u32 * find_code_address(struct lightrec_state *state, u32 pc)
 {
 	struct lightrec_mem_map *map = state->mem_map;
@@ -74,18 +78,18 @@ static struct block * generate_address_lookup_block(unsigned int nb_maps)
 	loop_top = jit_label();
 
 	/* Test if addr >= curr_map->pc */
-	jit_ldxi_i(JIT_R0, JIT_V0, offsetof(struct lightrec_mem_map, pc));
-	addr = jit_bltr_u(JIT_RA0, JIT_R0);
+	jit_ldxi_i(JIT_V2, JIT_V0, offsetof(struct lightrec_mem_map, pc));
+	addr = jit_bltr_u(JIT_RA0, JIT_V2);
 
 	/* Test if addr < curr_map->pc + curr_map->length */
 	jit_ldxi_i(JIT_V1, JIT_V0, offsetof(struct lightrec_mem_map, length));
-	jit_addr(JIT_V1, JIT_R0, JIT_V1);
+	jit_addr(JIT_V1, JIT_V2, JIT_V1);
 	addr2 = jit_bger_u(JIT_RA0, JIT_V1);
 
 	/* Found: calculate address and jump to end */
 	jit_ldxi(JIT_V1, JIT_V0, offsetof(struct lightrec_mem_map, address));
-	jit_subr(JIT_R0, JIT_RA0, JIT_R0);
-	jit_addr(JIT_R0, JIT_R0, JIT_V1);
+	jit_subr(JIT_V2, JIT_RA0, JIT_V2);
+	jit_addr(JIT_V2, JIT_V2, JIT_V1);
 	to_end = jit_jmpi();
 
 	jit_patch(addr);
@@ -106,7 +110,7 @@ static struct block * generate_address_lookup_block(unsigned int nb_maps)
 			offsetof(struct lightrec_state, mem_map));
 
 	/* And return the address to the caller */
-	jit_retr(JIT_R0);
+	jit_movr(JIT_RA0, JIT_V2);
 	jit_epilog();
 
 	block->_jit = _jit;
