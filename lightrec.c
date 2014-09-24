@@ -116,6 +116,8 @@ static struct block * generate_address_lookup_block(unsigned int nb_maps)
 	block->_jit = _jit;
 	block->function = jit_emit();
 	block->opcode_list = NULL;
+
+	jit_clear_state();
 	return block;
 
 err_free_block:
@@ -171,6 +173,7 @@ static struct block * generate_wrapper_block(struct lightrec_state *state)
 	state->end_of_block = (uintptr_t) jit_address(addr);
 
 	/* We're done! */
+	jit_clear_state();
 	return block;
 
 err_free_block:
@@ -230,6 +233,8 @@ struct block * lightrec_recompile_block(struct lightrec_state *state, u32 pc)
 	DEBUG("Recompiling block at PC: 0x%x\n", block->pc);
 	jit_disassemble();
 #endif
+
+	jit_clear_state();
 	return block;
 
 err_free_list:
