@@ -145,6 +145,31 @@ int rec_JAL(jit_state_t *_jit, union opcode op,
 			(pc & 0xf0000000) | (op.j.imm << 2), pc + 8, elm);
 }
 
+static void preload_in_regs(jit_state_t *_jit, union opcode op)
+{
+	switch (op.i.op) {
+	case OP_SPECIAL:
+	case OP_BEQ:
+	case OP_BNE:
+	case OP_SB:
+	case OP_SH:
+	case OP_SWL:
+	case OP_SW:
+	case OP_SWR:
+		if (op.i.rt)
+			lightrec_alloc_reg_in(_jit, op.i.rt);
+	default:
+		if (op.i.rs)
+			lightrec_alloc_reg_in(_jit, op.i.rs);
+	case OP_LUI:
+	case OP_J:
+	case OP_JAL:
+		break;
+	}
+
+	lightrec_free_regs();
+}
+
 static int rec_b(jit_state_t *_jit, union opcode op,
 		const struct block *block, u32 pc, jit_code_t code)
 {
@@ -153,6 +178,8 @@ static int rec_b(jit_state_t *_jit, union opcode op,
 	jit_node_t *addr;
 
 	jit_note(__FILE__, __LINE__);
+	if (delay_slot->opcode.opcode)
+		preload_in_regs(_jit, delay_slot->opcode);
 	rs = lightrec_alloc_reg_in(_jit, op.i.rs);
 	rt = lightrec_alloc_reg_in(_jit, op.i.rt);
 
@@ -176,6 +203,8 @@ static int rec_bz(jit_state_t *_jit, union opcode op,
 	jit_node_t *addr;
 
 	jit_note(__FILE__, __LINE__);
+	if (delay_slot->opcode.opcode)
+		preload_in_regs(_jit, delay_slot->opcode);
 	rs = lightrec_alloc_reg_in(_jit, op.i.rs);
 
 	addr = jit_new_node_pww(code, NULL, rs, 0);
