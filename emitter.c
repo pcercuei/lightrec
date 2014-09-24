@@ -77,15 +77,15 @@ static int lightrec_emit_end_of_block(jit_state_t *_jit,
 		jit_stxi_i(offset, LIGHTREC_REG_STATE, tmp);
 	}
 
-	if (!reg_new_pc)
-		jit_movi(tmp, imm);
-	else
-		jit_movr(tmp, reg_new_pc);
-
 	/* Store the next PC in the lightrec_state structure,
 	 * in case we exit the dynarec after this block */
 	offset = offsetof(struct lightrec_state, next_pc);
-	jit_stxi_i(offset, LIGHTREC_REG_STATE, tmp);
+	if (reg_new_pc) {
+		jit_stxi_i(offset, LIGHTREC_REG_STATE, reg_new_pc);
+	} else {
+		jit_movi(tmp, imm);
+		jit_stxi_i(offset, LIGHTREC_REG_STATE, tmp);
+	}
 
 	lightrec_free_regs();
 
