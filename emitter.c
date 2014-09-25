@@ -94,6 +94,7 @@ static int lightrec_emit_end_of_block(jit_state_t *_jit,
 		lightrec_rec_opcode(_jit, delay_slot->opcode, block, pc + 4);
 
 	lightrec_storeback_regs(_jit);
+	lightrec_unlink_addresses();
 
 	/* Load the address of lightrec_state in JIT_RA0
 	 * FIXME: may not work on all architectures */

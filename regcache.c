@@ -248,6 +248,14 @@ void lightrec_storeback_regs(jit_state_t *_jit)
 	}
 }
 
+void lightrec_unlink_addresses(void)
+{
+	unsigned int i;
+
+	for (i = 0; i < ARRAY_SIZE(lightrec_regs); i++)
+		lightrec_regs[i].addr_reg = NULL;
+}
+
 void lightrec_regcache_reset(void)
 {
 	memset(&lightrec_regs, 0, sizeof(lightrec_regs));
