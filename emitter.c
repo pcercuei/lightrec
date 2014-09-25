@@ -66,15 +66,14 @@ static int lightrec_emit_end_of_block(jit_state_t *_jit,
 		struct opcode_list *delay_slot)
 {
 	u32 offset;
-	u8 tmp = lightrec_alloc_reg_temp(_jit);
 
 	jit_note(__FILE__, __LINE__);
 
 	if (link) {
 		/* Update the $ra register */
-		offset = offsetof(struct lightrec_state, reg_cache) + (31 << 2);
-		jit_movi(tmp, link);
-		jit_stxi_i(offset, LIGHTREC_REG_STATE, tmp);
+		u8 link_reg = lightrec_alloc_reg_out(_jit, 31);
+		jit_movi(link_reg, link);
+		lightrec_free_regs();
 	}
 
 	/* Store the next PC in the lightrec_state structure,
@@ -83,6 +82,7 @@ static int lightrec_emit_end_of_block(jit_state_t *_jit,
 	if (reg_new_pc) {
 		jit_stxi_i(offset, LIGHTREC_REG_STATE, reg_new_pc);
 	} else {
+		u8 tmp = lightrec_alloc_reg_temp(_jit);
 		jit_movi(tmp, imm);
 		jit_stxi_i(offset, LIGHTREC_REG_STATE, tmp);
 	}
