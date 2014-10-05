@@ -173,7 +173,7 @@ u8 lightrec_alloc_reg_out(jit_state_t *_jit, u8 reg)
 	return jit_reg;
 }
 
-u8 lightrec_alloc_reg_in(jit_state_t *_jit, u8 reg)
+u8 alloc_reg_in(jit_state_t *_jit, u8 reg, bool clear_addr_reg)
 {
 	u8 jit_reg;
 	struct native_register *nreg = alloc_in_out(reg);
@@ -210,10 +210,17 @@ u8 lightrec_alloc_reg_in(jit_state_t *_jit, u8 reg)
 	if (reg == 0)
 		jit_movi(jit_reg, 0);
 
+	if (clear_addr_reg)
+		nreg->addr_reg = NULL;
 	nreg->used = true;
 	nreg->output = false;
 	nreg->emulated_register = reg;
 	return jit_reg;
+}
+
+u8 lightrec_alloc_reg_in(jit_state_t *_jit, u8 reg)
+{
+	return alloc_reg_in(_jit, reg, true);
 }
 
 void lightrec_free_reg(u8 jit_reg)
@@ -263,12 +270,14 @@ void lightrec_regcache_reset(void)
 
 u8 lightrec_alloc_reg_in_address(jit_state_t *_jit, u8 reg)
 {
-	u8 addr, rs = lightrec_alloc_reg_in(_jit, reg);
+	u8 addr, rs = alloc_reg_in(_jit, reg, false);
 	struct native_register *tmpreg, *nreg = lightning_reg_to_lightrec(rs);
 
 	/* Reuse the previous temp register if it wasn't invalidated */
-	if (nreg->addr_reg && nreg->addr_reg->addr_reg == nreg)
+	if (nreg->addr_reg && nreg->addr_reg->addr_reg == nreg) {
+		nreg->addr_reg->used = true;
 		return lightrec_reg_to_lightning(nreg->addr_reg);
+	}
 
 	jit_movr(JIT_RA0, rs);
 	lightrec_free_regs();
@@ -287,6 +296,7 @@ u8 lightrec_alloc_reg_in_address(jit_state_t *_jit, u8 reg)
 	/* Link the two registers */
 	tmpreg->addr_reg = nreg;
 	nreg->addr_reg = tmpreg;
+	nreg->used = true;
 
 	return addr;
 }
