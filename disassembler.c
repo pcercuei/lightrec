@@ -36,6 +36,12 @@ static bool is_unconditional_jump(union opcode op)
 	}
 }
 
+static bool is_syscall(union opcode op)
+{
+	return op.i.op == OP_SPECIAL && (op.r.op == OP_SPECIAL_SYSCALL ||
+			op.r.op == OP_SPECIAL_BREAK);
+}
+
 void lightrec_free_opcode_list(struct opcode_list *list)
 {
 	while (list) {
@@ -74,7 +80,7 @@ struct opcode_list * lightrec_disassemble(const u32 *src)
 
 		/* NOTE: The block disassembly ends after the opcode that
 		 * follows an unconditional jump (delay slot) */
-		if (stop_next)
+		if (stop_next || is_syscall(op))
 			break;
 		else if (is_unconditional_jump(op))
 			stop_next = true;
