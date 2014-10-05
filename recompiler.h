@@ -98,6 +98,8 @@ __weak int rec_special_JALR(jit_state_t *, union opcode,
 		const struct block *, u32);
 __weak int rec_special_SYSCALL(jit_state_t *, union opcode,
 		const struct block *, u32);
+__weak int rec_special_BREAK(jit_state_t *, union opcode,
+		const struct block *, u32);
 __weak int rec_special_MFHI(jit_state_t *, union opcode,
 		const struct block *, u32);
 __weak int rec_special_MTHI(jit_state_t *, union opcode,

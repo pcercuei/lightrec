@@ -78,6 +78,7 @@ static lightrec_rec_func_t rec_special[64] = {
 	[OP_SPECIAL_JR]		= rec_special_JR,
 	[OP_SPECIAL_JALR]	= rec_special_JALR,
 	[OP_SPECIAL_SYSCALL]	= rec_special_SYSCALL,
+	[OP_SPECIAL_BREAK]	= rec_special_BREAK,
 	[OP_SPECIAL_MFHI]	= rec_special_MFHI,
 	[OP_SPECIAL_MTHI]	= rec_special_MTHI,
 	[OP_SPECIAL_MFLO]	= rec_special_MFLO,

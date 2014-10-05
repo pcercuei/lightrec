@@ -29,6 +29,12 @@ typedef struct jit_state jit_state_t;
 
 struct opcode_list;
 
+enum block_exit_flags {
+	LIGHTREC_EXIT_NORMAL,
+	LIGHTREC_EXIT_SYSCALL,
+	LIGHTREC_EXIT_BREAK,
+};
+
 struct block {
 	jit_state_t *_jit;
 	struct opcode_list *opcode_list;
@@ -45,6 +51,7 @@ struct lightrec_mem_map {
 struct lightrec_state {
 	uint32_t reg_cache[34];
 	uint32_t next_pc;
+	enum block_exit_flags block_exit_flags;
 	uintptr_t end_of_block;
 	struct block *wrapper, *addr_lookup_block;
 	struct blockcache *block_cache;
