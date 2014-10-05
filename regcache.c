@@ -166,6 +166,9 @@ u8 lightrec_alloc_reg_out(jit_state_t *_jit, u8 reg)
 		nreg->dirty = false;
 	}
 
+	if (nreg->emulated_register != reg)
+		nreg->loaded = false;
+
 	nreg->addr_reg = NULL;
 	nreg->used = true;
 	nreg->output = true;
@@ -196,6 +199,9 @@ u8 alloc_reg_in(jit_state_t *_jit, u8 reg, bool clear_addr_reg)
 		nreg->dirty = false;
 		nreg->loaded = false;
 	}
+
+	if (nreg->emulated_register != reg)
+		nreg->loaded = false;
 
 	if (!nreg->loaded && !nreg->dirty && reg != 0) {
 		s16 offset = offsetof(struct lightrec_state, reg_cache)
