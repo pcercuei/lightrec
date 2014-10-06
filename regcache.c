@@ -21,7 +21,7 @@
 struct native_register {
 	struct native_register *addr_reg;
 	bool used, loaded, dirty, output;
-	u8 emulated_register;
+	s8 emulated_register;
 };
 
 static struct native_register lightrec_regs[NUM_REGS + NUM_TEMPS];
@@ -104,7 +104,7 @@ static struct native_register * alloc_in_out(u8 reg)
 static void free_reg(struct native_register *nreg)
 {
 	/* Set output registers as dirty */
-	if (nreg->used && nreg->output && nreg->emulated_register != 0) {
+	if (nreg->used && nreg->output && nreg->emulated_register > 0) {
 		nreg->dirty = true;
 		nreg->addr_reg = NULL;
 	}
@@ -138,7 +138,7 @@ u8 lightrec_alloc_reg_temp(jit_state_t *_jit)
 	nreg->loaded = false;
 	nreg->output = false;
 	nreg->used = true;
-	nreg->emulated_register = 0;
+	nreg->emulated_register = -1;
 	return jit_reg;
 }
 
