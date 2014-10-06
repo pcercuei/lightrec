@@ -274,7 +274,7 @@ void lightrec_regcache_reset(void)
 	memset(&lightrec_regs, 0, sizeof(lightrec_regs));
 }
 
-u8 lightrec_alloc_reg_in_address(jit_state_t *_jit, u8 reg)
+u8 lightrec_alloc_reg_in_address(jit_state_t *_jit, u8 reg, s16 offset)
 {
 	u8 addr, rs = alloc_reg_in(_jit, reg, false);
 	struct native_register *tmpreg, *nreg = lightning_reg_to_lightrec(rs);
@@ -286,6 +286,9 @@ u8 lightrec_alloc_reg_in_address(jit_state_t *_jit, u8 reg)
 	}
 
 	jit_movr(JIT_RA0, rs);
+	if (offset)
+		jit_addi(JIT_RA0, JIT_RA0, offset);
+
 	lightrec_free_regs();
 
 	addr = lightrec_alloc_reg_temp(_jit);
@@ -296,6 +299,9 @@ u8 lightrec_alloc_reg_in_address(jit_state_t *_jit, u8 reg)
 	/* The address lookup block returns its value in JIT_RA0
 	 * instead of JIT_R0, so that we don't trash a register. */
 	jit_movr(addr, JIT_RA0);
+
+	if (offset)
+		jit_subi(addr, addr, offset);
 
 	tmpreg = lightning_reg_to_lightrec(addr);
 

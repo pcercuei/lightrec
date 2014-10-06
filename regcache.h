@@ -39,6 +39,6 @@ void lightrec_free_regs(void);
 void lightrec_storeback_regs(jit_state_t *_jit);
 void lightrec_unlink_addresses(void);
 
-u8 lightrec_alloc_reg_in_address(jit_state_t *_jit, u8 reg);
+u8 lightrec_alloc_reg_in_address(jit_state_t *_jit, u8 reg, s16 offset);
 
 #endif /* __REGCACHE_H__ */

@@ -601,7 +601,7 @@ static int rec_store(jit_state_t *_jit, union opcode op, jit_code_t code)
 	u8 rt, rs;
 
 	jit_name(__func__);
-	rs = lightrec_alloc_reg_in_address(_jit, op.i.rs);
+	rs = lightrec_alloc_reg_in_address(_jit, op.i.rs, (s16) op.i.imm);
 	rt = lightrec_alloc_reg_in(_jit, op.i.rt);
 
 	jit_new_node_www(code, (s16) op.i.imm, rs, rt);
@@ -615,7 +615,7 @@ static int rec_load(jit_state_t *_jit, union opcode op, jit_code_t code)
 	u8 rt, rs;
 
 	jit_name(__func__);
-	rs = lightrec_alloc_reg_in_address(_jit, op.i.rs);
+	rs = lightrec_alloc_reg_in_address(_jit, op.i.rs, (s16) op.i.imm);
 	rt = lightrec_alloc_reg_out(_jit, op.i.rt);
 
 	jit_new_node_www(code, rt, rs, (s16) op.i.imm);
