@@ -184,50 +184,32 @@ static void preload_in_regs(jit_state_t *_jit, union opcode op)
 	lightrec_free_regs();
 }
 
-static int rec_b(jit_state_t *_jit, union opcode op,
-		const struct block *block, u32 pc, jit_code_t code)
+static int rec_b(jit_state_t *_jit, union opcode op, const struct block *block,
+		u32 pc, jit_code_t code, u32 link, bool unconditional, bool bz)
 {
 	struct opcode_list *delay_slot = find_delay_slot(block, pc);
-	u8 rs, rt;
 	jit_node_t *addr;
 
 	jit_note(__FILE__, __LINE__);
 	if (delay_slot->opcode.opcode)
 		preload_in_regs(_jit, delay_slot->opcode);
-	rs = lightrec_alloc_reg_in(_jit, op.i.rs);
-	rt = lightrec_alloc_reg_in(_jit, op.i.rt);
 
-	addr = jit_new_node_pww(code, NULL, rs, rt);
-	lightrec_emit_end_of_block(_jit, block, pc, 0,
-			pc + 4 + (s16) (op.i.imm << 2), 0, delay_slot);
-	jit_patch(addr);
+	if (!unconditional) {
+		u8 rs = lightrec_alloc_reg_in(_jit, op.i.rs),
+		   rt = bz ? 0 : lightrec_alloc_reg_in(_jit, op.i.rt);
+		addr = jit_new_node_pww(code, NULL, rs, rt);
+	}
 
-	if (delay_slot->opcode.opcode /* TODO: BL opcodes */)
-		lightrec_rec_opcode(_jit, delay_slot->opcode, block, pc + 4);
-
-	lightrec_free_regs();
-	return SKIP_DELAY_SLOT;
-}
-
-static int rec_bz(jit_state_t *_jit, union opcode op,
-		const struct block *block, u32 pc, jit_code_t code, u32 link)
-{
-	struct opcode_list *delay_slot = find_delay_slot(block, pc);
-	u8 rs;
-	jit_node_t *addr;
-
-	jit_note(__FILE__, __LINE__);
-	if (delay_slot->opcode.opcode)
-		preload_in_regs(_jit, delay_slot->opcode);
-	rs = lightrec_alloc_reg_in(_jit, op.i.rs);
-
-	addr = jit_new_node_pww(code, NULL, rs, 0);
 	lightrec_emit_end_of_block(_jit, block, pc, 0,
 			pc + 4 + (s16) (op.i.imm << 2), link, delay_slot);
-	jit_patch(addr);
 
-	if (delay_slot->opcode.opcode /* TODO: BL opcodes */)
-		lightrec_rec_opcode(_jit, delay_slot->opcode, block, pc + 4);
+	if (!unconditional) {
+		jit_patch(addr);
+
+		if (delay_slot->opcode.opcode /* TODO: BL opcodes */)
+			lightrec_rec_opcode(_jit, delay_slot->opcode,
+					block, pc + 4);
+	}
 
 	lightrec_free_regs();
 	return SKIP_DELAY_SLOT;
@@ -237,56 +219,59 @@ int rec_BNE(jit_state_t *_jit, union opcode op,
 		const struct block *block, u32 pc)
 {
 	jit_name(__func__);
-	return rec_b(_jit, op, block, pc, jit_code_beqr);
+	return rec_b(_jit, op, block, pc, jit_code_beqr, 0, false, false);
 }
 
 int rec_BEQ(jit_state_t *_jit, union opcode op,
 		const struct block *block, u32 pc)
 {
 	jit_name(__func__);
-	return rec_b(_jit, op, block, pc, jit_code_bner);
+	return rec_b(_jit, op, block, pc, jit_code_bner, 0,
+			op.i.rs == op.i.rt, false);
 }
 
 int rec_BLEZ(jit_state_t *_jit, union opcode op,
 		const struct block *block, u32 pc)
 {
 	jit_name(__func__);
-	return rec_bz(_jit, op, block, pc, jit_code_bgti, 0);
+	return rec_b(_jit, op, block, pc, jit_code_bgti, 0,
+			op.i.rs == 0, true);
 }
 
 int rec_BGTZ(jit_state_t *_jit, union opcode op,
 		const struct block *block, u32 pc)
 {
 	jit_name(__func__);
-	return rec_bz(_jit, op, block, pc, jit_code_blei, 0);
+	return rec_b(_jit, op, block, pc, jit_code_blei, 0, false, true);
 }
 
 int rec_regimm_BLTZ(jit_state_t *_jit, union opcode op,
 		const struct block *block, u32 pc)
 {
 	jit_name(__func__);
-	return rec_bz(_jit, op, block, pc, jit_code_bgei, 0);
+	return rec_b(_jit, op, block, pc, jit_code_bgei, 0, false, true);
 }
 
 int rec_regimm_BLTZAL(jit_state_t *_jit, union opcode op,
 		const struct block *block, u32 pc)
 {
 	jit_name(__func__);
-	return rec_bz(_jit, op, block, pc, jit_code_bgei, pc + 8);
+	return rec_b(_jit, op, block, pc, jit_code_bgei, pc + 8, false, true);
 }
 
 int rec_regimm_BGEZ(jit_state_t *_jit, union opcode op,
 		const struct block *block, u32 pc)
 {
 	jit_name(__func__);
-	return rec_bz(_jit, op, block, pc, jit_code_blti, 0);
+	return rec_b(_jit, op, block, pc, jit_code_blti, 0, op.i.rs == 0, true);
 }
 
 int rec_regimm_BGEZAL(jit_state_t *_jit, union opcode op,
 		const struct block *block, u32 pc)
 {
 	jit_name(__func__);
-	return rec_bz(_jit, op, block, pc, jit_code_blti, pc + 8);
+	return rec_b(_jit, op, block, pc, jit_code_blti, pc + 8,
+			op.i.rs == 0, true);
 }
 
 static int rec_alu_imm(jit_state_t *_jit, union opcode op,
