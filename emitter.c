@@ -65,7 +65,7 @@ static int lightrec_emit_end_of_block(jit_state_t *_jit,
 		u8 reg_new_pc, u32 imm, u32 link,
 		struct opcode_list *delay_slot)
 {
-	u32 offset;
+	u32 offset, cycles = block->cycles;
 
 	jit_note(__FILE__, __LINE__);
 
@@ -89,12 +89,25 @@ static int lightrec_emit_end_of_block(jit_state_t *_jit,
 
 	lightrec_free_regs();
 
-	/* Recompile the delay slot */
-	if (delay_slot && delay_slot->opcode.opcode)
-		lightrec_rec_opcode(_jit, delay_slot->opcode, block, pc + 4);
+	if (delay_slot) {
+		union opcode op = delay_slot->opcode;
+
+		cycles += lightrec_cycles_of_opcode(op);
+
+		/* Recompile the delay slot */
+		if (op.opcode)
+			lightrec_rec_opcode(_jit, op, block, pc + 4);
+	}
 
 	lightrec_storeback_regs(_jit);
 	lightrec_unlink_addresses();
+
+	/* Increment the cycle counter */
+	jit_ldxi_i(JIT_R0, LIGHTREC_REG_STATE,
+			offsetof(struct lightrec_state, block_exit_cycles));
+	jit_addi(JIT_R0, JIT_R0, cycles);
+	jit_stxi_i(offsetof(struct lightrec_state, block_exit_cycles),
+			LIGHTREC_REG_STATE, JIT_R0);
 
 	/* Load the address of lightrec_state in JIT_RA0
 	 * FIXME: may not work on all architectures */

@@ -210,9 +210,12 @@ struct block * lightrec_recompile_block(struct lightrec_state *state, u32 pc)
 	block->pc = pc;
 	block->_jit = _jit;
 	block->opcode_list = list;
+	block->cycles = 0;
 
 	for (elm = list; elm; elm = SLIST_NEXT(elm, next), pc += 4) {
 		int ret;
+
+		block->cycles += lightrec_cycles_of_opcode(elm->opcode);
 
 		if (skip_next) {
 			skip_next = false;
@@ -260,6 +263,9 @@ u32 lightrec_execute(struct lightrec_state *state, u32 pc)
 
 		lightrec_register_block(state->block_cache, block);
 	}
+
+	state->block_exit_flags = LIGHTREC_EXIT_NORMAL;
+	state->block_exit_cycles = 0;
 
 	func((void *) block->function);
 	return state->next_pc;

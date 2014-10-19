@@ -88,3 +88,9 @@ struct opcode_list * lightrec_disassemble(const u32 *src)
 
 	return SLIST_FIRST(&head);
 }
+
+unsigned int lightrec_cycles_of_opcode(union opcode op)
+{
+	/* TODO: Add a proper cycle counter */
+	return 2;
+}

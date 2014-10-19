@@ -40,6 +40,7 @@ struct block {
 	struct opcode_list *opcode_list;
 	void (*function)(void);
 	uint32_t pc;
+	unsigned int cycles;
 };
 
 struct lightrec_mem_map {
@@ -51,6 +52,7 @@ struct lightrec_mem_map {
 struct lightrec_state {
 	uint32_t reg_cache[34];
 	uint32_t next_pc;
+	uint32_t block_exit_cycles;
 	enum block_exit_flags block_exit_flags;
 	uintptr_t end_of_block;
 	struct block *wrapper, *addr_lookup_block;
