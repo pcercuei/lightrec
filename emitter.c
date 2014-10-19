@@ -441,16 +441,13 @@ int rec_special_XOR(jit_state_t *_jit, union opcode op,
 int rec_special_NOR(jit_state_t *_jit, union opcode op,
 		const struct block *block, u32 pc)
 {
-	rec_alu_special(_jit, op, jit_code_xorr, false);
-	u8 rs, rt, rd;
+	u8 rd;
 
 	jit_name(__func__);
-	rs = lightrec_alloc_reg_in(_jit, op.r.rs);
-	rt = lightrec_alloc_reg_in(_jit, op.r.rt);
+	rec_alu_special(_jit, op, jit_code_orr, false);
 	rd = lightrec_alloc_reg_out(_jit, op.r.rd);
 
 	jit_note(__FILE__, __LINE__);
-	jit_orr(rd, rt, rs);
 	jit_comr(rd, rd);
 
 	lightrec_free_regs();
