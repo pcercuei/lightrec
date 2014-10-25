@@ -111,6 +111,26 @@ static void free_reg(struct native_register *nreg)
 	nreg->used = false;
 }
 
+static void unload_reg(jit_state_t *_jit, u8 jit_reg)
+{
+	struct native_register *nreg = lightning_reg_to_lightrec(jit_reg);
+
+	/* If we get a dirty register, store back the old value */
+	if (nreg->dirty) {
+		s16 offset = offsetof(struct lightrec_state, reg_cache)
+			+ (nreg->emulated_register << 2);
+
+		jit_stxi_i(offset, LIGHTREC_REG_STATE, jit_reg);
+	}
+
+	nreg->addr_reg = NULL;
+	nreg->loaded = false;
+	nreg->output = false;
+	nreg->dirty = false;
+	nreg->used = false;
+	nreg->emulated_register = -1;
+}
+
 u8 lightrec_alloc_reg_temp(jit_state_t *_jit)
 {
 	u8 jit_reg;
@@ -124,21 +144,9 @@ u8 lightrec_alloc_reg_temp(jit_state_t *_jit)
 	jit_reg = lightrec_reg_to_lightning(nreg);
 	jit_note(__FILE__, __LINE__);
 
-	/* If we get a dirty register, store back the old value */
-	if (nreg->dirty) {
-		s16 offset = offsetof(struct lightrec_state, reg_cache)
-			+ (nreg->emulated_register << 2);
+	unload_reg(_jit, jit_reg);
 
-		jit_stxi_i(offset, LIGHTREC_REG_STATE, jit_reg);
-
-		nreg->dirty = false;
-	}
-
-	nreg->addr_reg = NULL;
-	nreg->loaded = false;
-	nreg->output = false;
 	nreg->used = true;
-	nreg->emulated_register = -1;
 	return jit_reg;
 }
 
@@ -157,17 +165,8 @@ u8 lightrec_alloc_reg_out(jit_state_t *_jit, u8 reg)
 
 	/* If we get a dirty register that doesn't correspond to the one
 	 * we're requesting, store back the old value */
-	if (nreg->dirty && nreg->emulated_register != reg) {
-		s16 offset = offsetof(struct lightrec_state, reg_cache)
-			+ (nreg->emulated_register << 2);
-
-		jit_stxi_i(offset, LIGHTREC_REG_STATE, jit_reg);
-
-		nreg->dirty = false;
-	}
-
 	if (nreg->emulated_register != reg)
-		nreg->loaded = false;
+		unload_reg(_jit, jit_reg);
 
 	nreg->addr_reg = NULL;
 	nreg->used = true;
@@ -176,9 +175,10 @@ u8 lightrec_alloc_reg_out(jit_state_t *_jit, u8 reg)
 	return jit_reg;
 }
 
-u8 alloc_reg_in(jit_state_t *_jit, u8 reg, bool clear_addr_reg)
+u8 lightrec_alloc_reg_in(jit_state_t *_jit, u8 reg)
 {
 	u8 jit_reg;
+	bool reg_changed;
 	struct native_register *nreg = alloc_in_out(reg);
 	if (!nreg) {
 		/* No free register, no dirty register to free. */
@@ -191,17 +191,9 @@ u8 alloc_reg_in(jit_state_t *_jit, u8 reg, bool clear_addr_reg)
 
 	/* If we get a dirty register that doesn't correspond to the one
 	 * we're requesting, store back the old value */
-	if (nreg->dirty && nreg->emulated_register != reg) {
-		s16 offset = offsetof(struct lightrec_state, reg_cache)
-			+ (nreg->emulated_register << 2);
-
-		jit_stxi_i(offset, LIGHTREC_REG_STATE, jit_reg);
-		nreg->dirty = false;
-		nreg->loaded = false;
-	}
-
-	if (nreg->emulated_register != reg)
-		nreg->loaded = false;
+	reg_changed = nreg->emulated_register != reg;
+	if (reg_changed)
+		unload_reg(_jit, jit_reg);
 
 	if (!nreg->loaded && !nreg->dirty && reg != 0) {
 		s16 offset = offsetof(struct lightrec_state, reg_cache)
@@ -216,17 +208,10 @@ u8 alloc_reg_in(jit_state_t *_jit, u8 reg, bool clear_addr_reg)
 	if (reg == 0)
 		jit_movi(jit_reg, 0);
 
-	if (clear_addr_reg)
-		nreg->addr_reg = NULL;
 	nreg->used = true;
 	nreg->output = false;
 	nreg->emulated_register = reg;
 	return jit_reg;
-}
-
-u8 lightrec_alloc_reg_in(jit_state_t *_jit, u8 reg)
-{
-	return alloc_reg_in(_jit, reg, true);
 }
 
 void lightrec_free_reg(u8 jit_reg)
@@ -276,7 +261,7 @@ void lightrec_regcache_reset(void)
 
 u8 lightrec_alloc_reg_in_address(jit_state_t *_jit, u8 reg, s16 offset)
 {
-	u8 addr, rs = alloc_reg_in(_jit, reg, false);
+	u8 addr, rs = lightrec_alloc_reg_in(_jit, reg);
 	struct native_register *tmpreg, *nreg = lightning_reg_to_lightrec(rs);
 
 	/* Reuse the previous temp register if it wasn't invalidated */
