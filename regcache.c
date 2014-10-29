@@ -101,16 +101,6 @@ static struct native_register * alloc_in_out(u8 reg)
 	return NULL;
 }
 
-static void free_reg(struct native_register *nreg)
-{
-	/* Set output registers as dirty */
-	if (nreg->used && nreg->output && nreg->emulated_register > 0) {
-		nreg->dirty = true;
-		nreg->addr_reg = NULL;
-	}
-	nreg->used = false;
-}
-
 static void unload_reg(jit_state_t *_jit, u8 jit_reg)
 {
 	struct native_register *nreg = lightning_reg_to_lightrec(jit_reg);
@@ -214,6 +204,16 @@ u8 lightrec_alloc_reg_in(jit_state_t *_jit, u8 reg)
 	return jit_reg;
 }
 
+static void free_reg(struct native_register *nreg)
+{
+	/* Set output registers as dirty */
+	if (nreg->used && nreg->output && nreg->emulated_register > 0) {
+		nreg->dirty = true;
+		nreg->addr_reg = NULL;
+	}
+	nreg->used = false;
+}
+
 void lightrec_free_reg(u8 jit_reg)
 {
 	free_reg(lightning_reg_to_lightrec(jit_reg));
@@ -271,10 +271,10 @@ u8 lightrec_alloc_reg_in_address(jit_state_t *_jit, u8 reg, s16 offset)
 	}
 
 	jit_movr(JIT_RA0, rs);
+	lightrec_free_reg(rs);
+
 	if (offset)
 		jit_addi(JIT_RA0, JIT_RA0, offset);
-
-	lightrec_free_regs();
 
 	addr = lightrec_alloc_reg_temp(_jit);
 	jit_ldxi(addr, LIGHTREC_REG_STATE,

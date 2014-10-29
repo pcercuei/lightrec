@@ -73,7 +73,7 @@ static int lightrec_emit_end_of_block(jit_state_t *_jit,
 		/* Update the $ra register */
 		u8 link_reg = lightrec_alloc_reg_out(_jit, 31);
 		jit_movi(link_reg, link);
-		lightrec_free_regs();
+		lightrec_free_reg(link_reg);
 	}
 
 	/* Store the next PC in the lightrec_state structure,
@@ -85,9 +85,8 @@ static int lightrec_emit_end_of_block(jit_state_t *_jit,
 		u8 tmp = lightrec_alloc_reg_temp(_jit);
 		jit_movi(tmp, imm);
 		jit_stxi_i(offset, LIGHTREC_REG_STATE, tmp);
+		lightrec_free_reg(tmp);
 	}
-
-	lightrec_free_regs();
 
 	if (delay_slot) {
 		union opcode op = delay_slot->opcode;
@@ -170,18 +169,20 @@ static void preload_in_regs(jit_state_t *_jit, union opcode op)
 	case OP_SWL:
 	case OP_SW:
 	case OP_SWR:
-		if (op.i.rt)
-			lightrec_alloc_reg_in(_jit, op.i.rt);
+		if (op.i.rt) {
+			u8 reg = lightrec_alloc_reg_in(_jit, op.i.rt);
+			lightrec_free_reg(reg);
+		}
 	default:
-		if (op.i.rs)
-			lightrec_alloc_reg_in(_jit, op.i.rs);
+		if (op.i.rs) {
+			u8 reg = lightrec_alloc_reg_in(_jit, op.i.rs);
+			lightrec_free_reg(reg);
+		}
 	case OP_LUI:
 	case OP_J:
 	case OP_JAL:
 		break;
 	}
-
-	lightrec_free_regs();
 }
 
 static int rec_b(jit_state_t *_jit, union opcode op, const struct block *block,
@@ -198,6 +199,10 @@ static int rec_b(jit_state_t *_jit, union opcode op, const struct block *block,
 		u8 rs = lightrec_alloc_reg_in(_jit, op.i.rs),
 		   rt = bz ? 0 : lightrec_alloc_reg_in(_jit, op.i.rt);
 		addr = jit_new_node_pww(code, NULL, rs, rt);
+
+		lightrec_free_reg(rs);
+		if (!bz)
+			lightrec_free_reg(rt);
 	}
 
 	lightrec_emit_end_of_block(_jit, block, pc, 0,
@@ -211,7 +216,6 @@ static int rec_b(jit_state_t *_jit, union opcode op, const struct block *block,
 					block, pc + 4);
 	}
 
-	lightrec_free_regs();
 	return SKIP_DELAY_SLOT;
 }
 
@@ -286,7 +290,8 @@ static int rec_alu_imm(jit_state_t *_jit, union opcode op,
 	else
 		jit_new_node_www(code, rt, rs, (u32)(u16) op.i.imm);
 
-	lightrec_free_regs();
+	lightrec_free_reg(rs);
+	lightrec_free_reg(rt);
 	return 0;
 }
 
@@ -303,7 +308,9 @@ static int rec_alu_special(jit_state_t *_jit, union opcode op,
 	else
 		jit_new_node_www(code, rd, rs, rt);
 
-	lightrec_free_regs();
+	lightrec_free_reg(rs);
+	lightrec_free_reg(rt);
+	lightrec_free_reg(rd);
 	return 0;
 }
 
@@ -368,7 +375,7 @@ int rec_LUI(jit_state_t *_jit, union opcode op,
 	jit_note(__FILE__, __LINE__);
 	jit_movi(rt, op.i.imm << 16);
 
-	lightrec_free_regs();
+	lightrec_free_reg(rt);
 	return 0;
 }
 
@@ -435,7 +442,7 @@ int rec_special_NOR(jit_state_t *_jit, union opcode op,
 	jit_note(__FILE__, __LINE__);
 	jit_comr(rd, rd);
 
-	lightrec_free_regs();
+	lightrec_free_reg(rd);
 	return 0;
 }
 
@@ -483,7 +490,8 @@ static int rec_alu_shift(jit_state_t *_jit, union opcode op,
 	jit_note(__FILE__, __LINE__);
 	jit_new_node_www(code, rd, rt, op.r.imm);
 
-	lightrec_free_regs();
+	lightrec_free_reg(rt);
+	lightrec_free_reg(rd);
 	return 0;
 }
 
@@ -519,7 +527,10 @@ static int rec_alu_mult_div(jit_state_t *_jit, union opcode op,
 	jit_note(__FILE__, __LINE__);
 	jit_new_node_qww(code, lo, hi, rs, rt);
 
-	lightrec_free_regs();
+	lightrec_free_reg(rs);
+	lightrec_free_reg(rt);
+	lightrec_free_reg(lo);
+	lightrec_free_reg(hi);
 	return 0;
 }
 
@@ -559,7 +570,8 @@ static int rec_alu_mv_lo_hi(jit_state_t *_jit, u8 dst, u8 src)
 	jit_note(__FILE__, __LINE__);
 	jit_movr(dst, src);
 
-	lightrec_free_regs();
+	lightrec_free_reg(src);
+	lightrec_free_reg(dst);
 	return 0;
 }
 
@@ -601,7 +613,8 @@ static int rec_store(jit_state_t *_jit, union opcode op, jit_code_t code)
 
 	jit_new_node_www(code, (s16) op.i.imm, rs, rt);
 
-	lightrec_free_regs();
+	lightrec_free_reg(rt);
+	lightrec_free_reg(rs);
 	return 0;
 }
 
@@ -615,7 +628,8 @@ static int rec_load(jit_state_t *_jit, union opcode op, jit_code_t code)
 
 	jit_new_node_www(code, rt, rs, (s16) op.i.imm);
 
-	lightrec_free_regs();
+	lightrec_free_reg(rt);
+	lightrec_free_reg(rs);
 	return 0;
 }
 
