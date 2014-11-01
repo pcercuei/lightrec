@@ -61,7 +61,7 @@ static struct block * generate_address_lookup_block(unsigned int nb_maps)
 		goto err_free_block;
 
 	jit_prolog();
-	jit_getarg(JIT_R0, jit_arg());
+	jit_getarg(JIT_V2, jit_arg());
 
 	jit_name("address_lookup");
 	jit_note(__FILE__, __LINE__);
@@ -78,18 +78,18 @@ static struct block * generate_address_lookup_block(unsigned int nb_maps)
 	loop_top = jit_label();
 
 	/* Test if addr >= curr_map->pc */
-	jit_ldxi_i(JIT_V2, JIT_V0, offsetof(struct lightrec_mem_map, pc));
-	addr = jit_bltr_u(JIT_R0, JIT_V2);
+	jit_ldxi_i(JIT_R0, JIT_V0, offsetof(struct lightrec_mem_map, pc));
+	addr = jit_bltr_u(JIT_V2, JIT_R0);
 
 	/* Test if addr < curr_map->pc + curr_map->length */
 	jit_ldxi_i(JIT_V1, JIT_V0, offsetof(struct lightrec_mem_map, length));
-	jit_addr(JIT_V1, JIT_V2, JIT_V1);
-	addr2 = jit_bger_u(JIT_R0, JIT_V1);
+	jit_addr(JIT_V1, JIT_R0, JIT_V1);
+	addr2 = jit_bger_u(JIT_V2, JIT_V1);
 
 	/* Found: calculate address and jump to end */
 	jit_ldxi(JIT_V1, JIT_V0, offsetof(struct lightrec_mem_map, address));
-	jit_subr(JIT_V2, JIT_R0, JIT_V2);
-	jit_addr(JIT_V2, JIT_V2, JIT_V1);
+	jit_subr(JIT_R0, JIT_V2, JIT_R0);
+	jit_addr(JIT_R0, JIT_R0, JIT_V1);
 	to_end = jit_jmpi();
 
 	jit_patch(addr);
@@ -106,7 +106,7 @@ static struct block * generate_address_lookup_block(unsigned int nb_maps)
 	jit_patch(to_end);
 
 	/* And return the address to the caller */
-	jit_retr(JIT_V2);
+	jit_retr(JIT_R0);
 	jit_epilog();
 
 	block->_jit = _jit;
