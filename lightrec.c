@@ -61,7 +61,7 @@ static struct block * generate_address_lookup_block(unsigned int nb_maps)
 		goto err_free_block;
 
 	jit_prolog();
-	jit_getarg(JIT_RA0, jit_arg());
+	jit_getarg(JIT_R0, jit_arg());
 
 	jit_name("address_lookup");
 	jit_note(__FILE__, __LINE__);
@@ -79,16 +79,16 @@ static struct block * generate_address_lookup_block(unsigned int nb_maps)
 
 	/* Test if addr >= curr_map->pc */
 	jit_ldxi_i(JIT_V2, JIT_V0, offsetof(struct lightrec_mem_map, pc));
-	addr = jit_bltr_u(JIT_RA0, JIT_V2);
+	addr = jit_bltr_u(JIT_R0, JIT_V2);
 
 	/* Test if addr < curr_map->pc + curr_map->length */
 	jit_ldxi_i(JIT_V1, JIT_V0, offsetof(struct lightrec_mem_map, length));
 	jit_addr(JIT_V1, JIT_V2, JIT_V1);
-	addr2 = jit_bger_u(JIT_RA0, JIT_V1);
+	addr2 = jit_bger_u(JIT_R0, JIT_V1);
 
 	/* Found: calculate address and jump to end */
 	jit_ldxi(JIT_V1, JIT_V0, offsetof(struct lightrec_mem_map, address));
-	jit_subr(JIT_V2, JIT_RA0, JIT_V2);
+	jit_subr(JIT_V2, JIT_R0, JIT_V2);
 	jit_addr(JIT_V2, JIT_V2, JIT_V1);
 	to_end = jit_jmpi();
 
@@ -105,17 +105,16 @@ static struct block * generate_address_lookup_block(unsigned int nb_maps)
 
 	jit_patch(to_end);
 
-	/* Reset LIGHTREC_REG_STATE to its correct value */
-	jit_subi(LIGHTREC_REG_STATE, LIGHTREC_REG_STATE,
-			offsetof(struct lightrec_state, mem_map));
-
 	/* And return the address to the caller */
-	jit_movr(JIT_RA0, JIT_V2);
+	jit_retr(JIT_V2);
 	jit_epilog();
 
 	block->_jit = _jit;
 	block->function = jit_emit();
 	block->opcode_list = NULL;
+#if (LOG_LEVEL >= DEBUG_L)
+	jit_disassemble();
+#endif
 
 	jit_clear_state();
 	return block;
@@ -146,7 +145,9 @@ static struct block * generate_wrapper_block(struct lightrec_state *state)
 	jit_note(__FILE__, __LINE__);
 
 	jit_prolog();
-	jit_getarg(JIT_RA0, jit_arg());
+	jit_frame(256);
+
+	jit_getarg(JIT_R0, jit_arg());
 
 	/* Force all callee-saved registers to be pushed on the stack */
 	for (i = 0; i < NUM_REGS; i++)
@@ -157,7 +158,7 @@ static struct block * generate_wrapper_block(struct lightrec_state *state)
 	jit_movi(LIGHTREC_REG_STATE, state);
 
 	/* Call the block's code */
-	jit_jmpr(JIT_RA0);
+	jit_jmpr(JIT_R0);
 
 	jit_note(__FILE__, __LINE__);
 
@@ -212,6 +213,9 @@ struct block * lightrec_recompile_block(struct lightrec_state *state, u32 pc)
 	block->opcode_list = list;
 	block->cycles = 0;
 
+	jit_prolog();
+	jit_tramp(256);
+
 	for (elm = list; elm; elm = SLIST_NEXT(elm, next), pc += 4) {
 		int ret;
 
@@ -230,13 +234,15 @@ struct block * lightrec_recompile_block(struct lightrec_state *state, u32 pc)
 		skip_next = ret == SKIP_DELAY_SLOT;
 	}
 
+	jit_ret();
+	jit_epilog();
+
 	block->function = jit_emit();
 
 #if (LOG_LEVEL >= DEBUG_L)
 	DEBUG("Recompiling block at PC: 0x%x\n", block->pc);
 	jit_disassemble();
 #endif
-
 	jit_clear_state();
 	return block;
 

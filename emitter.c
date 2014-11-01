@@ -108,11 +108,9 @@ static int lightrec_emit_end_of_block(jit_state_t *_jit,
 	jit_stxi_i(offsetof(struct lightrec_state, block_exit_cycles),
 			LIGHTREC_REG_STATE, JIT_R0);
 
-	/* Load the address of lightrec_state in JIT_RA0
-	 * FIXME: may not work on all architectures */
-	jit_movr(JIT_RA0, LIGHTREC_REG_STATE);
-
-	jit_calli(&__get_jump_address_cb);
+	jit_prepare();
+	jit_pushargr(LIGHTREC_REG_STATE);
+	jit_finishi(&__get_jump_address_cb);
 	jit_retval(JIT_R0);
 	jit_jmpr(JIT_R0);
 	return SKIP_DELAY_SLOT;

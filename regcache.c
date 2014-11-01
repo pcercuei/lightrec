@@ -270,23 +270,30 @@ u8 lightrec_alloc_reg_in_address(jit_state_t *_jit, u8 reg, s16 offset)
 		return lightrec_reg_to_lightning(nreg->addr_reg);
 	}
 
-	jit_movr(JIT_RA0, rs);
+	/* XXX: We unload JIT_R0 as it will be used to return the native address
+	 * by the address lookup block.
+	 * Is that arch-independent? */
+	unload_reg(_jit, JIT_R0);
+
+	if (offset || rs != JIT_R0)
+		jit_addi(JIT_R0, rs, offset);
 	lightrec_free_reg(rs);
 
-	if (offset)
-		jit_addi(JIT_RA0, JIT_RA0, offset);
+	jit_prepare();
+	jit_pushargr(JIT_R0);
+
+	jit_ldxi(JIT_R0, LIGHTREC_REG_STATE,
+			offsetof(struct lightrec_state, addr_lookup));
+	jit_finishr(JIT_R0);
 
 	addr = lightrec_alloc_reg_temp(_jit);
-	jit_ldxi(addr, LIGHTREC_REG_STATE,
-			offsetof(struct lightrec_state, addr_lookup));
-	jit_callr(addr);
 
-	/* The address lookup block returns its value in JIT_RA0
-	 * instead of JIT_R0, so that we don't trash a register. */
-	jit_movr(addr, JIT_RA0);
-
-	if (offset)
-		jit_subi(addr, addr, offset);
+	if (offset) {
+		jit_retval(JIT_R0);
+		jit_subi(addr, JIT_R0, offset);
+	} else {
+		jit_retval(addr);
+	}
 
 	tmpreg = lightning_reg_to_lightrec(addr);
 
