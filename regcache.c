@@ -57,6 +57,13 @@ static struct native_register * alloc_temp(void)
 	 * memory. */
 	for (i = ARRAY_SIZE(lightrec_regs); i; i--) {
 		struct native_register *nreg = &lightrec_regs[i - 1];
+		if (!nreg->used && (!nreg->addr_reg ||
+					nreg->addr_reg->addr_reg != nreg))
+			return nreg;
+	}
+
+	for (i = ARRAY_SIZE(lightrec_regs); i; i--) {
+		struct native_register *nreg = &lightrec_regs[i - 1];
 		if (!nreg->used)
 			return nreg;
 	}
