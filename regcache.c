@@ -246,6 +246,18 @@ void lightrec_storeback_regs(jit_state_t *_jit)
 	}
 }
 
+void lightrec_clean_reg(jit_state_t *_jit, u8 jit_reg)
+{
+	struct native_register *nreg = lightning_reg_to_lightrec(jit_reg);
+	if (nreg->dirty) {
+		s16 offset = offsetof(struct lightrec_state, reg_cache)
+			+ (nreg->emulated_register << 2);
+
+		jit_stxi_i(offset, LIGHTREC_REG_STATE, jit_reg);
+		nreg->dirty = false;
+	}
+}
+
 void lightrec_unlink_addresses(void)
 {
 	unsigned int i;
