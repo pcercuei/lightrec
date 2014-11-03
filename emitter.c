@@ -190,8 +190,14 @@ static int rec_b(jit_state_t *_jit, union opcode op, const struct block *block,
 	jit_node_t *addr;
 
 	jit_note(__FILE__, __LINE__);
-	if (delay_slot->opcode.opcode)
+
+	if (delay_slot->opcode.opcode) {
+		/* Force storeback of the JIT_R0 register, in case we have a
+		 * load/store in the delay slot */
+		lightrec_clean_reg(_jit, JIT_R0);
+
 		preload_in_regs(_jit, delay_slot->opcode);
+	}
 
 	if (!unconditional) {
 		u8 rs = lightrec_alloc_reg_in(_jit, op.i.rs),
