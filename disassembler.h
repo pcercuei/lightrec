@@ -53,6 +53,7 @@ enum standard_opcodes {
 	OP_LWC2			= 0x32,
 	OP_SWC2			= 0x3a,
 	OP_HLE			= 0x3b,
+	OP_META			= 0x3f,
 };
 
 enum special_opcodes {

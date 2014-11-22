@@ -31,6 +31,8 @@ static int rec_CP2(jit_state_t *_jit, union opcode op,
 		const struct block *block, u32 pc);
 static int rec_cp2_BASIC(jit_state_t *_jit, union opcode op,
 		const struct block *block, u32 pc);
+static int rec_META(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc);
 
 static lightrec_rec_func_t rec_standard[64] = {
 	[OP_SPECIAL]		= rec_SPECIAL,
@@ -66,6 +68,7 @@ static lightrec_rec_func_t rec_standard[64] = {
 	[OP_LWC2]		= rec_LWC2,
 	[OP_SWC2]		= rec_SWC2,
 	[OP_HLE]		= rec_HLE,
+	[OP_META]		= rec_META,
 };
 
 static lightrec_rec_func_t rec_special[64] = {
@@ -146,6 +149,9 @@ static lightrec_rec_func_t rec_cp2_basic[64] = {
 	[OP_CP2_BASIC_CTC2]	= rec_cp2_basic_CTC2,
 };
 
+static lightrec_rec_func_t rec_meta[] = {
+};
+
 static int rec_SPECIAL(jit_state_t *_jit, union opcode op,
 		const struct block *block, u32 pc)
 {
@@ -190,6 +196,16 @@ static int rec_cp2_BASIC(jit_state_t *_jit, union opcode op,
 		const struct block *block, u32 pc)
 {
 	lightrec_rec_func_t f = rec_cp2_basic[op.r.rs];
+	if (f)
+		return (*f)(_jit, op, block, pc);
+	else
+		return emit_call_to_interpreter(_jit, op, block, pc);
+}
+
+static int rec_META(jit_state_t *_jit, union opcode op,
+		const struct block *block, u32 pc)
+{
+	lightrec_rec_func_t f = rec_meta[op.r.op];
 	if (f)
 		return (*f)(_jit, op, block, pc);
 	else
