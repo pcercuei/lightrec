@@ -234,35 +234,41 @@ void lightrec_free_regs(void)
 		free_reg(&lightrec_regs[i]);
 }
 
-void lightrec_storeback_regs(jit_state_t *_jit)
+static void clean_reg(jit_state_t *_jit,
+		struct native_register *nreg, u8 jit_reg, bool clean)
 {
-	u8 i;
-
-	jit_note(__FILE__, __LINE__);
-
-	for (i = 0; i < ARRAY_SIZE(lightrec_regs); i++) {
-		struct native_register *nreg = &lightrec_regs[i];
-		u8 jit_reg = lightrec_reg_to_lightning(nreg);
-
-		if (nreg->dirty) {
-			s16 offset = offsetof(struct lightrec_state, reg_cache)
-				+ (nreg->emulated_register << 2);
-
-			jit_stxi_i(offset, LIGHTREC_REG_STATE, jit_reg);
-		}
-	}
-}
-
-void lightrec_clean_reg(jit_state_t *_jit, u8 jit_reg)
-{
-	struct native_register *nreg = lightning_reg_to_lightrec(jit_reg);
 	if (nreg->dirty) {
 		s16 offset = offsetof(struct lightrec_state, reg_cache)
 			+ (nreg->emulated_register << 2);
 
 		jit_stxi_i(offset, LIGHTREC_REG_STATE, jit_reg);
-		nreg->dirty = false;
+		nreg->dirty ^= clean;
 	}
+}
+
+static void clean_regs(jit_state_t *_jit, bool clean)
+{
+	unsigned int i;
+
+	for (i = 0; i < ARRAY_SIZE(lightrec_regs); i++) {
+		struct native_register *nreg = &lightrec_regs[i];
+		clean_reg(_jit, nreg, lightrec_reg_to_lightning(nreg), clean);
+	}
+}
+
+void lightrec_storeback_regs(jit_state_t *_jit)
+{
+	clean_regs(_jit, false);
+}
+
+void lightrec_clean_regs(jit_state_t *_jit)
+{
+	clean_regs(_jit, true);
+}
+
+void lightrec_clean_reg(jit_state_t *_jit, u8 jit_reg)
+{
+	clean_reg(_jit, lightning_reg_to_lightrec(jit_reg), jit_reg, true);
 }
 
 void lightrec_unlink_addresses(void)

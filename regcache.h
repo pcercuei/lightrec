@@ -37,6 +37,7 @@ void lightrec_regcache_reset(void);
 void lightrec_free_reg(u8 jit_reg);
 void lightrec_free_regs(void);
 void lightrec_clean_reg(jit_state_t *_jit, u8 jit_reg);
+void lightrec_clean_regs(jit_state_t *_jit);
 void lightrec_storeback_regs(jit_state_t *_jit);
 void lightrec_unlink_addresses(void);
 
