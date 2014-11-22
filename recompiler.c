@@ -150,6 +150,14 @@ static lightrec_rec_func_t rec_cp2_basic[64] = {
 };
 
 static lightrec_rec_func_t rec_meta[] = {
+	[OP_META_LB]		= rec_meta_LB,
+	[OP_META_LH]		= rec_meta_LH,
+	[OP_META_LW]		= rec_meta_LW,
+	[OP_META_LBU]		= rec_meta_LBU,
+	[OP_META_LHU]		= rec_meta_LHU,
+	[OP_META_SB]		= rec_meta_SB,
+	[OP_META_SH]		= rec_meta_SH,
+	[OP_META_SW]		= rec_meta_SW,
 };
 
 static int rec_SPECIAL(jit_state_t *_jit, union opcode op,

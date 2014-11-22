@@ -209,4 +209,21 @@ __weak int rec_cp2_basic_MTC2(jit_state_t *, union opcode,
 __weak int rec_cp2_basic_CTC2(jit_state_t *, union opcode,
 		const struct block *, u32);
 
+__weak int rec_meta_LB(jit_state_t *, union opcode,
+		const struct block *, u32);
+__weak int rec_meta_LH(jit_state_t *, union opcode,
+		const struct block *, u32);
+__weak int rec_meta_LW(jit_state_t *, union opcode,
+		const struct block *, u32);
+__weak int rec_meta_LBU(jit_state_t *, union opcode,
+		const struct block *, u32);
+__weak int rec_meta_LHU(jit_state_t *, union opcode,
+		const struct block *, u32);
+__weak int rec_meta_SB(jit_state_t *, union opcode,
+		const struct block *, u32);
+__weak int rec_meta_SH(jit_state_t *, union opcode,
+		const struct block *, u32);
+__weak int rec_meta_SW(jit_state_t *, union opcode,
+		const struct block *, u32);
+
 #endif /* __RECOMPILER_H__ */
