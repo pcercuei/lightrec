@@ -57,6 +57,7 @@ enum block_exit_flags {
 
 struct block {
 	jit_state_t *_jit;
+	struct lightrec_state *state;
 	struct opcode_list *opcode_list;
 	void (*function)(void);
 	u32 pc;

@@ -112,7 +112,8 @@ static void __segfault_cb(unsigned long addr)
 	ERROR("Segmentation fault in recompiled code! Addr=0x%lx\n", addr);
 }
 
-static struct block * generate_address_lookup_block(unsigned int nb_maps)
+static struct block * generate_address_lookup_block(
+		struct lightrec_state *state, unsigned int nb_maps)
 {
 	struct block *block;
 	jit_state_t *_jit;
@@ -175,6 +176,7 @@ static struct block * generate_address_lookup_block(unsigned int nb_maps)
 	jit_retr(JIT_R0);
 	jit_epilog();
 
+	block->state = state;
 	block->_jit = _jit;
 	block->function = jit_emit();
 	block->opcode_list = NULL;
@@ -232,6 +234,7 @@ static struct block * generate_wrapper_block(struct lightrec_state *state)
 	addr = jit_indirect();
 	jit_epilog();
 
+	block->state = state;
 	block->_jit = _jit;
 	block->function = jit_emit();
 	block->opcode_list = NULL;
@@ -275,6 +278,7 @@ struct block * lightrec_recompile_block(struct lightrec_state *state, u32 pc)
 	lightrec_regcache_reset();
 
 	block->pc = pc;
+	block->state = state;
 	block->_jit = _jit;
 	block->opcode_list = list;
 	block->cycles = 0;
@@ -367,7 +371,7 @@ struct lightrec_state * lightrec_init(char *argv0,
 
 	state->wrapper = generate_wrapper_block(state);
 
-	state->addr_lookup_block = generate_address_lookup_block(nb);
+	state->addr_lookup_block = generate_address_lookup_block(state, nb);
 	state->addr_lookup = state->addr_lookup_block->function;
 	return state;
 }
