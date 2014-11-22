@@ -23,6 +23,16 @@
 
 #define ARRAY_SIZE(x) (sizeof(x) ? sizeof(x) / sizeof((x)[0]) : 0)
 
+typedef uint64_t u64;
+typedef uint32_t u32;
+typedef uint16_t u16;
+typedef uint8_t  u8;
+
+typedef int64_t s64;
+typedef int32_t s32;
+typedef int16_t s16;
+typedef int8_t  s8;
+
 /* Definition of jit_state_t (avoids inclusion of <lightning.h>) */
 struct jit_state;
 typedef struct jit_state jit_state_t;
@@ -39,20 +49,20 @@ struct block {
 	jit_state_t *_jit;
 	struct opcode_list *opcode_list;
 	void (*function)(void);
-	uint32_t pc;
+	u32 pc;
 	unsigned int cycles;
 };
 
 struct lightrec_mem_map {
-	uint32_t pc;
-	uint32_t length;
+	u32 pc;
+	u32 length;
 	void *address;
 };
 
 struct lightrec_state {
-	uint32_t reg_cache[34];
-	uint32_t next_pc;
-	uint32_t block_exit_cycles;
+	u32 reg_cache[34];
+	u32 next_pc;
+	u32 block_exit_cycles;
 	enum block_exit_flags block_exit_flags;
 	uintptr_t end_of_block;
 	struct block *wrapper, *addr_lookup_block;
@@ -62,16 +72,6 @@ struct lightrec_state {
 	unsigned int nb_maps;
 	struct lightrec_mem_map mem_map[];
 };
-
-typedef uint64_t u64;
-typedef uint32_t u32;
-typedef uint16_t u16;
-typedef uint8_t  u8;
-
-typedef int64_t s64;
-typedef int32_t s32;
-typedef int16_t s16;
-typedef int8_t  s8;
 
 struct block * lightrec_recompile_block(struct lightrec_state *state, u32 pc);
 void lightrec_free_block(struct block *block);
