@@ -27,6 +27,72 @@
 #error "At least 4 callee-saved registers are needed"
 #endif
 
+static u32 lightrec_rw(struct lightrec_state *state,
+		union opcode op, u32 addr, u32 data)
+{
+	struct lightrec_mem_map *map = state->mem_map;
+	unsigned int i;
+
+	addr += (s16) op.i.imm;
+
+	for (i = 0; i < state->nb_maps; i++) {
+		if (addr >= map[i].pc && addr < map[i].pc + map[i].length) {
+			uintptr_t new_addr = (uintptr_t) map[i].address +
+				(addr - map[i].pc);
+			struct lightrec_mem_map_ops *ops = map[i].ops;
+
+			switch (op.i.op) {
+			case OP_SB:
+				if (unlikely(ops && ops->sb))
+					ops->sb(state, addr, (u8) data);
+				else
+					*(u8 *) new_addr = (u8) data;
+				return 0;
+			case OP_SH:
+				if (unlikely(ops && ops->sh))
+					ops->sh(state, addr, (u16) data);
+				else
+					*(u16 *) new_addr = (u16) data;
+				return 0;
+			case OP_SW:
+				if (unlikely(ops && ops->sw))
+					ops->sw(state, addr, data);
+				else
+					*(u32 *) new_addr = data;
+				return 0;
+			case OP_LB:
+				if (unlikely(ops && ops->lb))
+					return (s32) (s8) ops->lb(state, addr);
+				else
+					return (s32) *(s8 *) new_addr;
+			case OP_LBU:
+				if (unlikely(ops && ops->lb))
+					return ops->lb(state, addr);
+				else
+					return *(u8 *) new_addr;
+			case OP_LH:
+				if (unlikely(ops && ops->lh))
+					return (s32) (s16) ops->lh(state, addr);
+				else
+					return (s32) *(s16 *) new_addr;
+			case OP_LHU:
+				if (unlikely(ops && ops->lh))
+					return ops->lh(state, addr);
+				else
+					return *(u16 *) new_addr;
+			case OP_LW:
+			default:
+				if (unlikely(ops && ops->lw))
+					return ops->lw(state, addr);
+				else
+					return *(u32 *) new_addr;
+			}
+		}
+	}
+
+	return 0;
+}
+
 static const u32 * find_code_address(struct lightrec_state *state, u32 pc)
 {
 	struct lightrec_mem_map *map = state->mem_map;
@@ -296,6 +362,8 @@ struct lightrec_state * lightrec_init(char *argv0,
 
 	state->nb_maps = nb;
 	memcpy(state->mem_map, map, nb * sizeof(*map));
+
+	state->rw_op = lightrec_rw;
 
 	state->wrapper = generate_wrapper_block(state);
 

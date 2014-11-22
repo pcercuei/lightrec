@@ -33,11 +33,21 @@ typedef int32_t s32;
 typedef int16_t s16;
 typedef int8_t  s8;
 
+#ifdef __GNUC__
+#	define likely(x)       __builtin_expect((x),1)
+#	define unlikely(x)     __builtin_expect((x),0)
+#else
+#	define likely(x)       (x)
+#	define unlikely(x)     (x)
+#endif
+
 /* Definition of jit_state_t (avoids inclusion of <lightning.h>) */
 struct jit_state;
 typedef struct jit_state jit_state_t;
 
 struct opcode_list;
+struct lightrec_state;
+union opcode;
 
 enum block_exit_flags {
 	LIGHTREC_EXIT_NORMAL,
@@ -53,10 +63,20 @@ struct block {
 	unsigned int cycles;
 };
 
+struct lightrec_mem_map_ops {
+	void (*sb)(struct lightrec_state *, u32, u8);
+	void (*sh)(struct lightrec_state *, u32, u16);
+	void (*sw)(struct lightrec_state *, u32, u32);
+	u8 (*lb)(struct lightrec_state *, u32);
+	u16 (*lh)(struct lightrec_state *, u32);
+	u32 (*lw)(struct lightrec_state *, u32);
+};
+
 struct lightrec_mem_map {
 	u32 pc;
 	u32 length;
 	void *address;
+	struct lightrec_mem_map_ops *ops;
 };
 
 struct lightrec_state {
@@ -68,6 +88,7 @@ struct lightrec_state {
 	struct block *wrapper, *addr_lookup_block;
 	struct blockcache *block_cache;
 	void (*addr_lookup)(void);
+	u32 (*rw_op)(struct lightrec_state *, union opcode, u32, u32);
 	bool stop;
 	unsigned int nb_maps;
 	struct lightrec_mem_map mem_map[];
