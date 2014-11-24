@@ -242,6 +242,7 @@ static void clean_reg(jit_state_t *_jit,
 			+ (nreg->emulated_register << 2);
 
 		jit_stxi_i(offset, LIGHTREC_REG_STATE, jit_reg);
+		nreg->loaded |= nreg->dirty;
 		nreg->dirty ^= clean;
 	}
 }
