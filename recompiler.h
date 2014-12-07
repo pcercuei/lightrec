@@ -18,212 +18,112 @@
 #include "disassembler.h"
 #include "lightrec.h"
 
-int lightrec_rec_opcode(jit_state_t *_jit, union opcode op,
-		const struct block *block, u32 pc);
+int lightrec_rec_opcode(const struct block *block, union opcode op, u32 pc);
 
-__weak int rec_J(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_JAL(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_BEQ(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_BNE(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_BLEZ(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_BGTZ(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_ADDI(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_ADDIU(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_SLTI(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_SLTIU(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_ANDI(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_ORI(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_XORI(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_LUI(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_LB(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_LH(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_LWL(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_LW(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_LBU(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_LHU(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_LWR(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_SB(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_SH(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_SWL(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_SW(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_SWR(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_LWC2(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_SWC2(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_HLE(jit_state_t *, union opcode,
-		const struct block *, u32);
+__weak int rec_J(const struct block *, union opcode, u32);
+__weak int rec_JAL(const struct block *, union opcode, u32);
+__weak int rec_BEQ(const struct block *, union opcode, u32);
+__weak int rec_BNE(const struct block *, union opcode, u32);
+__weak int rec_BLEZ(const struct block *, union opcode, u32);
+__weak int rec_BGTZ(const struct block *, union opcode, u32);
+__weak int rec_ADDI(const struct block *, union opcode, u32);
+__weak int rec_ADDIU(const struct block *, union opcode, u32);
+__weak int rec_SLTI(const struct block *, union opcode, u32);
+__weak int rec_SLTIU(const struct block *, union opcode, u32);
+__weak int rec_ANDI(const struct block *, union opcode, u32);
+__weak int rec_ORI(const struct block *, union opcode, u32);
+__weak int rec_XORI(const struct block *, union opcode, u32);
+__weak int rec_LUI(const struct block *, union opcode, u32);
+__weak int rec_LB(const struct block *, union opcode, u32);
+__weak int rec_LH(const struct block *, union opcode, u32);
+__weak int rec_LWL(const struct block *, union opcode, u32);
+__weak int rec_LW(const struct block *, union opcode, u32);
+__weak int rec_LBU(const struct block *, union opcode, u32);
+__weak int rec_LHU(const struct block *, union opcode, u32);
+__weak int rec_LWR(const struct block *, union opcode, u32);
+__weak int rec_SB(const struct block *, union opcode, u32);
+__weak int rec_SH(const struct block *, union opcode, u32);
+__weak int rec_SWL(const struct block *, union opcode, u32);
+__weak int rec_SW(const struct block *, union opcode, u32);
+__weak int rec_SWR(const struct block *, union opcode, u32);
+__weak int rec_LWC2(const struct block *, union opcode, u32);
+__weak int rec_SWC2(const struct block *, union opcode, u32);
+__weak int rec_HLE(const struct block *, union opcode, u32);
 
-__weak int rec_special_SLL(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_special_SRL(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_special_SRA(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_special_SLLV(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_special_SRLV(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_special_SRAV(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_special_JR(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_special_JALR(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_special_SYSCALL(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_special_BREAK(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_special_MFHI(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_special_MTHI(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_special_MFLO(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_special_MTLO(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_special_MULT(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_special_MULTU(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_special_DIV(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_special_DIVU(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_special_ADD(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_special_ADDU(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_special_SUB(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_special_SUBU(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_special_AND(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_special_OR(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_special_XOR(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_special_NOR(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_special_SLT(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_special_SLTU(jit_state_t *, union opcode,
-		const struct block *, u32);
+__weak int rec_special_SLL(const struct block *, union opcode, u32);
+__weak int rec_special_SRL(const struct block *, union opcode, u32);
+__weak int rec_special_SRA(const struct block *, union opcode, u32);
+__weak int rec_special_SLLV(const struct block *, union opcode, u32);
+__weak int rec_special_SRLV(const struct block *, union opcode, u32);
+__weak int rec_special_SRAV(const struct block *, union opcode, u32);
+__weak int rec_special_JR(const struct block *, union opcode, u32);
+__weak int rec_special_JALR(const struct block *, union opcode, u32);
+__weak int rec_special_SYSCALL(const struct block *, union opcode, u32);
+__weak int rec_special_BREAK(const struct block *, union opcode, u32);
+__weak int rec_special_MFHI(const struct block *, union opcode, u32);
+__weak int rec_special_MTHI(const struct block *, union opcode, u32);
+__weak int rec_special_MFLO(const struct block *, union opcode, u32);
+__weak int rec_special_MTLO(const struct block *, union opcode, u32);
+__weak int rec_special_MULT(const struct block *, union opcode, u32);
+__weak int rec_special_MULTU(const struct block *, union opcode, u32);
+__weak int rec_special_DIV(const struct block *, union opcode, u32);
+__weak int rec_special_DIVU(const struct block *, union opcode, u32);
+__weak int rec_special_ADD(const struct block *, union opcode, u32);
+__weak int rec_special_ADDU(const struct block *, union opcode, u32);
+__weak int rec_special_SUB(const struct block *, union opcode, u32);
+__weak int rec_special_SUBU(const struct block *, union opcode, u32);
+__weak int rec_special_AND(const struct block *, union opcode, u32);
+__weak int rec_special_OR(const struct block *, union opcode, u32);
+__weak int rec_special_XOR(const struct block *, union opcode, u32);
+__weak int rec_special_NOR(const struct block *, union opcode, u32);
+__weak int rec_special_SLT(const struct block *, union opcode, u32);
+__weak int rec_special_SLTU(const struct block *, union opcode, u32);
 
-__weak int rec_regimm_BLTZ(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_regimm_BGEZ(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_regimm_BLTZAL(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_regimm_BGEZAL(jit_state_t *, union opcode,
-		const struct block *, u32);
+__weak int rec_regimm_BLTZ(const struct block *, union opcode, u32);
+__weak int rec_regimm_BGEZ(const struct block *, union opcode, u32);
+__weak int rec_regimm_BLTZAL(const struct block *, union opcode, u32);
+__weak int rec_regimm_BGEZAL(const struct block *, union opcode, u32);
 
-__weak int rec_cp0_MFC0(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_cp0_CFC0(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_cp0_MTC0(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_cp0_CTC0(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_cp0_RFE(jit_state_t *, union opcode,
-		const struct block *, u32);
+__weak int rec_cp0_MFC0(const struct block *, union opcode, u32);
+__weak int rec_cp0_CFC0(const struct block *, union opcode, u32);
+__weak int rec_cp0_MTC0(const struct block *, union opcode, u32);
+__weak int rec_cp0_CTC0(const struct block *, union opcode, u32);
+__weak int rec_cp0_RFE(const struct block *, union opcode, u32);
 
-__weak int rec_cp2_RTPS(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_cp2_NCLIP(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_cp2_DPCS(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_cp2_INTPL(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_cp2_MVMVA(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_cp2_NCDS(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_cp2_CDP(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_cp2_NCDT(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_cp2_NCCS(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_cp2_CC(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_cp2_NCS(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_cp2_NCT(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_cp2_SQR(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_cp2_DCPL(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_cp2_DPCT(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_cp2_AVSZ3(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_cp2_AVSZ4(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_cp2_RTPT(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_cp2_GPF(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_cp2_GPL(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_cp2_NCCT(jit_state_t *, union opcode,
-		const struct block *, u32);
+__weak int rec_cp2_RTPS(const struct block *, union opcode, u32);
+__weak int rec_cp2_NCLIP(const struct block *, union opcode, u32);
+__weak int rec_cp2_DPCS(const struct block *, union opcode, u32);
+__weak int rec_cp2_INTPL(const struct block *, union opcode, u32);
+__weak int rec_cp2_MVMVA(const struct block *, union opcode, u32);
+__weak int rec_cp2_NCDS(const struct block *, union opcode, u32);
+__weak int rec_cp2_CDP(const struct block *, union opcode, u32);
+__weak int rec_cp2_NCDT(const struct block *, union opcode, u32);
+__weak int rec_cp2_NCCS(const struct block *, union opcode, u32);
+__weak int rec_cp2_CC(const struct block *, union opcode, u32);
+__weak int rec_cp2_NCS(const struct block *, union opcode, u32);
+__weak int rec_cp2_NCT(const struct block *, union opcode, u32);
+__weak int rec_cp2_SQR(const struct block *, union opcode, u32);
+__weak int rec_cp2_DCPL(const struct block *, union opcode, u32);
+__weak int rec_cp2_DPCT(const struct block *, union opcode, u32);
+__weak int rec_cp2_AVSZ3(const struct block *, union opcode, u32);
+__weak int rec_cp2_AVSZ4(const struct block *, union opcode, u32);
+__weak int rec_cp2_RTPT(const struct block *, union opcode, u32);
+__weak int rec_cp2_GPF(const struct block *, union opcode, u32);
+__weak int rec_cp2_GPL(const struct block *, union opcode, u32);
+__weak int rec_cp2_NCCT(const struct block *, union opcode, u32);
 
-__weak int rec_cp2_basic_MFC2(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_cp2_basic_CFC2(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_cp2_basic_MTC2(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_cp2_basic_CTC2(jit_state_t *, union opcode,
-		const struct block *, u32);
+__weak int rec_cp2_basic_MFC2(const struct block *, union opcode, u32);
+__weak int rec_cp2_basic_CFC2(const struct block *, union opcode, u32);
+__weak int rec_cp2_basic_MTC2(const struct block *, union opcode, u32);
+__weak int rec_cp2_basic_CTC2(const struct block *, union opcode, u32);
 
-__weak int rec_meta_LB(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_meta_LH(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_meta_LW(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_meta_LBU(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_meta_LHU(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_meta_SB(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_meta_SH(jit_state_t *, union opcode,
-		const struct block *, u32);
-__weak int rec_meta_SW(jit_state_t *, union opcode,
-		const struct block *, u32);
+__weak int rec_meta_LB(const struct block *, union opcode, u32);
+__weak int rec_meta_LH(const struct block *, union opcode, u32);
+__weak int rec_meta_LW(const struct block *, union opcode, u32);
+__weak int rec_meta_LBU(const struct block *, union opcode, u32);
+__weak int rec_meta_LHU(const struct block *, union opcode, u32);
+__weak int rec_meta_SB(const struct block *, union opcode, u32);
+__weak int rec_meta_SH(const struct block *, union opcode, u32);
+__weak int rec_meta_SW(const struct block *, union opcode, u32);
 
 #endif /* __RECOMPILER_H__ */

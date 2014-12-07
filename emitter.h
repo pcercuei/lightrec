@@ -19,7 +19,7 @@
 
 #define SKIP_DELAY_SLOT 1
 
-int emit_call_to_interpreter(jit_state_t *_jit, union opcode op,
-		const struct block *block, u32 pc);
+int emit_call_to_interpreter(const struct block *block,
+		union opcode op, u32 pc);
 
 #endif /* __EMITTER_H__ */

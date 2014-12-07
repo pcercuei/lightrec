@@ -300,7 +300,7 @@ struct block * lightrec_recompile_block(struct lightrec_state *state, u32 pc)
 		if (!elm->opcode.opcode)
 			continue;
 
-		ret = lightrec_rec_opcode(_jit, elm->opcode, block, pc);
+		ret = lightrec_rec_opcode(block, elm->opcode, pc);
 		skip_next = ret == SKIP_DELAY_SLOT;
 	}
 
