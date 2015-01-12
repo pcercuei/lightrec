@@ -355,7 +355,8 @@ void lightrec_free_block(struct block *block)
 }
 
 struct lightrec_state * lightrec_init(char *argv0,
-		struct lightrec_mem_map *map, unsigned int nb)
+		struct lightrec_mem_map *map, unsigned int nb,
+		const struct lightrec_cop_ops *cop_ops)
 {
 	struct lightrec_state *state;
 
@@ -367,6 +368,7 @@ struct lightrec_state * lightrec_init(char *argv0,
 	state->nb_maps = nb;
 	memcpy(state->mem_map, map, nb * sizeof(*map));
 
+	state->cop_ops = cop_ops;
 	state->rw_op = lightrec_rw;
 
 	state->wrapper = generate_wrapper_block(state);

@@ -47,6 +47,7 @@ typedef struct jit_state jit_state_t;
 
 struct opcode_list;
 struct lightrec_state;
+struct blockcache;
 union opcode;
 
 enum block_exit_flags {
@@ -80,6 +81,13 @@ struct lightrec_mem_map {
 	struct lightrec_mem_map_ops *ops;
 };
 
+struct lightrec_cop_ops {
+	u32 (*mfc)(struct lightrec_state *state, int cp, u8 reg);
+	u32 (*cfc)(struct lightrec_state *state, int cp, u8 reg);
+	void (*mtc)(struct lightrec_state *state, int cp, u8 reg, u32 value);
+	void (*ctc)(struct lightrec_state *state, int cp, u8 reg, u32 value);
+};
+
 struct lightrec_state {
 	u32 reg_cache[34];
 	u32 next_pc;
@@ -90,6 +98,7 @@ struct lightrec_state {
 	struct blockcache *block_cache;
 	void (*addr_lookup)(void);
 	u32 (*rw_op)(struct lightrec_state *, union opcode, u32, u32);
+	const struct lightrec_cop_ops *cop_ops;
 	bool stop;
 	unsigned int nb_maps;
 	struct lightrec_mem_map mem_map[];
@@ -99,7 +108,8 @@ struct block * lightrec_recompile_block(struct lightrec_state *state, u32 pc);
 void lightrec_free_block(struct block *block);
 
 struct lightrec_state * lightrec_init(char *argv0,
-		struct lightrec_mem_map *map, unsigned int nb);
+		struct lightrec_mem_map *map, unsigned int nb,
+		const struct lightrec_cop_ops *cop_ops);
 void lightrec_destroy(struct lightrec_state *state);
 
 u32 lightrec_execute(struct lightrec_state *state, u32 pc);
