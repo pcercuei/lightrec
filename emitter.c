@@ -919,3 +919,40 @@ int rec_cp2_basic_CTC2(const struct block *block, union opcode op, u32 pc)
 	_jit_name(block->_jit, __func__);
 	return lightrec_mtc(block, op, 2, true);
 }
+
+static void rec_cp0_RFE_C(struct lightrec_state *state)
+{
+	u32 status;
+
+	if (!state->cop_ops || !state->cop_ops->mfc || !state->cop_ops->ctc) {
+		WARNING("Missing coprocessor callbacks\n");
+		return;
+	}
+
+	/* Read CP0 Status register (r12) */
+	status = state->cop_ops->mfc(state, 0, 12);
+
+	/* Switch the bits */
+	status = ((status & 0x3c) >> 2) | (status & ~0xf);
+
+	/* Write it back */
+	state->cop_ops->ctc(state, 0, 12, status);
+}
+
+int rec_cp0_RFE(const struct block *block, union opcode op, u32 pc)
+{
+	jit_state_t *_jit = block->_jit;
+
+	jit_name(__func__);
+
+	lightrec_storeback_regs(_jit);
+
+	/* The call to C trashes the registers, we have to reset the cache */
+	lightrec_regcache_reset();
+
+	jit_note(__FILE__, __LINE__);
+	jit_prepare();
+	jit_pushargr(LIGHTREC_REG_STATE);
+	jit_finishi(rec_cp0_RFE_C);
+	return 0;
+}
