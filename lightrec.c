@@ -55,6 +55,8 @@ static u32 lightrec_rw(struct lightrec_state *state,
 					*(u16 *) new_addr = (u16) data;
 				return 0;
 			case OP_SW:
+			case OP_SWL:
+			case OP_SWR:
 				if (unlikely(ops && ops->sw))
 					ops->sw(state, addr, data);
 				else
@@ -81,6 +83,8 @@ static u32 lightrec_rw(struct lightrec_state *state,
 				else
 					return *(u16 *) new_addr;
 			case OP_LW:
+			case OP_LWL:
+			case OP_LWR:
 			default:
 				if (unlikely(ops && ops->lw))
 					return ops->lw(state, addr);

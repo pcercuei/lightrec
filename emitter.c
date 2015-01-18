@@ -690,6 +690,18 @@ int rec_SW(const struct block *block, union opcode op, u32 pc)
 	return rec_store(block, op);
 }
 
+int rec_SWL(const struct block *block, union opcode op, u32 pc)
+{
+	_jit_name(block->_jit, __func__);
+	return rec_store(block, op);
+}
+
+int rec_SWR(const struct block *block, union opcode op, u32 pc)
+{
+	_jit_name(block->_jit, __func__);
+	return rec_store(block, op);
+}
+
 int rec_meta_SB(const struct block *block, union opcode op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
@@ -727,6 +739,18 @@ int rec_LH(const struct block *block, union opcode op, u32 pc)
 }
 
 int rec_LHU(const struct block *block, union opcode op, u32 pc)
+{
+	_jit_name(block->_jit, __func__);
+	return rec_load(block, op);
+}
+
+int rec_LWL(const struct block *block, union opcode op, u32 pc)
+{
+	_jit_name(block->_jit, __func__);
+	return rec_load(block, op);
+}
+
+int rec_LWR(const struct block *block, union opcode op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_load(block, op);
