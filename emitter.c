@@ -995,3 +995,30 @@ int rec_cp0_RFE(const struct block *block, struct opcode *op, u32 pc)
 	jit_finishi(rec_cp0_RFE_C);
 	return 0;
 }
+
+int rec_CP(const struct block *block, struct opcode *op, u32 pc)
+{
+	struct lightrec_state *state = block->state;
+	struct regcache *reg_cache = state->reg_cache;
+	jit_state_t *_jit = block->_jit;
+
+	if (!state->cop_ops || !state->cop_ops->op) {
+		WARNING("Missing coprocessor callbacks\n");
+		return 0;
+	}
+
+	jit_name(__func__);
+
+	lightrec_storeback_regs(reg_cache, _jit);
+
+	/* The call to C trashes the registers, we have to reset the cache */
+	lightrec_regcache_reset(reg_cache);
+
+	jit_note(__FILE__, __LINE__);
+	jit_prepare();
+	jit_pushargr(LIGHTREC_REG_STATE);
+	jit_pushargi((op->j.imm >> 25) + 1);
+	jit_pushargi(op->j.imm & ~(1 << 25));
+	jit_finishi(state->cop_ops->op);
+	return 0;
+}

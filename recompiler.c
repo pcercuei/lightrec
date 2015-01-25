@@ -24,7 +24,6 @@ static int rec_SPECIAL(const struct block *block, struct opcode *op, u32 pc);
 static int rec_REGIMM(const struct block *block, struct opcode *op, u32 pc);
 static int rec_CP0(const struct block *block, struct opcode *op, u32 pc);
 static int rec_CP2(const struct block *block, struct opcode *op, u32 pc);
-static int rec_cp2_BASIC(const struct block *block, struct opcode *op, u32 pc);
 static int rec_META(const struct block *block, struct opcode *op, u32 pc);
 
 static lightrec_rec_func_t rec_standard[64] = {
@@ -110,31 +109,6 @@ static lightrec_rec_func_t rec_cp0[64] = {
 	[OP_CP0_RFE]		= rec_cp0_RFE,
 };
 
-static lightrec_rec_func_t rec_cp2[64] = {
-	[OP_CP2_BASIC]		= rec_cp2_BASIC,
-	[OP_CP2_RTPS]		= rec_cp2_RTPS,
-	[OP_CP2_NCLIP]		= rec_cp2_NCLIP,
-	[OP_CP2_DPCS]		= rec_cp2_DPCS,
-	[OP_CP2_INTPL]		= rec_cp2_INTPL,
-	[OP_CP2_MVMVA]		= rec_cp2_MVMVA,
-	[OP_CP2_NCDS]		= rec_cp2_NCDS,
-	[OP_CP2_CDP]		= rec_cp2_CDP,
-	[OP_CP2_NCDT]		= rec_cp2_NCDT,
-	[OP_CP2_NCCS]		= rec_cp2_NCCS,
-	[OP_CP2_CC]		= rec_cp2_CC,
-	[OP_CP2_NCS]		= rec_cp2_NCS,
-	[OP_CP2_NCT]		= rec_cp2_NCT,
-	[OP_CP2_SQR]		= rec_cp2_SQR,
-	[OP_CP2_DCPL]		= rec_cp2_DCPL,
-	[OP_CP2_DPCT]		= rec_cp2_DPCT,
-	[OP_CP2_AVSZ3]		= rec_cp2_AVSZ3,
-	[OP_CP2_AVSZ4]		= rec_cp2_AVSZ4,
-	[OP_CP2_RTPT]		= rec_cp2_RTPT,
-	[OP_CP2_GPF]		= rec_cp2_GPF,
-	[OP_CP2_GPL]		= rec_cp2_GPL,
-	[OP_CP2_NCCT]		= rec_cp2_NCCT,
-};
-
 static lightrec_rec_func_t rec_cp2_basic[64] = {
 	[OP_CP2_BASIC_MFC2]	= rec_cp2_basic_MFC2,
 	[OP_CP2_BASIC_CFC2]	= rec_cp2_basic_CFC2,
@@ -177,25 +151,18 @@ static int rec_CP0(const struct block *block, struct opcode *op, u32 pc)
 	if (f)
 		return (*f)(block, op, pc);
 	else
-		return emit_call_to_interpreter(block, op, pc);
+		return rec_CP(block, op, pc);
 }
 
 static int rec_CP2(const struct block *block, struct opcode *op, u32 pc)
 {
-	lightrec_rec_func_t f = rec_cp2[op->r.op];
-	if (f)
-		return (*f)(block, op, pc);
-	else
-		return emit_call_to_interpreter(block, op, pc);
-}
+	if (op->r.op == OP_CP2_BASIC) {
+		lightrec_rec_func_t f = rec_cp2_basic[op->r.rs];
+		if (f)
+			return (*f)(block, op, pc);
+	}
 
-static int rec_cp2_BASIC(const struct block *block, struct opcode *op, u32 pc)
-{
-	lightrec_rec_func_t f = rec_cp2_basic[op->r.rs];
-	if (f)
-		return (*f)(block, op, pc);
-	else
-		return emit_call_to_interpreter(block, op, pc);
+	return rec_CP(block, op, pc);
 }
 
 static int rec_META(const struct block *block, struct opcode *op, u32 pc)

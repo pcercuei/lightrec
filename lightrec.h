@@ -86,6 +86,7 @@ struct lightrec_cop_ops {
 	u32 (*cfc)(struct lightrec_state *state, int cp, u8 reg);
 	void (*mtc)(struct lightrec_state *state, int cp, u8 reg, u32 value);
 	void (*ctc)(struct lightrec_state *state, int cp, u8 reg, u32 value);
+	void (*op)(struct lightrec_state *state, int cp, u32 func);
 };
 
 struct lightrec_state {

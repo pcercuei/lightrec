@@ -90,27 +90,7 @@ __weak int rec_cp0_MTC0(const struct block *, struct opcode *, u32);
 __weak int rec_cp0_CTC0(const struct block *, struct opcode *, u32);
 __weak int rec_cp0_RFE(const struct block *, struct opcode *, u32);
 
-__weak int rec_cp2_RTPS(const struct block *, struct opcode *, u32);
-__weak int rec_cp2_NCLIP(const struct block *, struct opcode *, u32);
-__weak int rec_cp2_DPCS(const struct block *, struct opcode *, u32);
-__weak int rec_cp2_INTPL(const struct block *, struct opcode *, u32);
-__weak int rec_cp2_MVMVA(const struct block *, struct opcode *, u32);
-__weak int rec_cp2_NCDS(const struct block *, struct opcode *, u32);
-__weak int rec_cp2_CDP(const struct block *, struct opcode *, u32);
-__weak int rec_cp2_NCDT(const struct block *, struct opcode *, u32);
-__weak int rec_cp2_NCCS(const struct block *, struct opcode *, u32);
-__weak int rec_cp2_CC(const struct block *, struct opcode *, u32);
-__weak int rec_cp2_NCS(const struct block *, struct opcode *, u32);
-__weak int rec_cp2_NCT(const struct block *, struct opcode *, u32);
-__weak int rec_cp2_SQR(const struct block *, struct opcode *, u32);
-__weak int rec_cp2_DCPL(const struct block *, struct opcode *, u32);
-__weak int rec_cp2_DPCT(const struct block *, struct opcode *, u32);
-__weak int rec_cp2_AVSZ3(const struct block *, struct opcode *, u32);
-__weak int rec_cp2_AVSZ4(const struct block *, struct opcode *, u32);
-__weak int rec_cp2_RTPT(const struct block *, struct opcode *, u32);
-__weak int rec_cp2_GPF(const struct block *, struct opcode *, u32);
-__weak int rec_cp2_GPL(const struct block *, struct opcode *, u32);
-__weak int rec_cp2_NCCT(const struct block *, struct opcode *, u32);
+__weak int rec_CP(const struct block *, struct opcode *, u32);
 
 __weak int rec_cp2_basic_MFC2(const struct block *, struct opcode *, u32);
 __weak int rec_cp2_basic_CFC2(const struct block *, struct opcode *, u32);
