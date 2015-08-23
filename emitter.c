@@ -50,16 +50,6 @@ static uintptr_t __get_jump_address_cb(struct lightrec_state *state)
 	return (uintptr_t) new->function;
 }
 
-static struct opcode * find_delay_slot(const struct block *block, u32 pc)
-{
-	struct opcode *elm = block->opcode_list;
-	u32 pc_addr;
-
-	for (pc_addr = block->pc; pc_addr <= pc; pc_addr += 4)
-		elm = SLIST_NEXT(elm, next);
-	return elm;
-}
-
 static int lightrec_emit_end_of_block(const struct block *block, u32 pc,
 		u8 reg_new_pc, u32 imm, u32 link, struct opcode *delay_slot)
 {
@@ -115,38 +105,36 @@ static int lightrec_emit_end_of_block(const struct block *block, u32 pc,
 
 int rec_special_JR(const struct block *block, struct opcode *op, u32 pc)
 {
-	struct opcode *elm = find_delay_slot(block, pc);
 	u8 rs = lightrec_alloc_reg_in(block->_jit, op->r.rs);
 
 	_jit_name(block->_jit, __func__);
-	return lightrec_emit_end_of_block(block, pc, rs, 0, 0, elm);
+	return lightrec_emit_end_of_block(block, pc, rs,
+			0, 0, SLIST_NEXT(op, next));
 }
 
 int rec_special_JALR(const struct block *block, struct opcode *op, u32 pc)
 {
-	struct opcode *elm = find_delay_slot(block, pc);
 	u8 rs = lightrec_alloc_reg_in(block->_jit, op->r.rs);
 
 	_jit_name(block->_jit, __func__);
-	return lightrec_emit_end_of_block(block, pc, rs, 0, pc + 8, elm);
+	return lightrec_emit_end_of_block(block, pc, rs,
+			0, pc + 8, SLIST_NEXT(op, next));
 }
 
 int rec_J(const struct block *block, struct opcode *op, u32 pc)
 {
-	struct opcode *elm = find_delay_slot(block, pc);
-
 	_jit_name(block->_jit, __func__);
 	return lightrec_emit_end_of_block(block, pc, 0,
-			(pc & 0xf0000000) | (op->j.imm << 2), 0, elm);
+			(pc & 0xf0000000) | (op->j.imm << 2),
+			0, SLIST_NEXT(op, next));
 }
 
 int rec_JAL(const struct block *block, struct opcode *op, u32 pc)
 {
-	struct opcode *elm = find_delay_slot(block, pc);
-
 	_jit_name(block->_jit, __func__);
 	return lightrec_emit_end_of_block(block, pc, 0,
-			(pc & 0xf0000000) | (op->j.imm << 2), pc + 8, elm);
+			(pc & 0xf0000000) | (op->j.imm << 2), pc + 8,
+			SLIST_NEXT(op, next));
 }
 
 static void preload_in_regs(jit_state_t *_jit, struct opcode *op)
@@ -198,7 +186,7 @@ static void preload_in_regs(jit_state_t *_jit, struct opcode *op)
 static int rec_b(const struct block *block, struct opcode *op, u32 pc,
 		jit_code_t code, u32 link, bool unconditional, bool bz)
 {
-	struct opcode *delay_slot = find_delay_slot(block, pc);
+	struct opcode *delay_slot = SLIST_NEXT(op, next);
 	jit_state_t *_jit = block->_jit;
 	jit_node_t *addr;
 
