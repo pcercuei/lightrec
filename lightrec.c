@@ -227,7 +227,7 @@ static struct block * generate_wrapper_block(struct lightrec_state *state)
 
 	/* Pass lightrec_state structure to blocks, using the last callee-saved
 	 * register that Lightning provides */
-	jit_movi(LIGHTREC_REG_STATE, state);
+	jit_movi(LIGHTREC_REG_STATE, (intptr_t) state);
 
 	/* Call the block's code */
 	jit_jmpr(JIT_R0);
