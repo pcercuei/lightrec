@@ -18,48 +18,46 @@
 #include "debug.h"
 #include "disassembler.h"
 
-static bool is_unconditional_jump(union opcode op)
+static bool is_unconditional_jump(const struct opcode *op)
 {
-	switch (op.i.op) {
+	switch (op->i.op) {
 	case OP_SPECIAL:
-		return op.r.op == OP_SPECIAL_JR || op.r.op == OP_SPECIAL_JALR;
+		return op->r.op == OP_SPECIAL_JR || op->r.op == OP_SPECIAL_JALR;
 	case OP_J:
 	case OP_JAL:
 		return true;
 	case OP_BEQ:
 	case OP_BLEZ:
-		return op.i.rs == op.i.rt;
+		return op->i.rs == op->i.rt;
 	case OP_REGIMM:
-		return (op.r.rt == OP_REGIMM_BGEZ) && op.i.rs == 0;
+		return (op->r.rt == OP_REGIMM_BGEZ) && op->i.rs == 0;
 	default:
 		return false;
 	}
 }
 
-static bool is_syscall(union opcode op)
+static bool is_syscall(const struct opcode *op)
 {
-	return op.i.op == OP_SPECIAL && (op.r.op == OP_SPECIAL_SYSCALL ||
-			op.r.op == OP_SPECIAL_BREAK);
+	return op->i.op == OP_SPECIAL && (op->r.op == OP_SPECIAL_SYSCALL ||
+			op->r.op == OP_SPECIAL_BREAK);
 }
 
-void lightrec_free_opcode_list(struct opcode_list *list)
+void lightrec_free_opcode_list(struct opcode *list)
 {
 	while (list) {
-		struct opcode_list *next = SLIST_NEXT(list, next);
+		struct opcode *next = SLIST_NEXT(list, next);
 		free(list);
 		list = next;
 	}
 }
 
-struct opcode_list * lightrec_disassemble(const u32 *src)
+struct opcode * lightrec_disassemble(const u32 *src)
 {
 	struct opcode_list_head head = { NULL };
 	bool stop_next = false;
-	struct opcode_list *curr, *last;
+	struct opcode *curr, *last;
 
 	for (last = NULL; ; last = curr) {
-		union opcode op;
-
 		curr = malloc(sizeof(*curr));
 		if (!curr) {
 			ERROR("Unable to allocate memory\n");
@@ -75,21 +73,20 @@ struct opcode_list * lightrec_disassemble(const u32 *src)
 		}
 
 		/* TODO: Take care of endianness */
-		op.opcode = *src++;
-		curr->opcode.opcode = op.opcode;
+		curr->opcode = *src++;
 
 		/* NOTE: The block disassembly ends after the opcode that
 		 * follows an unconditional jump (delay slot) */
-		if (stop_next || is_syscall(op))
+		if (stop_next || is_syscall(curr))
 			break;
-		else if (is_unconditional_jump(op))
+		else if (is_unconditional_jump(curr))
 			stop_next = true;
 	}
 
 	return SLIST_FIRST(&head);
 }
 
-unsigned int lightrec_cycles_of_opcode(union opcode op)
+unsigned int lightrec_cycles_of_opcode(const struct opcode *op)
 {
 	/* TODO: Add a proper cycle counter */
 	return 2;

@@ -28,12 +28,12 @@
 #endif
 
 static u32 lightrec_rw(struct lightrec_state *state,
-		union opcode op, u32 addr, u32 data)
+		const struct opcode *op, u32 addr, u32 data)
 {
 	struct lightrec_mem_map *map = state->mem_map;
 	unsigned int i;
 
-	addr += (s16) op.i.imm;
+	addr += (s16) op->i.imm;
 
 	for (i = 0; i < state->nb_maps; i++) {
 		if (addr >= map[i].pc && addr < map[i].pc + map[i].length) {
@@ -41,7 +41,7 @@ static u32 lightrec_rw(struct lightrec_state *state,
 				(addr - map[i].pc);
 			struct lightrec_mem_map_ops *ops = map[i].ops;
 
-			switch (op.i.op) {
+			switch (op->i.op) {
 			case OP_SB:
 				if (unlikely(ops && ops->sb))
 					ops->sb(state, addr, (u8) data);
@@ -259,7 +259,7 @@ err_no_mem:
 
 struct block * lightrec_recompile_block(struct lightrec_state *state, u32 pc)
 {
-	struct opcode_list *elm, *list;
+	struct opcode *elm, *list;
 	struct block *block;
 	jit_state_t *_jit;
 	bool skip_next = false;
@@ -293,7 +293,7 @@ struct block * lightrec_recompile_block(struct lightrec_state *state, u32 pc)
 	for (elm = list; elm; elm = SLIST_NEXT(elm, next), pc += 4) {
 		int ret;
 
-		block->cycles += lightrec_cycles_of_opcode(elm->opcode);
+		block->cycles += lightrec_cycles_of_opcode(elm);
 
 		if (skip_next) {
 			skip_next = false;
@@ -301,10 +301,10 @@ struct block * lightrec_recompile_block(struct lightrec_state *state, u32 pc)
 		}
 
 		/* Don't recompile NOPs */
-		if (!elm->opcode.opcode)
+		if (!elm->opcode)
 			continue;
 
-		ret = lightrec_rec_opcode(block, elm->opcode, pc);
+		ret = lightrec_rec_opcode(block, elm, pc);
 		skip_next = ret == SKIP_DELAY_SLOT;
 	}
 

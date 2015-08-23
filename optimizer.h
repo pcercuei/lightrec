@@ -15,10 +15,10 @@
 #ifndef __OPTIMIZER_H__
 #define __OPTIMIZER_H__
 
-#include "disassembler.h"
+struct opcode;
 
 struct optimizer_list {
-	void (**optimizers)(struct opcode_list *);
+	void (**optimizers)(struct opcode *);
 	unsigned int nb_optimizers;
 };
 

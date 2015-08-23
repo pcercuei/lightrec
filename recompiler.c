@@ -17,15 +17,15 @@
 #include "recompiler.h"
 #include "lightrec.h"
 
-typedef int (*lightrec_rec_func_t)(const struct block *, union opcode, u32);
+typedef int (*lightrec_rec_func_t)(const struct block *, struct opcode *, u32);
 
 /* Forward declarations */
-static int rec_SPECIAL(const struct block *block, union opcode op, u32 pc);
-static int rec_REGIMM(const struct block *block, union opcode op, u32 pc);
-static int rec_CP0(const struct block *block, union opcode op, u32 pc);
-static int rec_CP2(const struct block *block, union opcode op, u32 pc);
-static int rec_cp2_BASIC(const struct block *block, union opcode op, u32 pc);
-static int rec_META(const struct block *block, union opcode op, u32 pc);
+static int rec_SPECIAL(const struct block *block, struct opcode *op, u32 pc);
+static int rec_REGIMM(const struct block *block, struct opcode *op, u32 pc);
+static int rec_CP0(const struct block *block, struct opcode *op, u32 pc);
+static int rec_CP2(const struct block *block, struct opcode *op, u32 pc);
+static int rec_cp2_BASIC(const struct block *block, struct opcode *op, u32 pc);
+static int rec_META(const struct block *block, struct opcode *op, u32 pc);
 
 static lightrec_rec_func_t rec_standard[64] = {
 	[OP_SPECIAL]		= rec_SPECIAL,
@@ -153,63 +153,63 @@ static lightrec_rec_func_t rec_meta[] = {
 	[OP_META_SW]		= rec_meta_SW,
 };
 
-static int rec_SPECIAL(const struct block *block, union opcode op, u32 pc)
+static int rec_SPECIAL(const struct block *block, struct opcode *op, u32 pc)
 {
-	lightrec_rec_func_t f = rec_special[op.r.op];
+	lightrec_rec_func_t f = rec_special[op->r.op];
 	if (f)
 		return (*f)(block, op, pc);
 	else
 		return emit_call_to_interpreter(block, op, pc);
 }
 
-static int rec_REGIMM(const struct block *block, union opcode op, u32 pc)
+static int rec_REGIMM(const struct block *block, struct opcode *op, u32 pc)
 {
-	lightrec_rec_func_t f = rec_regimm[op.r.rt];
+	lightrec_rec_func_t f = rec_regimm[op->r.rt];
 	if (f)
 		return (*f)(block, op, pc);
 	else
 		return emit_call_to_interpreter(block, op, pc);
 }
 
-static int rec_CP0(const struct block *block, union opcode op, u32 pc)
+static int rec_CP0(const struct block *block, struct opcode *op, u32 pc)
 {
-	lightrec_rec_func_t f = rec_cp0[op.r.rs];
+	lightrec_rec_func_t f = rec_cp0[op->r.rs];
 	if (f)
 		return (*f)(block, op, pc);
 	else
 		return emit_call_to_interpreter(block, op, pc);
 }
 
-static int rec_CP2(const struct block *block, union opcode op, u32 pc)
+static int rec_CP2(const struct block *block, struct opcode *op, u32 pc)
 {
-	lightrec_rec_func_t f = rec_cp2[op.r.op];
+	lightrec_rec_func_t f = rec_cp2[op->r.op];
 	if (f)
 		return (*f)(block, op, pc);
 	else
 		return emit_call_to_interpreter(block, op, pc);
 }
 
-static int rec_cp2_BASIC(const struct block *block, union opcode op, u32 pc)
+static int rec_cp2_BASIC(const struct block *block, struct opcode *op, u32 pc)
 {
-	lightrec_rec_func_t f = rec_cp2_basic[op.r.rs];
+	lightrec_rec_func_t f = rec_cp2_basic[op->r.rs];
 	if (f)
 		return (*f)(block, op, pc);
 	else
 		return emit_call_to_interpreter(block, op, pc);
 }
 
-static int rec_META(const struct block *block, union opcode op, u32 pc)
+static int rec_META(const struct block *block, struct opcode *op, u32 pc)
 {
-	lightrec_rec_func_t f = rec_meta[op.r.op];
+	lightrec_rec_func_t f = rec_meta[op->r.op];
 	if (f)
 		return (*f)(block, op, pc);
 	else
 		return emit_call_to_interpreter(block, op, pc);
 }
 
-int lightrec_rec_opcode(const struct block *block, union opcode op, u32 pc)
+int lightrec_rec_opcode(const struct block *block, struct opcode *op, u32 pc)
 {
-	lightrec_rec_func_t f = rec_standard[op.i.op];
+	lightrec_rec_func_t f = rec_standard[op->i.op];
 	if (f)
 		return (*f)(block, op, pc);
 	else

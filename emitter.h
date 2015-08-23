@@ -20,6 +20,6 @@
 #define SKIP_DELAY_SLOT 1
 
 int emit_call_to_interpreter(const struct block *block,
-		union opcode op, u32 pc);
+		struct opcode *op, u32 pc);
 
 #endif /* __EMITTER_H__ */

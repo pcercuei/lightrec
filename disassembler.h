@@ -167,23 +167,21 @@ __packed struct opcode_j {
 	u32 op  :6;
 };
 
-union opcode {
-	u32 opcode;
-	struct opcode_r r;
-	struct opcode_i i;
-	struct opcode_j j;
+struct opcode {
+	union {
+		u32 opcode;
+		struct opcode_r r;
+		struct opcode_i i;
+		struct opcode_j j;
+	};
+	SLIST_ENTRY(opcode) next;
 };
 
-struct opcode_list {
-	union opcode opcode;
-	SLIST_ENTRY(opcode_list) next;
-};
+SLIST_HEAD(opcode_list_head, opcode);
 
-SLIST_HEAD(opcode_list_head, opcode_list);
+struct opcode * lightrec_disassemble(const u32 *src);
+void lightrec_free_opcode_list(struct opcode *list);
 
-struct opcode_list * lightrec_disassemble(const u32 *src);
-void lightrec_free_opcode_list(struct opcode_list *list);
-
-unsigned int lightrec_cycles_of_opcode(union opcode op);
+unsigned int lightrec_cycles_of_opcode(const struct opcode *op);
 
 #endif /* __DISASSEMBLER_H__ */

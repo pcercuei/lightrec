@@ -45,10 +45,9 @@ typedef int8_t  s8;
 struct jit_state;
 typedef struct jit_state jit_state_t;
 
-struct opcode_list;
+struct opcode;
 struct lightrec_state;
 struct blockcache;
-union opcode;
 
 enum block_exit_flags {
 	LIGHTREC_EXIT_NORMAL,
@@ -59,7 +58,7 @@ enum block_exit_flags {
 struct block {
 	jit_state_t *_jit;
 	struct lightrec_state *state;
-	struct opcode_list *opcode_list;
+	struct opcode *opcode_list;
 	void (*function)(void);
 	u32 pc;
 	unsigned int cycles;
@@ -97,7 +96,7 @@ struct lightrec_state {
 	struct block *wrapper, *addr_lookup_block;
 	struct blockcache *block_cache;
 	void (*addr_lookup)(void);
-	u32 (*rw_op)(struct lightrec_state *, union opcode, u32, u32);
+	u32 (*rw_op)(struct lightrec_state *, const struct opcode *, u32, u32);
 	const struct lightrec_cop_ops *cop_ops;
 	bool stop;
 	unsigned int nb_maps;
