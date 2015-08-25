@@ -791,6 +791,7 @@ int rec_special_SYSCALL(const struct block *block, struct opcode *op, u32 pc)
 	jit_name(__func__);
 	jit_movi(tmp, LIGHTREC_EXIT_SYSCALL);
 	jit_stxi_i(offset, LIGHTREC_REG_STATE, tmp);
+	lightrec_free_reg(tmp);
 
 	/* TODO: the return address should be "pc - 4" if we're a delay slot */
 	return lightrec_emit_end_of_block(block, pc, 0, pc, 0, NULL);
@@ -805,6 +806,7 @@ int rec_special_BREAK(const struct block *block, struct opcode *op, u32 pc)
 	jit_name(__func__);
 	jit_movi(tmp, LIGHTREC_EXIT_BREAK);
 	jit_stxi_i(offset, LIGHTREC_REG_STATE, tmp);
+	lightrec_free_reg(tmp);
 
 	/* TODO: the return address should be "pc - 4" if we're a delay slot */
 	return lightrec_emit_end_of_block(block, pc, 0, pc, 0, NULL);
