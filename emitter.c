@@ -805,15 +805,15 @@ int rec_meta_LW(const struct block *block, struct opcode *op, u32 pc)
 	return rec_load_meta(block, op, jit_code_ldxi_i);
 }
 
-int rec_special_SYSCALL(const struct block *block, struct opcode *op, u32 pc)
+static int rec_break_syscall(const struct block *block,
+		u32 pc, enum block_exit_flags exit_flags)
 {
 	struct regcache *reg_cache = block->state->reg_cache;
 	jit_state_t *_jit = block->_jit;
 	u8 tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
 	u32 offset = offsetof(struct lightrec_state, block_exit_flags);
 
-	jit_name(__func__);
-	jit_movi(tmp, LIGHTREC_EXIT_SYSCALL);
+	jit_movi(tmp, exit_flags);
 	jit_stxi_i(offset, LIGHTREC_REG_STATE, tmp);
 	lightrec_free_reg(reg_cache, tmp);
 
@@ -821,20 +821,16 @@ int rec_special_SYSCALL(const struct block *block, struct opcode *op, u32 pc)
 	return lightrec_emit_end_of_block(block, pc, 0, pc, 0, NULL);
 }
 
+int rec_special_SYSCALL(const struct block *block, struct opcode *op, u32 pc)
+{
+	_jit_name(block->_jit, __func__);
+	return rec_break_syscall(block, pc, LIGHTREC_EXIT_SYSCALL);
+}
+
 int rec_special_BREAK(const struct block *block, struct opcode *op, u32 pc)
 {
-	struct regcache *reg_cache = block->state->reg_cache;
-	jit_state_t *_jit = block->_jit;
-	u8 tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
-	u32 offset = offsetof(struct lightrec_state, block_exit_flags);
-
-	jit_name(__func__);
-	jit_movi(tmp, LIGHTREC_EXIT_BREAK);
-	jit_stxi_i(offset, LIGHTREC_REG_STATE, tmp);
-	lightrec_free_reg(reg_cache, tmp);
-
-	/* TODO: the return address should be "pc - 4" if we're a delay slot */
-	return lightrec_emit_end_of_block(block, pc, 0, pc, 0, NULL);
+	_jit_name(block->_jit, __func__);
+	return rec_break_syscall(block, pc, LIGHTREC_EXIT_BREAK);
 }
 
 static int lightrec_mfc(const struct block *block,
