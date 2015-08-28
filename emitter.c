@@ -53,6 +53,7 @@ static uintptr_t __get_jump_address_cb(struct lightrec_state *state)
 static int lightrec_emit_end_of_block(const struct block *block, u32 pc,
 		u8 reg_new_pc, u32 imm, u32 link, struct opcode *delay_slot)
 {
+	struct regcache *reg_cache = block->state->reg_cache;
 	u32 offset, cycles = block->cycles;
 	jit_state_t *_jit = block->_jit;
 
@@ -60,9 +61,9 @@ static int lightrec_emit_end_of_block(const struct block *block, u32 pc,
 
 	if (link) {
 		/* Update the $ra register */
-		u8 link_reg = lightrec_alloc_reg_out(_jit, 31);
+		u8 link_reg = lightrec_alloc_reg_out(reg_cache, _jit, 31);
 		jit_movi(link_reg, link);
-		lightrec_free_reg(link_reg);
+		lightrec_free_reg(reg_cache, link_reg);
 	}
 
 	/* Store the next PC in the lightrec_state structure,
@@ -71,10 +72,10 @@ static int lightrec_emit_end_of_block(const struct block *block, u32 pc,
 	if (reg_new_pc) {
 		jit_stxi_i(offset, LIGHTREC_REG_STATE, reg_new_pc);
 	} else {
-		u8 tmp = lightrec_alloc_reg_temp(_jit);
+		u8 tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
 		jit_movi(tmp, imm);
 		jit_stxi_i(offset, LIGHTREC_REG_STATE, tmp);
-		lightrec_free_reg(tmp);
+		lightrec_free_reg(reg_cache, tmp);
 	}
 
 	if (delay_slot) {
@@ -85,8 +86,8 @@ static int lightrec_emit_end_of_block(const struct block *block, u32 pc,
 			lightrec_rec_opcode(block, delay_slot, pc + 4);
 	}
 
-	lightrec_storeback_regs(_jit);
-	lightrec_unlink_addresses();
+	lightrec_storeback_regs(reg_cache, _jit);
+	lightrec_unlink_addresses(reg_cache);
 
 	/* Increment the cycle counter */
 	jit_ldxi_i(JIT_R0, LIGHTREC_REG_STATE,
@@ -105,7 +106,8 @@ static int lightrec_emit_end_of_block(const struct block *block, u32 pc,
 
 int rec_special_JR(const struct block *block, struct opcode *op, u32 pc)
 {
-	u8 rs = lightrec_alloc_reg_in(block->_jit, op->r.rs);
+	u8 rs = lightrec_alloc_reg_in(block->state->reg_cache,
+			block->_jit, op->r.rs);
 
 	_jit_name(block->_jit, __func__);
 	return lightrec_emit_end_of_block(block, pc, rs,
@@ -114,7 +116,8 @@ int rec_special_JR(const struct block *block, struct opcode *op, u32 pc)
 
 int rec_special_JALR(const struct block *block, struct opcode *op, u32 pc)
 {
-	u8 rs = lightrec_alloc_reg_in(block->_jit, op->r.rs);
+	u8 rs = lightrec_alloc_reg_in(block->state->reg_cache,
+			block->_jit, op->r.rs);
 
 	_jit_name(block->_jit, __func__);
 	return lightrec_emit_end_of_block(block, pc, rs,
@@ -137,44 +140,49 @@ int rec_JAL(const struct block *block, struct opcode *op, u32 pc)
 			SLIST_NEXT(op, next));
 }
 
-static void preload_in_regs(jit_state_t *_jit, struct opcode *op)
+static void preload_in_regs(struct regcache *reg_cache,
+		jit_state_t *_jit, struct opcode *op)
 {
 	switch (op->i.op) {
 	case OP_META:
 		switch (op->r.op) {
 		case OP_META_SB ... OP_META_SW:
 			if (op->i.rt) {
-				u8 reg = lightrec_alloc_reg_in(_jit, op->i.rt);
-				lightrec_free_reg(reg);
+				u8 reg = lightrec_alloc_reg_in(
+						reg_cache, _jit, op->i.rt);
+				lightrec_free_reg(reg_cache, reg);
 			}
 		case OP_META_LB ... OP_META_LW:
 			if (op->i.rs) {
-				u8 reg = lightrec_alloc_reg_in(_jit, op->i.rs);
-				lightrec_free_reg(reg);
+				u8 reg = lightrec_alloc_reg_in(
+						reg_cache, _jit, op->i.rs);
+				lightrec_free_reg(reg_cache, reg);
 			}
 
 			/* Force storeback of the JIT_R0 register, in case we have a
 			 * load/store in the delay slot */
-			lightrec_clean_reg(_jit, JIT_R0);
+			lightrec_clean_reg(reg_cache, _jit, JIT_R0);
 			break;
 		}
 		break;
 
 	case OP_LB ... OP_SWR:
-		lightrec_clean_regs(_jit);
+		lightrec_clean_regs(reg_cache, _jit);
 		break;
 
 	case OP_SPECIAL:
 	case OP_BEQ:
 	case OP_BNE:
 		if (op->i.rt) {
-			u8 reg = lightrec_alloc_reg_in(_jit, op->i.rt);
-			lightrec_free_reg(reg);
+			u8 reg = lightrec_alloc_reg_in(
+					reg_cache, _jit, op->i.rt);
+			lightrec_free_reg(reg_cache, reg);
 		}
 	default:
 		if (op->i.rs) {
-			u8 reg = lightrec_alloc_reg_in(_jit, op->i.rs);
-			lightrec_free_reg(reg);
+			u8 reg = lightrec_alloc_reg_in(
+					reg_cache, _jit, op->i.rs);
+			lightrec_free_reg(reg_cache, reg);
 		}
 	case OP_LUI:
 	case OP_J:
@@ -186,6 +194,7 @@ static void preload_in_regs(jit_state_t *_jit, struct opcode *op)
 static int rec_b(const struct block *block, struct opcode *op, u32 pc,
 		jit_code_t code, u32 link, bool unconditional, bool bz)
 {
+	struct regcache *reg_cache = block->state->reg_cache;
 	struct opcode *delay_slot = SLIST_NEXT(op, next);
 	jit_state_t *_jit = block->_jit;
 	jit_node_t *addr;
@@ -193,16 +202,17 @@ static int rec_b(const struct block *block, struct opcode *op, u32 pc,
 	jit_note(__FILE__, __LINE__);
 
 	if (delay_slot->opcode)
-		preload_in_regs(_jit, delay_slot);
+		preload_in_regs(reg_cache, _jit, delay_slot);
 
 	if (!unconditional) {
-		u8 rs = lightrec_alloc_reg_in(_jit, op->i.rs),
-		   rt = bz ? 0 : lightrec_alloc_reg_in(_jit, op->i.rt);
+		u8 rs = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rs),
+		   rt = bz ? 0 : lightrec_alloc_reg_in(
+				   reg_cache, _jit, op->i.rt);
 		addr = jit_new_node_pww(code, NULL, rs, rt);
 
-		lightrec_free_reg(rs);
+		lightrec_free_reg(reg_cache, rs);
 		if (!bz)
-			lightrec_free_reg(rt);
+			lightrec_free_reg(reg_cache, rt);
 	}
 
 	lightrec_emit_end_of_block(block, pc, 0,
@@ -272,9 +282,10 @@ int rec_regimm_BGEZAL(const struct block *block, struct opcode *op, u32 pc)
 static int rec_alu_imm(const struct block *block, struct opcode *op,
 		jit_code_t code, bool sign_extend)
 {
+	struct regcache *reg_cache = block->state->reg_cache;
 	jit_state_t *_jit = block->_jit;
-	u8 rs = lightrec_alloc_reg_in(_jit, op->i.rs),
-	   rt = lightrec_alloc_reg_out(_jit, op->i.rt);
+	u8 rs = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rs),
+	   rt = lightrec_alloc_reg_out(reg_cache, _jit, op->i.rt);
 
 	jit_note(__FILE__, __LINE__);
 	if (sign_extend)
@@ -282,18 +293,19 @@ static int rec_alu_imm(const struct block *block, struct opcode *op,
 	else
 		jit_new_node_www(code, rt, rs, (u32)(u16) op->i.imm);
 
-	lightrec_free_reg(rs);
-	lightrec_free_reg(rt);
+	lightrec_free_reg(reg_cache, rs);
+	lightrec_free_reg(reg_cache, rt);
 	return 0;
 }
 
 static int rec_alu_special(const struct block *block, struct opcode *op,
 		jit_code_t code, bool invert_rs_rt)
 {
+	struct regcache *reg_cache = block->state->reg_cache;
 	jit_state_t *_jit = block->_jit;
-	u8 rs = lightrec_alloc_reg_in(_jit, op->r.rs),
-	   rt = lightrec_alloc_reg_in(_jit, op->r.rt),
-	   rd = lightrec_alloc_reg_out(_jit, op->r.rd);
+	u8 rs = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rs),
+	   rt = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rt),
+	   rd = lightrec_alloc_reg_out(reg_cache, _jit, op->r.rd);
 
 	jit_note(__FILE__, __LINE__);
 	if (invert_rs_rt)
@@ -301,9 +313,9 @@ static int rec_alu_special(const struct block *block, struct opcode *op,
 	else
 		jit_new_node_www(code, rd, rs, rt);
 
-	lightrec_free_reg(rs);
-	lightrec_free_reg(rt);
-	lightrec_free_reg(rd);
+	lightrec_free_reg(reg_cache, rs);
+	lightrec_free_reg(reg_cache, rt);
+	lightrec_free_reg(reg_cache, rd);
 	return 0;
 }
 
@@ -352,16 +364,17 @@ int rec_XORI(const struct block *block, struct opcode *op, u32 pc)
 
 int rec_LUI(const struct block *block, struct opcode *op, u32 pc)
 {
+	struct regcache *reg_cache = block->state->reg_cache;
 	jit_state_t *_jit = block->_jit;
 	u8 rt;
 
 	jit_name(__func__);
-	rt = lightrec_alloc_reg_out(_jit, op->i.rt);
+	rt = lightrec_alloc_reg_out(reg_cache, _jit, op->i.rt);
 
 	jit_note(__FILE__, __LINE__);
 	jit_movi(rt, op->i.imm << 16);
 
-	lightrec_free_reg(rt);
+	lightrec_free_reg(reg_cache, rt);
 	return 0;
 }
 
@@ -411,17 +424,18 @@ int rec_special_XOR(const struct block *block, struct opcode *op, u32 pc)
 
 int rec_special_NOR(const struct block *block, struct opcode *op, u32 pc)
 {
+	struct regcache *reg_cache = block->state->reg_cache;
 	jit_state_t *_jit = block->_jit;
 	u8 rd;
 
 	jit_name(__func__);
 	rec_alu_special(block, op, jit_code_orr, false);
-	rd = lightrec_alloc_reg_out(_jit, op->r.rd);
+	rd = lightrec_alloc_reg_out(reg_cache, _jit, op->r.rd);
 
 	jit_note(__FILE__, __LINE__);
 	jit_comr(rd, rd);
 
-	lightrec_free_reg(rd);
+	lightrec_free_reg(reg_cache, rd);
 	return 0;
 }
 
@@ -458,15 +472,16 @@ int rec_special_SRAV(const struct block *block, struct opcode *op, u32 pc)
 static int rec_alu_shift(const struct block *block,
 		struct opcode *op, jit_code_t code)
 {
+	struct regcache *reg_cache = block->state->reg_cache;
 	jit_state_t *_jit = block->_jit;
-	u8 rt = lightrec_alloc_reg_in(_jit, op->r.rt),
-	   rd = lightrec_alloc_reg_out(_jit, op->r.rd);
+	u8 rt = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rt),
+	   rd = lightrec_alloc_reg_out(reg_cache, _jit, op->r.rd);
 
 	jit_note(__FILE__, __LINE__);
 	jit_new_node_www(code, rd, rt, op->r.imm);
 
-	lightrec_free_reg(rt);
-	lightrec_free_reg(rd);
+	lightrec_free_reg(reg_cache, rt);
+	lightrec_free_reg(reg_cache, rd);
 	return 0;
 }
 
@@ -491,19 +506,20 @@ int rec_special_SRA(const struct block *block, struct opcode *op, u32 pc)
 static int rec_alu_mult_div(const struct block *block,
 		struct opcode *op, jit_code_t code)
 {
+	struct regcache *reg_cache = block->state->reg_cache;
 	jit_state_t *_jit = block->_jit;
-	u8 rs = lightrec_alloc_reg_in(_jit, op->r.rs),
-	   rt = lightrec_alloc_reg_in(_jit, op->r.rt),
-	   lo = lightrec_alloc_reg_out(_jit, REG_LO),
-	   hi = lightrec_alloc_reg_out(_jit, REG_HI);
+	u8 rs = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rs),
+	   rt = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rt),
+	   lo = lightrec_alloc_reg_out(reg_cache, _jit, REG_LO),
+	   hi = lightrec_alloc_reg_out(reg_cache, _jit, REG_HI);
 
 	jit_note(__FILE__, __LINE__);
 	jit_new_node_qww(code, lo, hi, rs, rt);
 
-	lightrec_free_reg(rs);
-	lightrec_free_reg(rt);
-	lightrec_free_reg(lo);
-	lightrec_free_reg(hi);
+	lightrec_free_reg(reg_cache, rs);
+	lightrec_free_reg(reg_cache, rt);
+	lightrec_free_reg(reg_cache, lo);
+	lightrec_free_reg(reg_cache, hi);
 	return 0;
 }
 
@@ -533,15 +549,16 @@ int rec_special_DIVU(const struct block *block, struct opcode *op, u32 pc)
 
 static int rec_alu_mv_lo_hi(const struct block *block, u8 dst, u8 src)
 {
+	struct regcache *reg_cache = block->state->reg_cache;
 	jit_state_t *_jit = block->_jit;
-	src = lightrec_alloc_reg_in(_jit, src);
-	dst = lightrec_alloc_reg_out(_jit, dst);
+	src = lightrec_alloc_reg_in(reg_cache, _jit, src);
+	dst = lightrec_alloc_reg_out(reg_cache, _jit, dst);
 
 	jit_note(__FILE__, __LINE__);
 	jit_movr(dst, src);
 
-	lightrec_free_reg(src);
-	lightrec_free_reg(dst);
+	lightrec_free_reg(reg_cache, src);
+	lightrec_free_reg(reg_cache, dst);
 	return 0;
 }
 
@@ -571,6 +588,7 @@ int rec_special_MTLO(const struct block *block, struct opcode *op, u32 pc)
 
 static int rec_store(const struct block *block, struct opcode *op)
 {
+	struct regcache *reg_cache = block->state->reg_cache;
 	jit_state_t *_jit = block->_jit;
 	u8 rt, rs;
 
@@ -580,18 +598,18 @@ static int rec_store(const struct block *block, struct opcode *op)
 	jit_pushargr(LIGHTREC_REG_STATE);
 	jit_pushargi(op);
 
-	rs = lightrec_alloc_reg_in(_jit, op->i.rs);
+	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rs);
 	jit_pushargr(rs);
-	lightrec_free_reg(rs);
+	lightrec_free_reg(reg_cache, rs);
 
-	rt = lightrec_alloc_reg_in(_jit, op->i.rt);
+	rt = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rt);
 	jit_pushargr(rt);
-	lightrec_free_reg(rt);
+	lightrec_free_reg(reg_cache, rt);
 
-	lightrec_storeback_regs(_jit);
+	lightrec_storeback_regs(reg_cache, _jit);
 
 	/* The call to C trashes the registers, we have to reset the cache */
-	lightrec_regcache_reset();
+	lightrec_regcache_reset(reg_cache);
 
 	jit_finishi(block->state->rw_op);
 	return 0;
@@ -600,21 +618,24 @@ static int rec_store(const struct block *block, struct opcode *op)
 static int rec_store_meta(const struct block *block,
 		struct opcode *op, jit_code_t code)
 {
+	struct regcache *reg_cache = block->state->reg_cache;
 	jit_state_t *_jit = block->_jit;
 	u8 rt, rs;
 
-	rs = lightrec_alloc_reg_in_address(_jit, op->i.rs, (s16) op->i.imm);
-	rt = lightrec_alloc_reg_in(_jit, op->i.rt);
+	rs = lightrec_alloc_reg_in_address(reg_cache,
+			_jit, op->i.rs, (s16) op->i.imm);
+	rt = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rt);
 
 	jit_new_node_www(code, (s16) op->i.imm, rs, rt);
 
-	lightrec_free_reg(rt);
-	lightrec_free_reg(rs);
+	lightrec_free_reg(reg_cache, rt);
+	lightrec_free_reg(reg_cache, rs);
 	return 0;
 }
 
 static int rec_load(const struct block *block, struct opcode *op)
 {
+	struct regcache *reg_cache = block->state->reg_cache;
 	jit_state_t *_jit = block->_jit;
 	u8 rt, rs;
 
@@ -624,14 +645,14 @@ static int rec_load(const struct block *block, struct opcode *op)
 	jit_pushargr(LIGHTREC_REG_STATE);
 	jit_pushargi(op);
 
-	rs = lightrec_alloc_reg_in(_jit, op->i.rs);
+	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rs);
 	jit_pushargr(rs);
-	lightrec_free_reg(rs);
+	lightrec_free_reg(reg_cache, rs);
 
-	lightrec_storeback_regs(_jit);
+	lightrec_storeback_regs(reg_cache, _jit);
 
 	/* The call to C trashes the registers, we have to reset the cache */
-	lightrec_regcache_reset();
+	lightrec_regcache_reset(reg_cache);
 
 	jit_finishi(block->state->rw_op);
 
@@ -639,9 +660,9 @@ static int rec_load(const struct block *block, struct opcode *op)
 	if (unlikely(!op->i.rt))
 		return 0;
 
-	rt = lightrec_alloc_reg_out(_jit, op->i.rt);
+	rt = lightrec_alloc_reg_out(reg_cache, _jit, op->i.rt);
 	jit_retval_i(rt);
-	lightrec_free_reg(rt);
+	lightrec_free_reg(reg_cache, rt);
 
 	return 0;
 }
@@ -649,16 +670,18 @@ static int rec_load(const struct block *block, struct opcode *op)
 static int rec_load_meta(const struct block *block,
 		struct opcode *op, jit_code_t code)
 {
+	struct regcache *reg_cache = block->state->reg_cache;
 	jit_state_t *_jit = block->_jit;
 	u8 rt, rs;
 
-	rs = lightrec_alloc_reg_in_address(_jit, op->i.rs, (s16) op->i.imm);
-	rt = lightrec_alloc_reg_out(_jit, op->i.rt);
+	rs = lightrec_alloc_reg_in_address(reg_cache,
+			_jit, op->i.rs, (s16) op->i.imm);
+	rt = lightrec_alloc_reg_out(reg_cache, _jit, op->i.rt);
 
 	jit_new_node_www(code, rt, rs, (s16) op->i.imm);
 
-	lightrec_free_reg(rt);
-	lightrec_free_reg(rs);
+	lightrec_free_reg(reg_cache, rt);
+	lightrec_free_reg(reg_cache, rs);
 	return 0;
 }
 
@@ -784,14 +807,15 @@ int rec_meta_LW(const struct block *block, struct opcode *op, u32 pc)
 
 int rec_special_SYSCALL(const struct block *block, struct opcode *op, u32 pc)
 {
+	struct regcache *reg_cache = block->state->reg_cache;
 	jit_state_t *_jit = block->_jit;
-	u8 tmp = lightrec_alloc_reg_temp(_jit);
+	u8 tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
 	u32 offset = offsetof(struct lightrec_state, block_exit_flags);
 
 	jit_name(__func__);
 	jit_movi(tmp, LIGHTREC_EXIT_SYSCALL);
 	jit_stxi_i(offset, LIGHTREC_REG_STATE, tmp);
-	lightrec_free_reg(tmp);
+	lightrec_free_reg(reg_cache, tmp);
 
 	/* TODO: the return address should be "pc - 4" if we're a delay slot */
 	return lightrec_emit_end_of_block(block, pc, 0, pc, 0, NULL);
@@ -799,14 +823,15 @@ int rec_special_SYSCALL(const struct block *block, struct opcode *op, u32 pc)
 
 int rec_special_BREAK(const struct block *block, struct opcode *op, u32 pc)
 {
+	struct regcache *reg_cache = block->state->reg_cache;
 	jit_state_t *_jit = block->_jit;
-	u8 tmp = lightrec_alloc_reg_temp(_jit);
+	u8 tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
 	u32 offset = offsetof(struct lightrec_state, block_exit_flags);
 
 	jit_name(__func__);
 	jit_movi(tmp, LIGHTREC_EXIT_BREAK);
 	jit_stxi_i(offset, LIGHTREC_REG_STATE, tmp);
-	lightrec_free_reg(tmp);
+	lightrec_free_reg(reg_cache, tmp);
 
 	/* TODO: the return address should be "pc - 4" if we're a delay slot */
 	return lightrec_emit_end_of_block(block, pc, 0, pc, 0, NULL);
@@ -818,6 +843,7 @@ static int lightrec_mfc(const struct block *block,
 	u8 rt;
 	struct lightrec_state *state = block->state;
 	const struct lightrec_cop_ops *ops = state->cop_ops;
+	struct regcache *reg_cache = state->reg_cache;
 	jit_state_t *_jit = block->_jit;
 
 	if (!ops) {
@@ -837,16 +863,16 @@ static int lightrec_mfc(const struct block *block,
 	jit_pushargi(cpX);
 	jit_pushargi(op->r.rd);
 
-	lightrec_storeback_regs(_jit);
+	lightrec_storeback_regs(reg_cache, _jit);
 
 	/* The call to C trashes the registers, we have to reset the cache */
-	lightrec_regcache_reset();
+	lightrec_regcache_reset(reg_cache);
 
 	jit_finishi(copy ? ops->cfc : ops->mfc);
 
-	rt = lightrec_alloc_reg_out(_jit, op->r.rt);
+	rt = lightrec_alloc_reg_out(reg_cache, _jit, op->r.rt);
 	jit_retval_i(rt);
-	lightrec_free_reg(rt);
+	lightrec_free_reg(reg_cache, rt);
 	return 0;
 }
 
@@ -855,6 +881,7 @@ static int lightrec_mtc(const struct block *block,
 {
 	u8 rt;
 	struct lightrec_state *state = block->state;
+	struct regcache *reg_cache = state->reg_cache;
 	const struct lightrec_cop_ops *ops = state->cop_ops;
 	jit_state_t *_jit = block->_jit;
 
@@ -868,7 +895,7 @@ static int lightrec_mtc(const struct block *block,
 		return 0;
 	}
 
-	rt = lightrec_alloc_reg_in(_jit, op->r.rt);
+	rt = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rt);
 
 	jit_note(__FILE__, __LINE__);
 
@@ -877,12 +904,12 @@ static int lightrec_mtc(const struct block *block,
 	jit_pushargi(cpX);
 	jit_pushargi(op->r.rd);
 	jit_pushargr(rt);
-	lightrec_free_reg(rt);
+	lightrec_free_reg(reg_cache, rt);
 
-	lightrec_storeback_regs(_jit);
+	lightrec_storeback_regs(reg_cache, _jit);
 
 	/* The call to C trashes the registers, we have to reset the cache */
-	lightrec_regcache_reset();
+	lightrec_regcache_reset(reg_cache);
 
 	jit_finishi(copy ? ops->ctc : ops->mtc);
 	return 0;
@@ -961,10 +988,10 @@ int rec_cp0_RFE(const struct block *block, struct opcode *op, u32 pc)
 
 	jit_name(__func__);
 
-	lightrec_storeback_regs(_jit);
+	lightrec_storeback_regs(block->state->reg_cache, _jit);
 
 	/* The call to C trashes the registers, we have to reset the cache */
-	lightrec_regcache_reset();
+	lightrec_regcache_reset(block->state->reg_cache);
 
 	jit_note(__FILE__, __LINE__);
 	jit_prepare();

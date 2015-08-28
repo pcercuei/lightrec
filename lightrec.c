@@ -279,7 +279,7 @@ struct block * lightrec_recompile_block(struct lightrec_state *state, u32 pc)
 	if (!_jit)
 		goto err_free_list;
 
-	lightrec_regcache_reset();
+	lightrec_regcache_reset(state->reg_cache);
 
 	block->pc = pc;
 	block->state = state;
@@ -368,6 +368,7 @@ struct lightrec_state * lightrec_init(char *argv0,
 
 	state = calloc(1, sizeof(*state) + nb * sizeof(*map));
 	state->block_cache = lightrec_blockcache_init();
+	state->reg_cache = lightrec_regcache_init();
 
 	state->nb_maps = nb;
 	memcpy(state->mem_map, map, nb * sizeof(*map));
@@ -384,6 +385,7 @@ struct lightrec_state * lightrec_init(char *argv0,
 
 void lightrec_destroy(struct lightrec_state *state)
 {
+	lightrec_free_regcache(state->reg_cache);
 	lightrec_free_block_cache(state->block_cache);
 	lightrec_free_block(state->wrapper);
 	lightrec_free_block(state->addr_lookup_block);

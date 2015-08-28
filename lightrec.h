@@ -48,6 +48,7 @@ typedef struct jit_state jit_state_t;
 struct opcode;
 struct lightrec_state;
 struct blockcache;
+struct regcache;
 
 enum block_exit_flags {
 	LIGHTREC_EXIT_NORMAL,
@@ -88,13 +89,14 @@ struct lightrec_cop_ops {
 };
 
 struct lightrec_state {
-	u32 reg_cache[34];
+	u32 native_reg_cache[34];
 	u32 next_pc;
 	u32 block_exit_cycles;
 	enum block_exit_flags block_exit_flags;
 	uintptr_t end_of_block;
 	struct block *wrapper, *addr_lookup_block;
 	struct blockcache *block_cache;
+	struct regcache *reg_cache;
 	void (*addr_lookup)(void);
 	u32 (*rw_op)(struct lightrec_state *, const struct opcode *, u32, u32);
 	const struct lightrec_cop_ops *cop_ops;

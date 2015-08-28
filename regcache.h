@@ -28,19 +28,25 @@ struct register_value {
 	u32 value;
 };
 
-u8 lightrec_alloc_reg_temp(jit_state_t *_jit);
-u8 lightrec_alloc_reg_out(jit_state_t *_jit, u8 reg);
-u8 lightrec_alloc_reg_in(jit_state_t *_jit, u8 reg);
+struct regcache;
 
-void lightrec_regcache_reset(void);
+u8 lightrec_alloc_reg_temp(struct regcache *cache, jit_state_t *_jit);
+u8 lightrec_alloc_reg_out(struct regcache *cache, jit_state_t *_jit, u8 reg);
+u8 lightrec_alloc_reg_in(struct regcache *cache, jit_state_t *_jit, u8 reg);
 
-void lightrec_free_reg(u8 jit_reg);
-void lightrec_free_regs(void);
-void lightrec_clean_reg(jit_state_t *_jit, u8 jit_reg);
-void lightrec_clean_regs(jit_state_t *_jit);
-void lightrec_storeback_regs(jit_state_t *_jit);
-void lightrec_unlink_addresses(void);
+void lightrec_regcache_reset(struct regcache *cache);
 
-u8 lightrec_alloc_reg_in_address(jit_state_t *_jit, u8 reg, s16 offset);
+void lightrec_free_reg(struct regcache *cache, u8 jit_reg);
+void lightrec_free_regs(struct regcache *cache);
+void lightrec_clean_reg(struct regcache *cache, jit_state_t *_jit, u8 jit_reg);
+void lightrec_clean_regs(struct regcache *cache, jit_state_t *_jit);
+void lightrec_storeback_regs(struct regcache *cache, jit_state_t *_jit);
+void lightrec_unlink_addresses(struct regcache *cache);
+
+u8 lightrec_alloc_reg_in_address(struct regcache *cache,
+		jit_state_t *_jit, u8 reg, s16 offset);
+
+struct regcache * lightrec_regcache_init(void);
+void lightrec_free_regcache(struct regcache *cache);
 
 #endif /* __REGCACHE_H__ */
