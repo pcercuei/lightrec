@@ -597,7 +597,7 @@ static int rec_store(const struct block *block, struct opcode *op)
 
 	jit_prepare();
 	jit_pushargr(LIGHTREC_REG_STATE);
-	jit_pushargi(op);
+	jit_pushargi((intptr_t) op);
 
 	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rs);
 	jit_pushargr(rs);
@@ -644,7 +644,7 @@ static int rec_load(const struct block *block, struct opcode *op)
 
 	jit_prepare();
 	jit_pushargr(LIGHTREC_REG_STATE);
-	jit_pushargi(op);
+	jit_pushargi((intptr_t) op);
 
 	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rs);
 	jit_pushargr(rs);
