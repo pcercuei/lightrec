@@ -8,7 +8,7 @@ LIBNAME = liblightrec.so
 SONAME = $(LIBNAME).$(VERSION_MAJOR)
 LIBLIGHTREC = $(SONAME).$(VERSION_MINOR)
 
-CC = $(CROSS_COMPILE)gcc
+CC = $(CROSS_COMPILE)cc
 ANALYZER = clang --analyze
 INSTALL ?= install
 
