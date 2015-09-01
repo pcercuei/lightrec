@@ -27,6 +27,14 @@
 #error "At least 4 callee-saved registers are needed"
 #endif
 
+static void __segfault_cb(struct lightrec_state *state, u32 addr)
+{
+	state->stop = true;
+	state->block_exit_flags = LIGHTREC_EXIT_SEGFAULT;
+	ERROR("Segmentation fault in recompiled code: invalid "
+			"load/store at address 0x%08x\n", addr);
+}
+
 static u32 lightrec_rw(struct lightrec_state *state,
 		const struct opcode *op, u32 addr, u32 data)
 {
@@ -94,6 +102,7 @@ static u32 lightrec_rw(struct lightrec_state *state,
 		}
 	}
 
+	__segfault_cb(state, addr);
 	return 0;
 }
 
@@ -108,12 +117,6 @@ static const u32 * find_code_address(struct lightrec_state *state, u32 pc)
 	}
 
 	return NULL;
-}
-
-static void __segfault_cb(unsigned long addr)
-{
-	/* TODO: Handle the segmentation fault? */
-	ERROR("Segmentation fault in recompiled code! Addr=0x%lx\n", addr);
 }
 
 static struct block * generate_address_lookup_block(
@@ -171,8 +174,13 @@ static struct block * generate_address_lookup_block(
 	addr3 = jit_bger_u(JIT_V0, LIGHTREC_REG_STATE);
 	jit_patch_at(addr3, loop_top);
 
-	/* TODO: Handle segfault */
-	jit_calli(&__segfault_cb);
+	/* Handle segfault */
+	jit_prepare();
+	jit_subi(LIGHTREC_REG_STATE, LIGHTREC_REG_STATE,
+			offsetof(struct lightrec_state, mem_map));
+	jit_pushargr(LIGHTREC_REG_STATE);
+	jit_pushargr(JIT_V2);
+	jit_finishi(&__segfault_cb);
 
 	jit_patch(to_end);
 

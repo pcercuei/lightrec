@@ -54,6 +54,7 @@ enum block_exit_flags {
 	LIGHTREC_EXIT_NORMAL,
 	LIGHTREC_EXIT_SYSCALL,
 	LIGHTREC_EXIT_BREAK,
+	LIGHTREC_EXIT_SEGFAULT,
 };
 
 struct block {
