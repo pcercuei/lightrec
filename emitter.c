@@ -647,6 +647,10 @@ static int rec_load(const struct block *block, struct opcode *op)
 
 	jit_finishi(block->state->rw_op);
 
+	/* If the destination register is $0, we just discard the result now */
+	if (unlikely(!op->i.rt))
+		return 0;
+
 	rt = lightrec_alloc_reg_out(_jit, op->i.rt);
 	jit_retval_i(rt);
 	lightrec_free_reg(rt);
