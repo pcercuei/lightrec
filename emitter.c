@@ -141,50 +141,38 @@ int rec_JAL(const struct block *block, struct opcode *op, u32 pc)
 			SLIST_NEXT(op, next));
 }
 
-static void preload_in_regs(struct regcache *reg_cache,
+static void preload_in_regs(struct regcache *cache,
 		jit_state_t *_jit, struct opcode *op)
 {
 	switch (op->i.op) {
 	case OP_META:
 		switch (op->r.op) {
 		case OP_META_SB ... OP_META_SW:
-			if (op->i.rt) {
-				u8 reg = lightrec_alloc_reg_in(
-						reg_cache, _jit, op->i.rt);
-				lightrec_free_reg(reg_cache, reg);
-			}
+			if (op->i.rt)
+				lightrec_alloc_reg_in(cache, _jit, op->i.rt);
 		case OP_META_LB ... OP_META_LW:
-			if (op->i.rs) {
-				u8 reg = lightrec_alloc_reg_in(
-						reg_cache, _jit, op->i.rs);
-				lightrec_free_reg(reg_cache, reg);
-			}
+			if (op->i.rs)
+				lightrec_alloc_reg_in(cache, _jit, op->i.rs);
 
 			/* Force storeback of the JIT_R0 register, in case we have a
 			 * load/store in the delay slot */
-			lightrec_clean_reg(reg_cache, _jit, JIT_R0);
+			lightrec_clean_reg(cache, _jit, JIT_R0);
 			break;
 		}
 		break;
 
 	case OP_LB ... OP_SWR:
-		lightrec_clean_regs(reg_cache, _jit);
+		lightrec_clean_regs(cache, _jit);
 		break;
 
 	case OP_SPECIAL:
 	case OP_BEQ:
 	case OP_BNE:
-		if (op->i.rt) {
-			u8 reg = lightrec_alloc_reg_in(
-					reg_cache, _jit, op->i.rt);
-			lightrec_free_reg(reg_cache, reg);
-		}
+		if (op->i.rt)
+			lightrec_alloc_reg_in(cache, _jit, op->i.rt);
 	default:
-		if (op->i.rs) {
-			u8 reg = lightrec_alloc_reg_in(
-					reg_cache, _jit, op->i.rs);
-			lightrec_free_reg(reg_cache, reg);
-		}
+		if (op->i.rs)
+			lightrec_alloc_reg_in(cache, _jit, op->i.rs);
 	case OP_LUI:
 	case OP_J:
 	case OP_JAL:
@@ -209,12 +197,19 @@ static int rec_b(const struct block *block, struct opcode *op, u32 pc,
 		u8 rs = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rs),
 		   rt = bz ? 0 : lightrec_alloc_reg_in(
 				   reg_cache, _jit, op->i.rt);
-		addr = jit_new_node_pww(code, NULL, rs, rt);
 
-		lightrec_free_reg(reg_cache, rs);
-		if (!bz)
-			lightrec_free_reg(reg_cache, rt);
+		/* Little trick: lightrec_emit_end_of_block() as well as the
+		 * delay slot might require the allocation of a temporary
+		 * register. In case a dirty register gets allocated, we don't
+		 * want the store-back to happen only in one branch. Here we
+		 * ensure that the store-back, if needed, happens before the
+		 * conditional branch. */
+		lightrec_alloc_reg_temp(reg_cache, _jit);
+
+		addr = jit_new_node_pww(code, NULL, rs, rt);
 	}
+
+	lightrec_free_regs(reg_cache);
 
 	lightrec_emit_end_of_block(block, pc, -1,
 			pc + 4 + (s16) (op->i.imm << 2), link, delay_slot);
