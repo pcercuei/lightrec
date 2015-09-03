@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 Paul Cercueil <paul@crapouillou.net>
+ * Copyright (C) 2015 Paul Cercueil <paul@crapouillou.net>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,19 +19,27 @@
 #include <stdlib.h>
 
 /* Must be power of two */
+#define TINY_LUT_SIZE 0x100
 #define LUT_SIZE 0x4000
 
 struct blockcache {
+	struct block * tiny_lut[TINY_LUT_SIZE];
 	struct block * lut[LUT_SIZE];
 };
 
 struct block * lightrec_find_block(struct blockcache *cache, u32 pc)
 {
-	struct block *block = cache->lut[(pc >> 2) & (LUT_SIZE - 1)];
-	if (block && block->pc == pc)
+	struct block *block = cache->tiny_lut[(pc >> 2) & (TINY_LUT_SIZE - 1)];
+	if (likely(block && block->pc == pc))
 		return block;
-	else
+
+	block = cache->lut[(pc >> 2) & (LUT_SIZE - 1)];
+	if (block && block->pc == pc) {
+		cache->tiny_lut[(block->pc >> 2) & (TINY_LUT_SIZE - 1)] = block;
+		return block;
+	} else {
 		return NULL;
+	}
 }
 
 void lightrec_register_block(struct blockcache *cache, struct block *block)
@@ -43,6 +51,7 @@ void lightrec_register_block(struct blockcache *cache, struct block *block)
 	}
 
 	cache->lut[(block->pc >> 2) & (LUT_SIZE - 1)] = block;
+	cache->tiny_lut[(block->pc >> 2) & (TINY_LUT_SIZE - 1)] = block;
 }
 
 void lightrec_free_block_cache(struct blockcache *cache)
