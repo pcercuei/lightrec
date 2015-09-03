@@ -32,9 +32,12 @@ int emit_call_to_interpreter(const struct block *block,
 	return 0;
 }
 
-static uintptr_t __get_jump_address_cb(struct lightrec_state *state)
+static uintptr_t __get_jump_address_cb(struct lightrec_state *state, u32 cycles)
 {
 	struct block *new;
+
+	/* Increment the cycle counter */
+	state->block_exit_cycles += cycles;
 
 	if (state->stop)
 		return state->end_of_block;
@@ -90,15 +93,9 @@ static int lightrec_emit_end_of_block(const struct block *block, u32 pc,
 	lightrec_storeback_regs(reg_cache, _jit);
 	lightrec_unlink_addresses(reg_cache);
 
-	/* Increment the cycle counter */
-	jit_ldxi_i(JIT_R0, LIGHTREC_REG_STATE,
-			offsetof(struct lightrec_state, block_exit_cycles));
-	jit_addi(JIT_R0, JIT_R0, cycles);
-	jit_stxi_i(offsetof(struct lightrec_state, block_exit_cycles),
-			LIGHTREC_REG_STATE, JIT_R0);
-
 	jit_prepare();
 	jit_pushargr(LIGHTREC_REG_STATE);
+	jit_pushargi(cycles);
 	jit_finishi(&__get_jump_address_cb);
 	jit_retval(JIT_R0);
 	jit_jmpr(JIT_R0);
