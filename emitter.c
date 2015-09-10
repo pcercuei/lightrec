@@ -647,7 +647,7 @@ static int rec_store_meta(const struct block *block,
 	return 0;
 }
 
-static int rec_load(const struct block *block, struct opcode *op)
+static int rec_load(const struct block *block, struct opcode *op, bool lwrl)
 {
 	struct regcache *reg_cache = block->state->reg_cache;
 	jit_state_t *_jit = block->_jit;
@@ -662,6 +662,12 @@ static int rec_load(const struct block *block, struct opcode *op)
 	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rs);
 	jit_pushargr(rs);
 	lightrec_free_reg(reg_cache, rs);
+
+	if (lwrl) {
+		rt = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rt);
+		jit_pushargr(rt);
+		lightrec_free_reg(reg_cache, rt);
+	}
 
 	lightrec_storeback_regs(reg_cache, _jit);
 
@@ -750,43 +756,43 @@ int rec_meta_SW(const struct block *block, struct opcode *op, u32 pc)
 int rec_LB(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_load(block, op);
+	return rec_load(block, op, false);
 }
 
 int rec_LBU(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_load(block, op);
+	return rec_load(block, op, false);
 }
 
 int rec_LH(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_load(block, op);
+	return rec_load(block, op, false);
 }
 
 int rec_LHU(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_load(block, op);
+	return rec_load(block, op, false);
 }
 
 int rec_LWL(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_load(block, op);
+	return rec_load(block, op, true);
 }
 
 int rec_LWR(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_load(block, op);
+	return rec_load(block, op, true);
 }
 
 int rec_LW(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_load(block, op);
+	return rec_load(block, op, false);
 }
 
 int rec_meta_LB(const struct block *block, struct opcode *op, u32 pc)

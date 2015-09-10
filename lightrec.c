@@ -27,6 +27,9 @@
 #error "At least 4 callee-saved registers are needed"
 #endif
 
+#define GENMASK(h, l) \
+	(((~0UL) << (l)) & (~0UL >> (__WORDSIZE - 1 - (h))))
+
 static void __segfault_cb(struct lightrec_state *state, u32 addr)
 {
 	state->stop = true;
@@ -62,9 +65,33 @@ static u32 lightrec_rw(struct lightrec_state *state,
 				else
 					*(u16 *) new_addr = (u16) data;
 				return 0;
-			case OP_SW:
 			case OP_SWL:
+				if (unlikely(ops && ops->sw)) {
+					ops->sw(state, addr, data);
+				} else {
+					u32 shift = addr & 3;
+					u32 mem_data = *(u32 *)(new_addr & ~3);
+					u32 mask = GENMASK(31, shift * 8 + 9);
+
+					*(u32 *)(new_addr & ~3) =
+						(data >> ((3 - shift) * 8)) |
+						(mem_data & mask);
+				}
+				return 0;
 			case OP_SWR:
+				if (unlikely(ops && ops->sw)) {
+					ops->sw(state, addr, data);
+				} else {
+					u32 shift = (addr & 3);
+					u32 mem_data = *(u32 *)(new_addr & ~3);
+					u32 mask = (1 << (shift * 8)) - 1;
+
+					*(u32 *)(new_addr & ~3) =
+						(data << (shift * 8)) |
+						(mem_data & mask);
+				}
+				return 0;
+			case OP_SW:
 				if (unlikely(ops && ops->sw))
 					ops->sw(state, addr, data);
 				else
@@ -90,9 +117,29 @@ static u32 lightrec_rw(struct lightrec_state *state,
 					return ops->lh(state, addr);
 				else
 					return *(u16 *) new_addr;
-			case OP_LW:
 			case OP_LWL:
+				if (unlikely(ops && ops->lw)) {
+					return ops->lw(state, addr);
+				} else {
+					u32 shift = addr & 3;
+					u32 mem_data = *(u32 *)(new_addr & ~3);
+					u32 mask = (1 << (24 - shift * 8)) - 1;
+
+					return (data & mask) |
+						(mem_data << (24 - shift * 8));
+				}
 			case OP_LWR:
+				if (unlikely(ops && ops->lw)) {
+					return ops->lw(state, addr);
+				} else {
+					u32 shift = addr & 3;
+					u32 mem_data = *(u32 *)(new_addr & ~3);
+					u32 mask = GENMASK(31, 32 - shift * 8);
+
+					return (data & mask) |
+						(mem_data >> (shift * 8));
+				}
+			case OP_LW:
 			default:
 				if (unlikely(ops && ops->lw))
 					return ops->lw(state, addr);
