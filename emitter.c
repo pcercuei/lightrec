@@ -472,7 +472,7 @@ int rec_special_SRAV(const struct block *block, struct opcode *op, u32 pc)
 }
 
 static int rec_alu_shift(const struct block *block,
-		struct opcode *op, jit_code_t code, bool right_shift)
+		struct opcode *op, jit_code_t code)
 {
 	struct regcache *reg_cache = block->state->reg_cache;
 	jit_state_t *_jit = block->_jit;
@@ -481,15 +481,15 @@ static int rec_alu_shift(const struct block *block,
 
 	jit_note(__FILE__, __LINE__);
 #if __WORDSIZE == 64
-	if (right_shift) {
-		jit_extr_i(rd, rt);
+	if (code == jit_code_lshi) {
+		jit_new_node_www(code, rd, rt, op->r.imm);
+	} else if (code == jit_code_rshi_u) {
+		jit_extr_ui(rd, rt);
 		jit_new_node_www(code, rd, rd, op->r.imm);
 	} else {
-		jit_new_node_www(code, rd, rt, op->r.imm);
+		jit_extr_i(rd, rt);
+		jit_new_node_www(code, rd, rd, op->r.imm);
 	}
-
-	if (!right_shift)
-		jit_extr_i(rd, rd);
 #else
 	jit_new_node_www(code, rd, rt, op->r.imm);
 #endif
@@ -502,19 +502,19 @@ static int rec_alu_shift(const struct block *block,
 int rec_special_SLL(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_alu_shift(block, op, jit_code_lshi, false);
+	return rec_alu_shift(block, op, jit_code_lshi);
 }
 
 int rec_special_SRL(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_alu_shift(block, op, jit_code_rshi_u, true);
+	return rec_alu_shift(block, op, jit_code_rshi_u);
 }
 
 int rec_special_SRA(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_alu_shift(block, op, jit_code_rshi, true);
+	return rec_alu_shift(block, op, jit_code_rshi);
 }
 
 static int rec_alu_mult_div(const struct block *block,
