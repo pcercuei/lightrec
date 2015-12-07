@@ -46,7 +46,7 @@ void lightrec_register_block(struct blockcache *cache, struct block *block)
 {
 	struct block *old = cache->lut[(block->pc >> 2) & (LUT_SIZE - 1)];
 	if (old && old->pc != block->pc) {
-		WARNING("Freeing old block at pc 0x%x\n", old->pc);
+		DEBUG("Freeing old block at pc 0x%x\n", old->pc);
 		lightrec_free_block(old);
 	}
 
