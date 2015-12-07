@@ -130,7 +130,7 @@ static lightrec_rec_func_t rec_meta[] = {
 static int rec_SPECIAL(const struct block *block, struct opcode *op, u32 pc)
 {
 	lightrec_rec_func_t f = rec_special[op->r.op];
-	if (f)
+	if (likely(f))
 		return (*f)(block, op, pc);
 	else
 		return emit_call_to_interpreter(block, op, pc);
@@ -139,7 +139,7 @@ static int rec_SPECIAL(const struct block *block, struct opcode *op, u32 pc)
 static int rec_REGIMM(const struct block *block, struct opcode *op, u32 pc)
 {
 	lightrec_rec_func_t f = rec_regimm[op->r.rt];
-	if (f)
+	if (likely(f))
 		return (*f)(block, op, pc);
 	else
 		return emit_call_to_interpreter(block, op, pc);
@@ -148,7 +148,7 @@ static int rec_REGIMM(const struct block *block, struct opcode *op, u32 pc)
 static int rec_CP0(const struct block *block, struct opcode *op, u32 pc)
 {
 	lightrec_rec_func_t f = rec_cp0[op->r.rs];
-	if (f)
+	if (likely(f))
 		return (*f)(block, op, pc);
 	else
 		return rec_CP(block, op, pc);
@@ -158,7 +158,7 @@ static int rec_CP2(const struct block *block, struct opcode *op, u32 pc)
 {
 	if (op->r.op == OP_CP2_BASIC) {
 		lightrec_rec_func_t f = rec_cp2_basic[op->r.rs];
-		if (f)
+		if (likely(f))
 			return (*f)(block, op, pc);
 	}
 
@@ -168,7 +168,7 @@ static int rec_CP2(const struct block *block, struct opcode *op, u32 pc)
 static int rec_META(const struct block *block, struct opcode *op, u32 pc)
 {
 	lightrec_rec_func_t f = rec_meta[op->r.op];
-	if (f)
+	if (likely(f))
 		return (*f)(block, op, pc);
 	else
 		return emit_call_to_interpreter(block, op, pc);
@@ -177,7 +177,7 @@ static int rec_META(const struct block *block, struct opcode *op, u32 pc)
 int lightrec_rec_opcode(const struct block *block, struct opcode *op, u32 pc)
 {
 	lightrec_rec_func_t f = rec_standard[op->i.op];
-	if (f)
+	if (likely(f))
 		return (*f)(block, op, pc);
 	else
 		return emit_call_to_interpreter(block, op, pc);
