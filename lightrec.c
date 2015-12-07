@@ -38,114 +38,122 @@ static void __segfault_cb(struct lightrec_state *state, u32 addr)
 			"load/store at address 0x%08x\n", addr);
 }
 
+static u32 kunseg(u32 addr)
+{
+	if (unlikely(addr >= 0xa0000000))
+		return addr - 0xa0000000;
+	else if (addr >= 0x80000000)
+		return addr - 0x80000000;
+	else
+		return addr;
+}
+
+static u32 lightrec_rw_ops(struct lightrec_state *state,
+		const struct opcode *op, struct lightrec_mem_map_ops *ops,
+		u32 addr, u32 data)
+{
+	switch (op->i.op) {
+	case OP_SB:
+		ops->sb(state, addr, (u8) data);
+		return 0;
+	case OP_SH:
+		ops->sh(state, addr, (u16) data);
+		return 0;
+	case OP_SWL:
+	case OP_SWR:
+	case OP_SW:
+		ops->sw(state, addr, data);
+		return 0;
+	case OP_LB:
+		return (s32) (s8) ops->lb(state, addr);
+	case OP_LBU:
+		return ops->lb(state, addr);
+	case OP_LH:
+		return (s32) (s16) ops->lh(state, addr);
+	case OP_LHU:
+		return ops->lh(state, addr);
+	case OP_LW:
+	default:
+		return ops->lw(state, addr);
+	}
+}
+
 static u32 lightrec_rw(struct lightrec_state *state,
 		const struct opcode *op, u32 addr, u32 data)
 {
 	struct lightrec_mem_map *map = state->mem_map;
 	unsigned int i;
+	u32 kaddr;
 
 	addr += (s16) op->i.imm;
+	kaddr = kunseg(addr);
 
 	for (i = 0; i < state->nb_maps; i++) {
-		if (addr >= map[i].pc && addr < map[i].pc + map[i].length) {
-			uintptr_t new_addr = (uintptr_t) map[i].address +
-				(addr - map[i].pc);
-			struct lightrec_mem_map_ops *ops = map[i].ops;
+		struct lightrec_mem_map_ops *ops = map[i].ops;
+		u32 shift, mem_data, mask, pc = map[i].pc;
+		uintptr_t new_addr;
 
-			switch (op->i.op) {
-			case OP_SB:
-				if (unlikely(ops && ops->sb))
-					ops->sb(state, addr, (u8) data);
-				else
-					*(u8 *) new_addr = (u8) data;
-				return 0;
-			case OP_SH:
-				if (unlikely(ops && ops->sh))
-					ops->sh(state, addr, (u16) data);
-				else
-					*(u16 *) new_addr = (u16) data;
-				return 0;
-			case OP_SWL:
-				if (unlikely(ops && ops->sw)) {
-					ops->sw(state, addr, data);
-				} else {
-					u32 shift = addr & 3;
-					u32 mem_data = *(u32 *)(new_addr & ~3);
-					u32 mask = GENMASK(31, shift * 8 + 9);
+		if (unlikely(ops)) {
+			if (addr < pc || addr >= pc + map[i].length)
+				continue;
 
-					*(u32 *)(new_addr & ~3) =
-						(data >> ((3 - shift) * 8)) |
-						(mem_data & mask);
-				}
-				return 0;
-			case OP_SWR:
-				if (unlikely(ops && ops->sw)) {
-					ops->sw(state, addr, data);
-				} else {
-					u32 shift = (addr & 3);
-					u32 mem_data = *(u32 *)(new_addr & ~3);
-					u32 mask = (1 << (shift * 8)) - 1;
+			return lightrec_rw_ops(state, op, ops, addr, data);
+		}
 
-					*(u32 *)(new_addr & ~3) =
-						(data << (shift * 8)) |
-						(mem_data & mask);
-				}
-				return 0;
-			case OP_SW:
-				if (unlikely(ops && ops->sw))
-					ops->sw(state, addr, data);
-				else
-					*(u32 *) new_addr = data;
-				return 0;
-			case OP_LB:
-				if (unlikely(ops && ops->lb))
-					return (s32) (s8) ops->lb(state, addr);
-				else
-					return (s32) *(s8 *) new_addr;
-			case OP_LBU:
-				if (unlikely(ops && ops->lb))
-					return ops->lb(state, addr);
-				else
-					return *(u8 *) new_addr;
-			case OP_LH:
-				if (unlikely(ops && ops->lh))
-					return (s32) (s16) ops->lh(state, addr);
-				else
-					return (s32) *(s16 *) new_addr;
-			case OP_LHU:
-				if (unlikely(ops && ops->lh))
-					return ops->lh(state, addr);
-				else
-					return *(u16 *) new_addr;
-			case OP_LWL:
-				if (unlikely(ops && ops->lw)) {
-					return ops->lw(state, addr);
-				} else {
-					u32 shift = addr & 3;
-					u32 mem_data = *(u32 *)(new_addr & ~3);
-					u32 mask = (1 << (24 - shift * 8)) - 1;
+		if (kaddr < pc || kaddr >= pc + map[i].length)
+			continue;
 
-					return (data & mask) |
-						(mem_data << (24 - shift * 8));
-				}
-			case OP_LWR:
-				if (unlikely(ops && ops->lw)) {
-					return ops->lw(state, addr);
-				} else {
-					u32 shift = addr & 3;
-					u32 mem_data = *(u32 *)(new_addr & ~3);
-					u32 mask = GENMASK(31, 32 - shift * 8);
+		new_addr = (uintptr_t) map[i].address + (kaddr - pc);
 
-					return (data & mask) |
-						(mem_data >> (shift * 8));
-				}
-			case OP_LW:
-			default:
-				if (unlikely(ops && ops->lw))
-					return ops->lw(state, addr);
-				else
-					return *(u32 *) new_addr;
-			}
+		switch (op->i.op) {
+		case OP_SB:
+			*(u8 *) new_addr = (u8) data;
+			return 0;
+		case OP_SH:
+			*(u16 *) new_addr = (u16) data;
+			return 0;
+		case OP_SWL:
+			shift = kaddr & 3;
+			mem_data = *(u32 *)(new_addr & ~3);
+			mask = GENMASK(31, shift * 8 + 9);
+
+			*(u32 *)(new_addr & ~3) = (data >> ((3 - shift) * 8))
+				| (mem_data & mask);
+			return 0;
+		case OP_SWR:
+			shift = kaddr & 3;
+			mem_data = *(u32 *)(new_addr & ~3);
+			mask = (1 << (shift * 8)) - 1;
+
+			*(u32 *)(new_addr & ~3) = (data << (shift * 8))
+				| (mem_data & mask);
+			return 0;
+		case OP_SW:
+			*(u32 *) new_addr = data;
+			return 0;
+		case OP_LB:
+			return (s32) *(s8 *) new_addr;
+		case OP_LBU:
+			return *(u8 *) new_addr;
+		case OP_LH:
+			return (s32) *(s16 *) new_addr;
+		case OP_LHU:
+			return *(u16 *) new_addr;
+		case OP_LWL:
+			shift = kaddr & 3;
+			mem_data = *(u32 *)(new_addr & ~3);
+			mask = (1 << (24 - shift * 8)) - 1;
+
+			return (data & mask) | (mem_data << (24 - shift * 8));
+		case OP_LWR:
+			shift = kaddr & 3;
+			mem_data = *(u32 *)(new_addr & ~3);
+			mask = GENMASK(31, 32 - shift * 8);
+
+			return (data & mask) | (mem_data >> (shift * 8));
+		case OP_LW:
+		default:
+			return *(u32 *) new_addr;
 		}
 	}
 
@@ -157,10 +165,11 @@ static const u32 * find_code_address(struct lightrec_state *state, u32 pc)
 {
 	struct lightrec_mem_map *map = state->mem_map;
 	unsigned int i;
+	u32 addr = kunseg(pc);
 
 	for (i = 0; i < state->nb_maps; i++) {
-		if (pc >= map[i].pc && pc < map[i].pc + map[i].length)
-			return map[i].address + (pc - map[i].pc);
+		if (addr >= map[i].pc && addr < map[i].pc + map[i].length)
+			return map[i].address + (addr - map[i].pc);
 	}
 
 	return NULL;
