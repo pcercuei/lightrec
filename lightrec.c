@@ -350,6 +350,7 @@ struct block * lightrec_recompile_block(struct lightrec_state *state, u32 pc)
 	block->_jit = _jit;
 	block->opcode_list = list;
 	block->cycles = 0;
+	block->code = code;
 
 	jit_prolog();
 	jit_tramp(256);
@@ -379,6 +380,8 @@ struct block * lightrec_recompile_block(struct lightrec_state *state, u32 pc)
 
 #if (LOG_LEVEL >= DEBUG_L)
 	DEBUG("Recompiling block at PC: 0x%x\n", block->pc);
+	lightrec_print_disassembly(block);
+	DEBUG("Lightrec generated:\n");
 	jit_disassemble();
 #endif
 	jit_clear_state();

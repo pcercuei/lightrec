@@ -62,6 +62,7 @@ struct block {
 	struct lightrec_state *state;
 	struct opcode *opcode_list;
 	void (*function)(void);
+	const u32 *code;
 	u32 pc;
 	unsigned int cycles;
 };
