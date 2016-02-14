@@ -249,6 +249,7 @@ static struct block * generate_address_lookup_block(
 	block->function = jit_emit();
 	block->opcode_list = NULL;
 #if (LOG_LEVEL >= DEBUG_L)
+	DEBUG("Address lookup block:\n");
 	jit_disassemble();
 #endif
 
@@ -258,7 +259,7 @@ static struct block * generate_address_lookup_block(
 err_free_block:
 	free(block);
 err_no_mem:
-	ERROR("Unable to compile wrapper: Out of memory\n");
+	ERROR("Unable to compile address lookup block: Out of memory\n");
 	return NULL;
 }
 
@@ -309,6 +310,11 @@ static struct block * generate_wrapper_block(struct lightrec_state *state)
 
 	/* When exiting, the recompiled code will jump to that address */
 	state->end_of_block = (uintptr_t) jit_address(addr);
+
+#if (LOG_LEVEL >= DEBUG_L)
+	DEBUG("Wrapper block:\n");
+	jit_disassemble();
+#endif
 
 	/* We're done! */
 	jit_clear_state();
