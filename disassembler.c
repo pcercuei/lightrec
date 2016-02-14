@@ -103,7 +103,7 @@ void lightrec_print_disassembly(const struct block *block)
 	const u32 *code = block->code;
 
 	memset(&info, 0, sizeof(info));
-	init_disassemble_info(&info, stdout, fprintf);
+	init_disassemble_info(&info, stdout, (fprintf_ftype) fprintf);
 
 	info.buffer = (bfd_byte *) code;
 	info.buffer_vma = (bfd_vma) code;
