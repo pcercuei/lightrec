@@ -60,6 +60,8 @@ static uintptr_t __get_jump_address_cb(struct lightrec_state *state, u32 cycles)
 		lightrec_register_block(state->block_cache, new);
 	}
 
+	state->current = new;
+
 	return (uintptr_t) new->function;
 }
 

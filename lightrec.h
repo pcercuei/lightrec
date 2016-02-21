@@ -97,7 +97,7 @@ struct lightrec_state {
 	u32 block_exit_cycles;
 	enum block_exit_flags block_exit_flags;
 	uintptr_t end_of_block;
-	struct block *wrapper, *addr_lookup_block;
+	struct block *wrapper, *addr_lookup_block, *current;
 	struct blockcache *block_cache;
 	struct regcache *reg_cache;
 	void (*addr_lookup)(void);
