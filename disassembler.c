@@ -95,6 +95,22 @@ unsigned int lightrec_cycles_of_opcode(const struct opcode *op)
 	return 2;
 }
 
+unsigned int lightrec_cycles_of_block(const struct block *block,
+		const struct opcode *op_end)
+{
+	unsigned int count;
+	const struct opcode *curr;
+
+	if (op_end)
+		op_end = SLIST_NEXT(op_end, next);
+
+	for (count = 0, curr = block->opcode_list; curr != op_end;
+			curr = SLIST_NEXT(curr, next))
+		count += lightrec_cycles_of_opcode(curr);
+
+	return count;
+}
+
 #if (LOG_LEVEL >= DEBUG_L)
 void lightrec_print_disassembly(const struct block *block)
 {
