@@ -68,12 +68,12 @@ struct block {
 };
 
 struct lightrec_mem_map_ops {
-	void (*sb)(struct lightrec_state *, u32, u8);
-	void (*sh)(struct lightrec_state *, u32, u16);
-	void (*sw)(struct lightrec_state *, u32, u32);
-	u8 (*lb)(struct lightrec_state *, u32);
-	u16 (*lh)(struct lightrec_state *, u32);
-	u32 (*lw)(struct lightrec_state *, u32);
+	void (*sb)(struct lightrec_state *, const struct opcode *, u32, u8);
+	void (*sh)(struct lightrec_state *, const struct opcode *, u32, u16);
+	void (*sw)(struct lightrec_state *, const struct opcode *, u32, u32);
+	u8 (*lb)(struct lightrec_state *, const struct opcode *, u32);
+	u16 (*lh)(struct lightrec_state *, const struct opcode *, u32);
+	u32 (*lw)(struct lightrec_state *, const struct opcode *, u32);
 };
 
 struct lightrec_mem_map {
