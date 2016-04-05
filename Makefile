@@ -15,7 +15,7 @@ INSTALL ?= install
 CFLAGS = -Wall -fPIC
 LDLIBS = -llightning -lopcodes
 
-OBJS = blockcache.o disassembler.o emitter.o lightrec.o optimizer.o regcache.o recompiler.o
+OBJS = blockcache.o disassembler.o emitter.o lightrec.o optimizer.o regcache.o
 
 .PHONY: all analyze clean
 

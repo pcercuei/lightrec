@@ -14,9 +14,9 @@
 
 #include "blockcache.h"
 #include "debug.h"
+#include "disassembler.h"
 #include "emitter.h"
 #include "lightrec.h"
-#include "recompiler.h"
 #include "regcache.h"
 
 #include <lightning.h>

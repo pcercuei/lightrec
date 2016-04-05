@@ -14,8 +14,8 @@
 
 #include "blockcache.h"
 #include "debug.h"
+#include "disassembler.h"
 #include "emitter.h"
-#include "recompiler.h"
 #include "regcache.h"
 
 #include <lightning.h>
@@ -24,7 +24,17 @@
 #define REG_LO 32
 #define REG_HI 33
 
-int emit_call_to_interpreter(const struct block *block,
+typedef int (*lightrec_rec_func_t)(const struct block *, struct opcode *, u32);
+
+/* Forward declarations */
+static int rec_SPECIAL(const struct block *block, struct opcode *op, u32 pc);
+static int rec_REGIMM(const struct block *block, struct opcode *op, u32 pc);
+static int rec_CP0(const struct block *block, struct opcode *op, u32 pc);
+static int rec_CP2(const struct block *block, struct opcode *op, u32 pc);
+static int rec_META(const struct block *block, struct opcode *op, u32 pc);
+
+
+static int emit_call_to_interpreter(const struct block *block,
 		struct opcode *op, u32 pc)
 {
 	/* TODO: Generate something... */
@@ -102,7 +112,7 @@ static int lightrec_emit_end_of_block(const struct block *block, u32 pc,
 	return SKIP_DELAY_SLOT;
 }
 
-int rec_special_JR(const struct block *block, struct opcode *op, u32 pc)
+static int rec_special_JR(const struct block *block, struct opcode *op, u32 pc)
 {
 	u8 rs = lightrec_alloc_reg_in(block->state->reg_cache,
 			block->_jit, op->r.rs);
@@ -112,7 +122,8 @@ int rec_special_JR(const struct block *block, struct opcode *op, u32 pc)
 			0, 0, SLIST_NEXT(op, next));
 }
 
-int rec_special_JALR(const struct block *block, struct opcode *op, u32 pc)
+static int rec_special_JALR(const struct block *block,
+		struct opcode *op, u32 pc)
 {
 	u8 rs = lightrec_alloc_reg_in(block->state->reg_cache,
 			block->_jit, op->r.rs);
@@ -122,7 +133,7 @@ int rec_special_JALR(const struct block *block, struct opcode *op, u32 pc)
 			0, pc + 8, SLIST_NEXT(op, next));
 }
 
-int rec_J(const struct block *block, struct opcode *op, u32 pc)
+static int rec_J(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return lightrec_emit_end_of_block(block, pc, -1,
@@ -130,7 +141,7 @@ int rec_J(const struct block *block, struct opcode *op, u32 pc)
 			0, SLIST_NEXT(op, next));
 }
 
-int rec_JAL(const struct block *block, struct opcode *op, u32 pc)
+static int rec_JAL(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return lightrec_emit_end_of_block(block, pc, -1,
@@ -221,51 +232,53 @@ static int rec_b(const struct block *block, struct opcode *op, u32 pc,
 	return SKIP_DELAY_SLOT;
 }
 
-int rec_BNE(const struct block *block, struct opcode *op, u32 pc)
+static int rec_BNE(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_b(block, op, pc, jit_code_beqr, 0, false, false);
 }
 
-int rec_BEQ(const struct block *block, struct opcode *op, u32 pc)
+static int rec_BEQ(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_b(block, op, pc, jit_code_bner, 0,
 			op->i.rs == op->i.rt, false);
 }
 
-int rec_BLEZ(const struct block *block, struct opcode *op, u32 pc)
+static int rec_BLEZ(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_b(block, op, pc, jit_code_bgti, 0,
 			op->i.rs == 0, true);
 }
 
-int rec_BGTZ(const struct block *block, struct opcode *op, u32 pc)
+static int rec_BGTZ(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_b(block, op, pc, jit_code_blei, 0, false, true);
 }
 
-int rec_regimm_BLTZ(const struct block *block, struct opcode *op, u32 pc)
+static int rec_regimm_BLTZ(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_b(block, op, pc, jit_code_bgei, 0, false, true);
 }
 
-int rec_regimm_BLTZAL(const struct block *block, struct opcode *op, u32 pc)
+static int rec_regimm_BLTZAL(const struct block *block,
+		struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_b(block, op, pc, jit_code_bgei, pc + 8, false, true);
 }
 
-int rec_regimm_BGEZ(const struct block *block, struct opcode *op, u32 pc)
+static int rec_regimm_BGEZ(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_b(block, op, pc, jit_code_blti, 0, !op->i.rs, true);
 }
 
-int rec_regimm_BGEZAL(const struct block *block, struct opcode *op, u32 pc)
+static int rec_regimm_BGEZAL(const struct block *block,
+		struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_b(block, op, pc, jit_code_blti,
@@ -321,50 +334,50 @@ static int rec_alu_special(const struct block *block, struct opcode *op,
 	return 0;
 }
 
-int rec_ADDIU(const struct block *block, struct opcode *op, u32 pc)
+static int rec_ADDIU(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_alu_imm(block, op, jit_code_addi, true);
 }
 
-int rec_ADDI(const struct block *block, struct opcode *op, u32 pc)
+static int rec_ADDI(const struct block *block, struct opcode *op, u32 pc)
 {
 	/* TODO: Handle the exception? */
 	_jit_name(block->_jit, __func__);
 	return rec_alu_imm(block, op, jit_code_addi, true);
 }
 
-int rec_SLTIU(const struct block *block, struct opcode *op, u32 pc)
+static int rec_SLTIU(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_alu_imm(block, op, jit_code_lti_u, true);
 }
 
-int rec_SLTI(const struct block *block, struct opcode *op, u32 pc)
+static int rec_SLTI(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_alu_imm(block, op, jit_code_lti, true);
 }
 
-int rec_ANDI(const struct block *block, struct opcode *op, u32 pc)
+static int rec_ANDI(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_alu_imm(block, op, jit_code_andi, false);
 }
 
-int rec_ORI(const struct block *block, struct opcode *op, u32 pc)
+static int rec_ORI(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_alu_imm(block, op, jit_code_ori, false);
 }
 
-int rec_XORI(const struct block *block, struct opcode *op, u32 pc)
+static int rec_XORI(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_alu_imm(block, op, jit_code_xori, false);
 }
 
-int rec_LUI(const struct block *block, struct opcode *op, u32 pc)
+static int rec_LUI(const struct block *block, struct opcode *op, u32 pc)
 {
 	struct regcache *reg_cache = block->state->reg_cache;
 	jit_state_t *_jit = block->_jit;
@@ -380,51 +393,53 @@ int rec_LUI(const struct block *block, struct opcode *op, u32 pc)
 	return 0;
 }
 
-int rec_special_ADDU(const struct block *block, struct opcode *op, u32 pc)
+static int rec_special_ADDU(const struct block *block,
+		struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_alu_special(block, op, jit_code_addr, false);
 }
 
-int rec_special_ADD(const struct block *block, struct opcode *op, u32 pc)
+static int rec_special_ADD(const struct block *block, struct opcode *op, u32 pc)
 {
 	/* TODO: Handle the exception? */
 	_jit_name(block->_jit, __func__);
 	return rec_alu_special(block, op, jit_code_addr, false);
 }
 
-int rec_special_SUBU(const struct block *block, struct opcode *op, u32 pc)
+static int rec_special_SUBU(const struct block *block,
+		struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_alu_special(block, op, jit_code_subr, false);
 }
 
-int rec_special_SUB(const struct block *block, struct opcode *op, u32 pc)
+static int rec_special_SUB(const struct block *block, struct opcode *op, u32 pc)
 {
 	/* TODO: Handle the exception? */
 	_jit_name(block->_jit, __func__);
 	return rec_alu_special(block, op, jit_code_subr, false);
 }
 
-int rec_special_AND(const struct block *block, struct opcode *op, u32 pc)
+static int rec_special_AND(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_alu_special(block, op, jit_code_andr, false);
 }
 
-int rec_special_OR(const struct block *block, struct opcode *op, u32 pc)
+static int rec_special_OR(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_alu_special(block, op, jit_code_orr, false);
 }
 
-int rec_special_XOR(const struct block *block, struct opcode *op, u32 pc)
+static int rec_special_XOR(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_alu_special(block, op, jit_code_xorr, false);
 }
 
-int rec_special_NOR(const struct block *block, struct opcode *op, u32 pc)
+static int rec_special_NOR(const struct block *block, struct opcode *op, u32 pc)
 {
 	struct regcache *reg_cache = block->state->reg_cache;
 	jit_state_t *_jit = block->_jit;
@@ -441,31 +456,35 @@ int rec_special_NOR(const struct block *block, struct opcode *op, u32 pc)
 	return 0;
 }
 
-int rec_special_SLTU(const struct block *block, struct opcode *op, u32 pc)
+static int rec_special_SLTU(const struct block *block,
+		struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_alu_special(block, op, jit_code_ltr_u, false);
 }
 
-int rec_special_SLT(const struct block *block, struct opcode *op, u32 pc)
+static int rec_special_SLT(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_alu_special(block, op, jit_code_ltr, false);
 }
 
-int rec_special_SLLV(const struct block *block, struct opcode *op, u32 pc)
+static int rec_special_SLLV(const struct block *block,
+		struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_alu_special(block, op, jit_code_lshr, true);
 }
 
-int rec_special_SRLV(const struct block *block, struct opcode *op, u32 pc)
+static int rec_special_SRLV(const struct block *block,
+		struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_alu_special(block, op, jit_code_rshr_u, true);
 }
 
-int rec_special_SRAV(const struct block *block, struct opcode *op, u32 pc)
+static int rec_special_SRAV(const struct block *block,
+		struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_alu_special(block, op, jit_code_rshr, true);
@@ -499,19 +518,19 @@ static int rec_alu_shift(const struct block *block,
 	return 0;
 }
 
-int rec_special_SLL(const struct block *block, struct opcode *op, u32 pc)
+static int rec_special_SLL(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_alu_shift(block, op, jit_code_lshi);
 }
 
-int rec_special_SRL(const struct block *block, struct opcode *op, u32 pc)
+static int rec_special_SRL(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_alu_shift(block, op, jit_code_rshi_u);
 }
 
-int rec_special_SRA(const struct block *block, struct opcode *op, u32 pc)
+static int rec_special_SRA(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_alu_shift(block, op, jit_code_rshi);
@@ -537,25 +556,28 @@ static int rec_alu_mult_div(const struct block *block,
 	return 0;
 }
 
-int rec_special_MULT(const struct block *block, struct opcode *op, u32 pc)
+static int rec_special_MULT(const struct block *block,
+		struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_alu_mult_div(block, op, jit_code_qmulr);
 }
 
-int rec_special_MULTU(const struct block *block, struct opcode *op, u32 pc)
+static int rec_special_MULTU(const struct block *block,
+		struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_alu_mult_div(block, op, jit_code_qmulr_u);
 }
 
-int rec_special_DIV(const struct block *block, struct opcode *op, u32 pc)
+static int rec_special_DIV(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_alu_mult_div(block, op, jit_code_qdivr);
 }
 
-int rec_special_DIVU(const struct block *block, struct opcode *op, u32 pc)
+static int rec_special_DIVU(const struct block *block,
+		struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_alu_mult_div(block, op, jit_code_qdivr_u);
@@ -576,25 +598,29 @@ static int rec_alu_mv_lo_hi(const struct block *block, u8 dst, u8 src)
 	return 0;
 }
 
-int rec_special_MFHI(const struct block *block, struct opcode *op, u32 pc)
+static int rec_special_MFHI(const struct block *block,
+		struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_alu_mv_lo_hi(block, op->r.rd, REG_HI);
 }
 
-int rec_special_MTHI(const struct block *block, struct opcode *op, u32 pc)
+static int rec_special_MTHI(const struct block *block,
+		struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_alu_mv_lo_hi(block, REG_HI, op->r.rs);
 }
 
-int rec_special_MFLO(const struct block *block, struct opcode *op, u32 pc)
+static int rec_special_MFLO(const struct block *block,
+		struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_alu_mv_lo_hi(block, op->r.rd, REG_LO);
 }
 
-int rec_special_MTLO(const struct block *block, struct opcode *op, u32 pc)
+static int rec_special_MTLO(const struct block *block,
+		struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_alu_mv_lo_hi(block, REG_LO, op->r.rs);
@@ -705,121 +731,121 @@ static int rec_load_meta(const struct block *block,
 	return 0;
 }
 
-int rec_SB(const struct block *block, struct opcode *op, u32 pc)
+static int rec_SB(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_store(block, op);
 }
 
-int rec_SH(const struct block *block, struct opcode *op, u32 pc)
+static int rec_SH(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_store(block, op);
 }
 
-int rec_SW(const struct block *block, struct opcode *op, u32 pc)
+static int rec_SW(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_store(block, op);
 }
 
-int rec_SWL(const struct block *block, struct opcode *op, u32 pc)
+static int rec_SWL(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_store(block, op);
 }
 
-int rec_SWR(const struct block *block, struct opcode *op, u32 pc)
+static int rec_SWR(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_store(block, op);
 }
 
-int rec_meta_SB(const struct block *block, struct opcode *op, u32 pc)
+static int rec_meta_SB(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_store_meta(block, op, jit_code_stxi_c);
 }
 
-int rec_meta_SH(const struct block *block, struct opcode *op, u32 pc)
+static int rec_meta_SH(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_store_meta(block, op, jit_code_stxi_s);
 }
 
-int rec_meta_SW(const struct block *block, struct opcode *op, u32 pc)
+static int rec_meta_SW(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_store_meta(block, op, jit_code_stxi_i);
 }
 
-int rec_LB(const struct block *block, struct opcode *op, u32 pc)
+static int rec_LB(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_load(block, op, false);
 }
 
-int rec_LBU(const struct block *block, struct opcode *op, u32 pc)
+static int rec_LBU(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_load(block, op, false);
 }
 
-int rec_LH(const struct block *block, struct opcode *op, u32 pc)
+static int rec_LH(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_load(block, op, false);
 }
 
-int rec_LHU(const struct block *block, struct opcode *op, u32 pc)
+static int rec_LHU(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_load(block, op, false);
 }
 
-int rec_LWL(const struct block *block, struct opcode *op, u32 pc)
+static int rec_LWL(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_load(block, op, true);
 }
 
-int rec_LWR(const struct block *block, struct opcode *op, u32 pc)
+static int rec_LWR(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_load(block, op, true);
 }
 
-int rec_LW(const struct block *block, struct opcode *op, u32 pc)
+static int rec_LW(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_load(block, op, false);
 }
 
-int rec_meta_LB(const struct block *block, struct opcode *op, u32 pc)
+static int rec_meta_LB(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_load_meta(block, op, jit_code_ldxi_c);
 }
 
-int rec_meta_LBU(const struct block *block, struct opcode *op, u32 pc)
+static int rec_meta_LBU(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_load_meta(block, op, jit_code_ldxi_uc);
 }
 
-int rec_meta_LH(const struct block *block, struct opcode *op, u32 pc)
+static int rec_meta_LH(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_load_meta(block, op, jit_code_ldxi_s);
 }
 
-int rec_meta_LHU(const struct block *block, struct opcode *op, u32 pc)
+static int rec_meta_LHU(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_load_meta(block, op, jit_code_ldxi_us);
 }
 
-int rec_meta_LW(const struct block *block, struct opcode *op, u32 pc)
+static int rec_meta_LW(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_load_meta(block, op, jit_code_ldxi_i);
@@ -841,13 +867,15 @@ static int rec_break_syscall(const struct block *block,
 	return lightrec_emit_end_of_block(block, pc, -1, pc, 0, NULL);
 }
 
-int rec_special_SYSCALL(const struct block *block, struct opcode *op, u32 pc)
+static int rec_special_SYSCALL(const struct block *block,
+		struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_break_syscall(block, pc, LIGHTREC_EXIT_SYSCALL);
 }
 
-int rec_special_BREAK(const struct block *block, struct opcode *op, u32 pc)
+static int rec_special_BREAK(const struct block *block,
+		struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return rec_break_syscall(block, pc, LIGHTREC_EXIT_BREAK);
@@ -931,49 +959,53 @@ static int lightrec_mtc(const struct block *block,
 	return 0;
 }
 
-int rec_cp0_MFC0(const struct block *block, struct opcode *op, u32 pc)
+static int rec_cp0_MFC0(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return lightrec_mfc(block, op, 0, false);
 }
 
-int rec_cp0_CFC0(const struct block *block, struct opcode *op, u32 pc)
+static int rec_cp0_CFC0(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return lightrec_mfc(block, op, 0, true);
 }
 
-int rec_cp0_MTC0(const struct block *block, struct opcode *op, u32 pc)
+static int rec_cp0_MTC0(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return lightrec_mtc(block, op, 0, false);
 }
 
-int rec_cp0_CTC0(const struct block *block, struct opcode *op, u32 pc)
+static int rec_cp0_CTC0(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return lightrec_mtc(block, op, 0, true);
 }
 
-int rec_cp2_basic_MFC2(const struct block *block, struct opcode *op, u32 pc)
+static int rec_cp2_basic_MFC2(const struct block *block,
+		struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return lightrec_mfc(block, op, 2, false);
 }
 
-int rec_cp2_basic_CFC2(const struct block *block, struct opcode *op, u32 pc)
+static int rec_cp2_basic_CFC2(const struct block *block,
+		struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return lightrec_mfc(block, op, 2, true);
 }
 
-int rec_cp2_basic_MTC2(const struct block *block, struct opcode *op, u32 pc)
+static int rec_cp2_basic_MTC2(const struct block *block,
+		struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return lightrec_mtc(block, op, 2, false);
 }
 
-int rec_cp2_basic_CTC2(const struct block *block, struct opcode *op, u32 pc)
+static int rec_cp2_basic_CTC2(const struct block *block,
+		struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return lightrec_mtc(block, op, 2, true);
@@ -998,7 +1030,7 @@ static void rec_cp0_RFE_C(struct lightrec_state *state)
 	state->cop_ops->ctc(state, 0, 12, status);
 }
 
-int rec_cp0_RFE(const struct block *block, struct opcode *op, u32 pc)
+static int rec_cp0_RFE(const struct block *block, struct opcode *op, u32 pc)
 {
 	jit_state_t *_jit = block->_jit;
 
@@ -1016,7 +1048,7 @@ int rec_cp0_RFE(const struct block *block, struct opcode *op, u32 pc)
 	return 0;
 }
 
-int rec_CP(const struct block *block, struct opcode *op, u32 pc)
+static int rec_CP(const struct block *block, struct opcode *op, u32 pc)
 {
 	struct lightrec_state *state = block->state;
 	struct regcache *reg_cache = state->reg_cache;
@@ -1041,4 +1073,161 @@ int rec_CP(const struct block *block, struct opcode *op, u32 pc)
 	jit_pushargi(op->j.imm & ~(1 << 25));
 	jit_finishi(state->cop_ops->op);
 	return 0;
+}
+
+static const lightrec_rec_func_t rec_standard[64] = {
+	[OP_SPECIAL]		= rec_SPECIAL,
+	[OP_REGIMM]		= rec_REGIMM,
+	[OP_J]			= rec_J,
+	[OP_JAL]		= rec_JAL,
+	[OP_BEQ]		= rec_BEQ,
+	[OP_BNE]		= rec_BNE,
+	[OP_BLEZ]		= rec_BLEZ,
+	[OP_BGTZ]		= rec_BGTZ,
+	[OP_ADDI]		= rec_ADDI,
+	[OP_ADDIU]		= rec_ADDIU,
+	[OP_SLTI]		= rec_SLTI,
+	[OP_SLTIU]		= rec_SLTIU,
+	[OP_ANDI]		= rec_ANDI,
+	[OP_ORI]		= rec_ORI,
+	[OP_XORI]		= rec_XORI,
+	[OP_LUI]		= rec_LUI,
+	[OP_CP0]		= rec_CP0,
+	[OP_CP2]		= rec_CP2,
+	[OP_LB]			= rec_LB,
+	[OP_LH]			= rec_LH,
+	[OP_LWL]		= rec_LWL,
+	[OP_LW]			= rec_LW,
+	[OP_LBU]		= rec_LBU,
+	[OP_LHU]		= rec_LHU,
+	[OP_LWR]		= rec_LWR,
+	[OP_SB]			= rec_SB,
+	[OP_SH]			= rec_SH,
+	[OP_SWL]		= rec_SWL,
+	[OP_SW]			= rec_SW,
+	[OP_SWR]		= rec_SWR,
+	[OP_LWC2]		= emit_call_to_interpreter, /* TODO */
+	[OP_SWC2]		= emit_call_to_interpreter, /* TODO */
+	[OP_HLE]		= emit_call_to_interpreter, /* TODO */
+	[OP_META]		= rec_META,
+};
+
+static const lightrec_rec_func_t rec_special[64] = {
+	[OP_SPECIAL_SLL]	= rec_special_SLL,
+	[OP_SPECIAL_SRL]	= rec_special_SRL,
+	[OP_SPECIAL_SRA]	= rec_special_SRA,
+	[OP_SPECIAL_SLLV]	= rec_special_SLLV,
+	[OP_SPECIAL_SRLV]	= rec_special_SRLV,
+	[OP_SPECIAL_SRAV]	= rec_special_SRAV,
+	[OP_SPECIAL_JR]		= rec_special_JR,
+	[OP_SPECIAL_JALR]	= rec_special_JALR,
+	[OP_SPECIAL_SYSCALL]	= rec_special_SYSCALL,
+	[OP_SPECIAL_BREAK]	= rec_special_BREAK,
+	[OP_SPECIAL_MFHI]	= rec_special_MFHI,
+	[OP_SPECIAL_MTHI]	= rec_special_MTHI,
+	[OP_SPECIAL_MFLO]	= rec_special_MFLO,
+	[OP_SPECIAL_MTLO]	= rec_special_MTLO,
+	[OP_SPECIAL_MULT]	= rec_special_MULT,
+	[OP_SPECIAL_MULTU]	= rec_special_MULTU,
+	[OP_SPECIAL_DIV]	= rec_special_DIV,
+	[OP_SPECIAL_DIVU]	= rec_special_DIVU,
+	[OP_SPECIAL_ADD]	= rec_special_ADD,
+	[OP_SPECIAL_ADDU]	= rec_special_ADDU,
+	[OP_SPECIAL_SUB]	= rec_special_SUB,
+	[OP_SPECIAL_SUBU]	= rec_special_SUBU,
+	[OP_SPECIAL_AND]	= rec_special_AND,
+	[OP_SPECIAL_OR]		= rec_special_OR,
+	[OP_SPECIAL_XOR]	= rec_special_XOR,
+	[OP_SPECIAL_NOR]	= rec_special_NOR,
+	[OP_SPECIAL_SLT]	= rec_special_SLT,
+	[OP_SPECIAL_SLTU]	= rec_special_SLTU,
+};
+
+static const lightrec_rec_func_t rec_regimm[64] = {
+	[OP_REGIMM_BLTZ]	= rec_regimm_BLTZ,
+	[OP_REGIMM_BGEZ]	= rec_regimm_BGEZ,
+	[OP_REGIMM_BLTZAL]	= rec_regimm_BLTZAL,
+	[OP_REGIMM_BGEZAL]	= rec_regimm_BGEZAL,
+};
+
+static const lightrec_rec_func_t rec_cp0[64] = {
+	[OP_CP0_MFC0]		= rec_cp0_MFC0,
+	[OP_CP0_CFC0]		= rec_cp0_CFC0,
+	[OP_CP0_MTC0]		= rec_cp0_MTC0,
+	[OP_CP0_CTC0]		= rec_cp0_CTC0,
+	[OP_CP0_RFE]		= rec_cp0_RFE,
+};
+
+static const lightrec_rec_func_t rec_cp2_basic[64] = {
+	[OP_CP2_BASIC_MFC2]	= rec_cp2_basic_MFC2,
+	[OP_CP2_BASIC_CFC2]	= rec_cp2_basic_CFC2,
+	[OP_CP2_BASIC_MTC2]	= rec_cp2_basic_MTC2,
+	[OP_CP2_BASIC_CTC2]	= rec_cp2_basic_CTC2,
+};
+
+static const lightrec_rec_func_t rec_meta[] = {
+	[OP_META_LB]		= rec_meta_LB,
+	[OP_META_LH]		= rec_meta_LH,
+	[OP_META_LW]		= rec_meta_LW,
+	[OP_META_LBU]		= rec_meta_LBU,
+	[OP_META_LHU]		= rec_meta_LHU,
+	[OP_META_SB]		= rec_meta_SB,
+	[OP_META_SH]		= rec_meta_SH,
+	[OP_META_SW]		= rec_meta_SW,
+};
+
+static int rec_SPECIAL(const struct block *block, struct opcode *op, u32 pc)
+{
+	lightrec_rec_func_t f = rec_special[op->r.op];
+	if (likely(f))
+		return (*f)(block, op, pc);
+	else
+		return emit_call_to_interpreter(block, op, pc);
+}
+
+static int rec_REGIMM(const struct block *block, struct opcode *op, u32 pc)
+{
+	lightrec_rec_func_t f = rec_regimm[op->r.rt];
+	if (likely(f))
+		return (*f)(block, op, pc);
+	else
+		return emit_call_to_interpreter(block, op, pc);
+}
+
+static int rec_CP0(const struct block *block, struct opcode *op, u32 pc)
+{
+	lightrec_rec_func_t f = rec_cp0[op->r.rs];
+	if (likely(f))
+		return (*f)(block, op, pc);
+	else
+		return rec_CP(block, op, pc);
+}
+
+static int rec_CP2(const struct block *block, struct opcode *op, u32 pc)
+{
+	if (op->r.op == OP_CP2_BASIC) {
+		lightrec_rec_func_t f = rec_cp2_basic[op->r.rs];
+		if (likely(f))
+			return (*f)(block, op, pc);
+	}
+
+	return rec_CP(block, op, pc);
+}
+
+static int rec_META(const struct block *block, struct opcode *op, u32 pc)
+{
+	lightrec_rec_func_t f = rec_meta[op->r.op];
+	if (likely(f))
+		return (*f)(block, op, pc);
+	else
+		return emit_call_to_interpreter(block, op, pc);
+}
+
+int lightrec_rec_opcode(const struct block *block, struct opcode *op, u32 pc)
+{
+	lightrec_rec_func_t f = rec_standard[op->i.op];
+	if (likely(f))
+		return (*f)(block, op, pc);
+	else
+		return emit_call_to_interpreter(block, op, pc);
 }

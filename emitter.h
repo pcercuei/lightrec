@@ -15,11 +15,11 @@
 #ifndef __EMITTER_H__
 #define __EMITTER_H__
 
-#include "disassembler.h"
-
 #define SKIP_DELAY_SLOT 1
 
-int emit_call_to_interpreter(const struct block *block,
-		struct opcode *op, u32 pc);
+struct block;
+struct opcode;
+
+int lightrec_rec_opcode(const struct block *block, struct opcode *op, u32 pc);
 
 #endif /* __EMITTER_H__ */
