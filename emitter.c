@@ -200,21 +200,28 @@ static int rec_b(const struct block *block, struct opcode *op, u32 pc,
 
 	jit_note(__FILE__, __LINE__);
 
-	if (delay_slot->opcode)
+	if (delay_slot->opcode) {
+		/* We have to clean the cache here, to ensure that the
+		 * recompiler of the delay slot won't invalidate a loaded
+		 * register when allocating its output register. */
+		lightrec_clean_regs(reg_cache, _jit);
+		lightrec_regcache_reset(reg_cache);
+
 		preload_in_regs(reg_cache, _jit, delay_slot);
+	}
 
 	if (!unconditional) {
 		u8 rs = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rs),
 		   rt = bz ? 0 : lightrec_alloc_reg_in(
 				   reg_cache, _jit, op->i.rt);
 
-		/* Little trick: lightrec_emit_end_of_block() as well as the
-		 * delay slot might require the allocation of a temporary
-		 * register. In case a dirty register gets allocated, we don't
-		 * want the store-back to happen only in one branch. Here we
-		 * ensure that the store-back, if needed, happens before the
-		 * conditional branch. */
-		lightrec_alloc_reg_temp(reg_cache, _jit);
+		/* Little trick: lightrec_emit_end_of_block() might require the
+		 * allocation of a temporary register. In case a dirty register
+		 * gets allocated, we don't want the store-back to happen only
+		 * in one branch. Here we ensure that the store-back, if needed,
+		 * happens before the conditional branch. */
+		if (!delay_slot->opcode)
+			lightrec_alloc_reg_temp(reg_cache, _jit);
 
 		addr = jit_new_node_pww(code, NULL, rs, rt);
 	}
