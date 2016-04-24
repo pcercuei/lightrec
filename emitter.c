@@ -314,7 +314,7 @@ static int rec_alu_imm(const struct block *block, struct opcode *op,
 }
 
 static int rec_alu_special(const struct block *block, struct opcode *op,
-		jit_code_t code, bool invert_rs_rt)
+		jit_code_t code, bool is_reg_shift)
 {
 	struct regcache *reg_cache = block->state->reg_cache;
 	jit_state_t *_jit = block->_jit;
@@ -323,18 +323,25 @@ static int rec_alu_special(const struct block *block, struct opcode *op,
 	   rd = lightrec_alloc_reg_out(reg_cache, _jit, op->r.rd);
 
 	jit_note(__FILE__, __LINE__);
-	if (!invert_rs_rt) {
+	if (!is_reg_shift) {
 		jit_new_node_www(code, rd, rs, rt);
-#if __WORDSIZE == 64
-	} else if (code == jit_code_rshr) {
-		jit_extr_i(rd, rt);
-		jit_new_node_www(code, rd, rd, rs);
-	} else if (code == jit_code_rshr_u) {
-		jit_extr_ui(rd, rt);
-		jit_new_node_www(code, rd, rd, rs);
-#endif
 	} else {
-		jit_new_node_www(code, rd, rt, rs);
+		u8 temp = lightrec_alloc_reg_temp(reg_cache, _jit);
+
+		jit_andi(temp, rs, 0x1f);
+
+#if __WORDSIZE == 64
+		if (code == jit_code_rshr) {
+			jit_extr_i(rd, rt);
+			jit_new_node_www(code, rd, rd, temp);
+		} else if (code == jit_code_rshr_u) {
+			jit_extr_ui(rd, rt);
+			jit_new_node_www(code, rd, rd, temp);
+		} else
+#endif
+			jit_new_node_www(code, rd, rt, temp);
+
+		lightrec_free_reg(reg_cache, temp);
 	}
 
 	lightrec_free_reg(reg_cache, rs);
