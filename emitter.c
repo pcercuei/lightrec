@@ -552,7 +552,48 @@ static int rec_special_SRA(const struct block *block, struct opcode *op, u32 pc)
 	return rec_alu_shift(block, op, jit_code_rshi);
 }
 
-static int rec_alu_mult_div(const struct block *block,
+static int rec_alu_mult(const struct block *block,
+		struct opcode *op, bool is_signed)
+{
+	struct regcache *reg_cache = block->state->reg_cache;
+	jit_state_t *_jit = block->_jit;
+	u8 rs = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rs),
+	   rt = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rt),
+	   lo = lightrec_alloc_reg_out(reg_cache, _jit, REG_LO),
+	   hi = lightrec_alloc_reg_out(reg_cache, _jit, REG_HI);
+
+	jit_note(__FILE__, __LINE__);
+#if __WORDSIZE == 32
+	/* On 32-bit systems, do a 32*32->64 bit operation. */
+	if (is_signed)
+		jit_qmulr(lo, hi, rs, rt);
+	else
+		jit_qmulr_u(lo, hi, rs, rt);
+#else
+	/* On 64-bit systems, do a 64*64->64 bit operation.
+	 * The input registers must be 32 bits, so we first sign-extend (if
+	 * mult) or clear (if multu) the input registers. */
+	if (is_signed) {
+		jit_extr_i(lo, rt);
+		jit_extr_i(hi, rs);
+	} else {
+		jit_extr_ui(lo, rt);
+		jit_extr_ui(hi, rs);
+	}
+	jit_mulr(lo, hi, lo);
+
+	/* The 64-bit output value is in $lo, store the upper 32 bits in $hi */
+	jit_rshi_u(hi, lo, 32);
+#endif
+
+	lightrec_free_reg(reg_cache, rs);
+	lightrec_free_reg(reg_cache, rt);
+	lightrec_free_reg(reg_cache, lo);
+	lightrec_free_reg(reg_cache, hi);
+	return 0;
+}
+
+static int rec_alu_div(const struct block *block,
 		struct opcode *op, jit_code_t code)
 {
 	struct regcache *reg_cache = block->state->reg_cache;
@@ -576,27 +617,27 @@ static int rec_special_MULT(const struct block *block,
 		struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_alu_mult_div(block, op, jit_code_qmulr);
+	return rec_alu_mult(block, op, true);
 }
 
 static int rec_special_MULTU(const struct block *block,
 		struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_alu_mult_div(block, op, jit_code_qmulr_u);
+	return rec_alu_mult(block, op, false);
 }
 
 static int rec_special_DIV(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_alu_mult_div(block, op, jit_code_qdivr);
+	return rec_alu_div(block, op, jit_code_qdivr);
 }
 
 static int rec_special_DIVU(const struct block *block,
 		struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_alu_mult_div(block, op, jit_code_qdivr_u);
+	return rec_alu_div(block, op, jit_code_qdivr_u);
 }
 
 static int rec_alu_mv_lo_hi(const struct block *block, u8 dst, u8 src)
