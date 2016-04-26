@@ -594,7 +594,7 @@ static int rec_alu_mult(const struct block *block,
 }
 
 static int rec_alu_div(const struct block *block,
-		struct opcode *op, jit_code_t code)
+		struct opcode *op, bool is_signed)
 {
 	struct regcache *reg_cache = block->state->reg_cache;
 	jit_state_t *_jit = block->_jit;
@@ -604,7 +604,24 @@ static int rec_alu_div(const struct block *block,
 	   hi = lightrec_alloc_reg_out(reg_cache, _jit, REG_HI);
 
 	jit_note(__FILE__, __LINE__);
-	jit_new_node_qww(code, lo, hi, rs, rt);
+#if __WORDSIZE == 32
+	if (is_signed)
+		jit_qdivr(lo, hi, rs, rt);
+	else
+		jit_qdivr_u(lo, hi, rs, rt);
+#else
+	/* On 64-bit systems, the input registers must be 32 bits, so we first sign-extend
+	 * (if div) or clear (if divu) the input registers. */
+	if (is_signed) {
+		jit_extr_i(lo, rt);
+		jit_extr_i(hi, rs);
+		jit_qdivr(lo, hi, hi, lo);
+	} else {
+		jit_extr_ui(lo, rt);
+		jit_extr_ui(hi, rs);
+		jit_qdivr_u(lo, hi, hi, lo);
+	}
+#endif
 
 	lightrec_free_reg(reg_cache, rs);
 	lightrec_free_reg(reg_cache, rt);
@@ -630,14 +647,14 @@ static int rec_special_MULTU(const struct block *block,
 static int rec_special_DIV(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_alu_div(block, op, jit_code_qdivr);
+	return rec_alu_div(block, op, true);
 }
 
 static int rec_special_DIVU(const struct block *block,
 		struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_alu_div(block, op, jit_code_qdivr_u);
+	return rec_alu_div(block, op, false);
 }
 
 static int rec_alu_mv_lo_hi(const struct block *block, u8 dst, u8 src)
