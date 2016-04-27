@@ -63,7 +63,7 @@ struct block {
 	struct opcode *opcode_list;
 	void (*function)(void);
 	const u32 *code;
-	u32 pc;
+	u32 pc, kunseg_pc;
 	unsigned int cycles;
 };
 

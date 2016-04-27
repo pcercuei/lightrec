@@ -27,15 +27,29 @@ struct blockcache {
 	struct block * lut[LUT_SIZE];
 };
 
+static inline u32 kunseg(u32 addr)
+{
+	if (unlikely(addr >= 0xa0000000))
+		return addr - 0xa0000000;
+	else if (addr >= 0x80000000)
+		return addr - 0x80000000;
+	else
+		return addr;
+}
+
 struct block * lightrec_find_block(struct blockcache *cache, u32 pc)
 {
-	struct block *block = cache->tiny_lut[(pc >> 2) & (TINY_LUT_SIZE - 1)];
-	if (likely(block && block->pc == pc))
+	struct block *block;
+
+	pc = kunseg(pc);
+
+	block = cache->tiny_lut[(pc >> 2) & (TINY_LUT_SIZE - 1)];
+	if (likely(block && block->kunseg_pc == pc))
 		return block;
 
 	block = cache->lut[(pc >> 2) & (LUT_SIZE - 1)];
-	if (block && block->pc == pc) {
-		cache->tiny_lut[(block->pc >> 2) & (TINY_LUT_SIZE - 1)] = block;
+	if (block && block->kunseg_pc == pc) {
+		cache->tiny_lut[(pc >> 2) & (TINY_LUT_SIZE - 1)] = block;
 		return block;
 	} else {
 		return NULL;
@@ -44,14 +58,15 @@ struct block * lightrec_find_block(struct blockcache *cache, u32 pc)
 
 void lightrec_register_block(struct blockcache *cache, struct block *block)
 {
-	struct block *old = cache->lut[(block->pc >> 2) & (LUT_SIZE - 1)];
-	if (old && old->pc != block->pc) {
+	u32 pc = block->kunseg_pc;
+	struct block *old = cache->lut[(pc >> 2) & (LUT_SIZE - 1)];
+	if (old && old != block) {
 		DEBUG("Freeing old block at pc 0x%x\n", old->pc);
 		lightrec_free_block(old);
 	}
 
-	cache->lut[(block->pc >> 2) & (LUT_SIZE - 1)] = block;
-	cache->tiny_lut[(block->pc >> 2) & (TINY_LUT_SIZE - 1)] = block;
+	cache->lut[(pc >> 2) & (LUT_SIZE - 1)] = block;
+	cache->tiny_lut[(pc >> 2) & (TINY_LUT_SIZE - 1)] = block;
 }
 
 void lightrec_free_block_cache(struct blockcache *cache)
