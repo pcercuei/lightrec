@@ -53,6 +53,15 @@ static uintptr_t __get_jump_address_cb(struct lightrec_state *state, u32 cycles)
 		return state->end_of_block;
 
 	new = lightrec_find_block(state->block_cache, state->next_pc);
+
+	if (new && lightrec_block_is_outdated(new)) {
+		DEBUG("Block at PC 0x%08x is outdated!\n", new->pc);
+
+		lightrec_unregister_block(state->block_cache, new);
+		lightrec_free_block(new);
+		new = NULL;
+	}
+
 	if (!new) {
 		new = lightrec_recompile_block(state, state->next_pc);
 		if (!new)

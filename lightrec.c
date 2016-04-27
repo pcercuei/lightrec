@@ -409,6 +409,14 @@ u32 lightrec_execute(struct lightrec_state *state, u32 pc)
 	void (*func)(void *) = (void (*)(void *)) state->wrapper->function;
 	struct block *block = lightrec_find_block(state->block_cache, pc);
 
+	if (block && lightrec_block_is_outdated(block)) {
+		DEBUG("Block at PC 0x%08x is outdated!\n", block->pc);
+
+		lightrec_unregister_block(state->block_cache, block);
+		lightrec_free_block(block);
+		block = NULL;
+	}
+
 	if (!block) {
 		block = lightrec_recompile_block(state, pc);
 		if (!block) {
