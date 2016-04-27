@@ -438,6 +438,7 @@ struct lightrec_state * lightrec_init(char *argv0,
 		const struct lightrec_cop_ops *cop_ops)
 {
 	struct lightrec_state *state;
+	unsigned int i;
 
 	init_jit(argv0);
 
@@ -447,6 +448,22 @@ struct lightrec_state * lightrec_init(char *argv0,
 
 	state->nb_maps = nb;
 	memcpy(state->mem_map, map, nb * sizeof(*map));
+
+	for (i = 0; i < nb; i++) {
+		struct lightrec_mem_map *map = &state->mem_map[i];
+
+		if (!(map->flags & MAP_IS_RWX))
+			continue;
+
+		/* TODO: calculate the best page shift */
+		map->page_shift = 9;
+
+		map->invalidation_table = calloc(
+				(map->length >> map->page_shift) + 1,
+				sizeof(u32));
+
+		map->last_invalidation_time = 0;
+	}
 
 	state->cop_ops = cop_ops;
 	state->rw_op = lightrec_rw;
@@ -460,11 +477,47 @@ struct lightrec_state * lightrec_init(char *argv0,
 
 void lightrec_destroy(struct lightrec_state *state)
 {
+	unsigned int i;
+
 	lightrec_free_regcache(state->reg_cache);
 	lightrec_free_block_cache(state->block_cache);
 	lightrec_free_block(state->wrapper);
 	lightrec_free_block(state->addr_lookup_block);
 	finish_jit();
 
+	for (i = 0; i < state->nb_maps; i++)
+		if (state->mem_map[i].flags & MAP_IS_RWX)
+			free(state->mem_map[i].invalidation_table);
 	free(state);
+}
+
+void lightrec_invalidate(struct lightrec_state *state, u32 addr, u32 len)
+{
+	unsigned int i;
+
+	addr = kunseg(addr);
+
+	for (i = 0; i < state->nb_maps; i++) {
+		struct lightrec_mem_map *map = &state->mem_map[i];
+		u32 offset, count;
+
+		if (!(map->flags & MAP_IS_RWX))
+			continue;
+
+		if (addr < map->pc || addr > map->pc + map->length)
+			continue;
+
+		offset = (addr - map->pc) >> map->page_shift;
+		count = (len + (1 << map->page_shift) - 1) >> map->page_shift;
+
+		while (count--) {
+			DEBUG("Invalidating table at offset 0x%x\n", offset);
+			map->invalidation_table[offset++] =
+				state->current_cycle;
+		}
+
+		map->last_invalidation_time = state->current_cycle;
+		state->last_invalidation_time = state->current_cycle;
+		return;
+	}
 }

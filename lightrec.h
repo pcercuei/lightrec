@@ -41,6 +41,9 @@ typedef int8_t  s8;
 #	define unlikely(x)     (x)
 #endif
 
+#define MAP_IS_RWX	(1 << 0)
+
+
 /* Definition of jit_state_t (avoids inclusion of <lightning.h>) */
 struct jit_state;
 typedef struct jit_state jit_state_t;
@@ -81,8 +84,12 @@ struct lightrec_mem_map_ops {
 struct lightrec_mem_map {
 	u32 pc;
 	u32 length;
+	u32 flags;
 	void *address;
 	struct lightrec_mem_map_ops *ops;
+	u32 *invalidation_table;
+	unsigned int page_shift;
+	u32 last_invalidation_time;
 };
 
 struct lightrec_cop_ops {
@@ -97,6 +104,7 @@ struct lightrec_state {
 	u32 native_reg_cache[34];
 	u32 next_pc;
 	u32 current_cycle;
+	u32 last_invalidation_time;
 	enum block_exit_flags block_exit_flags;
 	uintptr_t end_of_block;
 	struct block *wrapper, *addr_lookup_block, *current;
@@ -119,5 +127,6 @@ struct lightrec_state * lightrec_init(char *argv0,
 void lightrec_destroy(struct lightrec_state *state);
 
 u32 lightrec_execute(struct lightrec_state *state, u32 pc);
+void lightrec_invalidate(struct lightrec_state *state, u32 addr, u32 len);
 
 #endif /* __LIGHTREC_H__ */
