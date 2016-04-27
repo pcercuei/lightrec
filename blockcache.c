@@ -69,6 +69,22 @@ void lightrec_register_block(struct blockcache *cache, struct block *block)
 	cache->tiny_lut[(pc >> 2) & (TINY_LUT_SIZE - 1)] = block;
 }
 
+void lightrec_unregister_block(struct blockcache *cache, struct block *block)
+{
+	u32 pc = block->kunseg_pc;
+	struct block *old = cache->lut[(pc >> 2) & (LUT_SIZE - 1)];
+
+	if (old) {
+		if (old != block) {
+			ERROR("Block at PC 0x%x is not in cache\n", block->pc);
+			return;
+		}
+
+		cache->lut[(pc >> 2) & (LUT_SIZE - 1)] = NULL;
+		cache->tiny_lut[(pc >> 2) & (TINY_LUT_SIZE - 1)] = NULL;
+	}
+}
+
 void lightrec_free_block_cache(struct blockcache *cache)
 {
 	unsigned int i;

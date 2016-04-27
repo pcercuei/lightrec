@@ -21,6 +21,7 @@ struct blockcache;
 
 struct block * lightrec_find_block(struct blockcache *cache, u32 pc);
 void lightrec_register_block(struct blockcache *cache, struct block *block);
+void lightrec_unregister_block(struct blockcache *cache, struct block *block);
 
 struct blockcache * lightrec_blockcache_init(void);
 void lightrec_free_block_cache(struct blockcache *cache);
