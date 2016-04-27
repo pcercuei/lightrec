@@ -99,3 +99,42 @@ struct blockcache * lightrec_blockcache_init(void)
 {
 	return calloc(1, sizeof(struct blockcache));
 }
+
+bool lightrec_block_is_outdated(struct block *block)
+{
+	struct lightrec_state *state = block->state;
+	unsigned int i;
+
+	if (block->compile_time >= state->last_invalidation_time)
+		return false;
+
+	for (i = 0; i < state->nb_maps; i++) {
+		struct lightrec_mem_map *map = &state->mem_map[i];
+		u32 offset, count;
+
+		if (!(map->flags & MAP_IS_RWX))
+			continue;
+
+		if (block->kunseg_pc < map->pc ||
+				block->kunseg_pc > map->pc + map->length)
+			continue;
+
+		if (block->compile_time >= map->last_invalidation_time)
+			return false;
+
+		offset = (block->kunseg_pc - map->pc) >> map->page_shift;
+		count = (block->length + (1 << map->page_shift) - 1)
+			>> map->page_shift;
+
+		while (count--)
+			if (map->invalidation_table[offset++] >
+					block->compile_time)
+				return true;
+	}
+
+	/* The block is not outdated, so we update its compile_time value to the
+	 * current cycle counter value to speed up the process next time. */
+	block->compile_time = state->last_invalidation_time;
+
+	return false;
+}
