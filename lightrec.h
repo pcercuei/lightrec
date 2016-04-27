@@ -94,7 +94,7 @@ struct lightrec_cop_ops {
 struct lightrec_state {
 	u32 native_reg_cache[34];
 	u32 next_pc;
-	u32 block_exit_cycles;
+	u32 current_cycle;
 	enum block_exit_flags block_exit_flags;
 	uintptr_t end_of_block;
 	struct block *wrapper, *addr_lookup_block, *current;

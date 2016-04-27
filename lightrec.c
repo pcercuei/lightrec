@@ -419,7 +419,6 @@ u32 lightrec_execute(struct lightrec_state *state, u32 pc)
 	}
 
 	state->block_exit_flags = LIGHTREC_EXIT_NORMAL;
-	state->block_exit_cycles = 0;
 	state->current = block;
 
 	func((void *) block->function);
