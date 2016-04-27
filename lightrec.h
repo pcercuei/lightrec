@@ -65,6 +65,7 @@ struct block {
 	const u32 *code;
 	u32 pc, kunseg_pc;
 	unsigned int cycles;
+	unsigned int length;
 };
 
 struct lightrec_mem_map_ops {

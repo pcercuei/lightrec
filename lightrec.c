@@ -341,7 +341,7 @@ struct block * lightrec_recompile_block(struct lightrec_state *state, u32 pc)
 	if (!block)
 		goto err_no_mem;
 
-	list = lightrec_disassemble(code);
+	list = lightrec_disassemble(code, &block->length);
 	if (!list)
 		goto err_free_block;
 

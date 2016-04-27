@@ -54,13 +54,14 @@ void lightrec_free_opcode_list(struct opcode *list)
 	}
 }
 
-struct opcode * lightrec_disassemble(const u32 *src)
+struct opcode * lightrec_disassemble(const u32 *src, unsigned int *len)
 {
 	struct opcode_list_head head = { NULL };
 	bool stop_next = false;
 	struct opcode *curr, *last;
+	unsigned int i;
 
-	for (last = NULL; ; last = curr) {
+	for (i = 0, last = NULL; ; i += sizeof(u32), last = curr) {
 		curr = malloc(sizeof(*curr));
 		if (!curr) {
 			ERROR("Unable to allocate memory\n");
@@ -85,6 +86,9 @@ struct opcode * lightrec_disassemble(const u32 *src)
 		else if (is_unconditional_jump(curr))
 			stop_next = true;
 	}
+
+	if (len)
+		*len = i;
 
 	return SLIST_FIRST(&head);
 }

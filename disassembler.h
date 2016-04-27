@@ -158,7 +158,7 @@ struct opcode {
 
 SLIST_HEAD(opcode_list_head, opcode);
 
-struct opcode * lightrec_disassemble(const u32 *src);
+struct opcode * lightrec_disassemble(const u32 *src, unsigned int *len);
 void lightrec_free_opcode_list(struct opcode *list);
 
 unsigned int lightrec_cycles_of_opcode(const struct opcode *op);
