@@ -108,9 +108,11 @@ static u32 lightrec_rw(struct lightrec_state *state,
 		switch (op->i.op) {
 		case OP_SB:
 			*(u8 *) new_addr = (u8) data;
+			lightrec_invalidate(state, kaddr, 1);
 			return 0;
 		case OP_SH:
 			*(u16 *) new_addr = (u16) data;
+			lightrec_invalidate(state, kaddr, 2);
 			return 0;
 		case OP_SWL:
 			shift = kaddr & 3;
@@ -119,6 +121,7 @@ static u32 lightrec_rw(struct lightrec_state *state,
 
 			*(u32 *)(new_addr & ~3) = (data >> ((3 - shift) * 8))
 				| (mem_data & mask);
+			lightrec_invalidate(state, kaddr & ~0x3, 4);
 			return 0;
 		case OP_SWR:
 			shift = kaddr & 3;
@@ -127,9 +130,11 @@ static u32 lightrec_rw(struct lightrec_state *state,
 
 			*(u32 *)(new_addr & ~3) = (data << (shift * 8))
 				| (mem_data & mask);
+			lightrec_invalidate(state, kaddr & ~0x3, 4);
 			return 0;
 		case OP_SW:
 			*(u32 *) new_addr = data;
+			lightrec_invalidate(state, kaddr, 4);
 			return 0;
 		case OP_LB:
 			return (s32) *(s8 *) new_addr;
