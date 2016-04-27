@@ -353,6 +353,7 @@ struct block * lightrec_recompile_block(struct lightrec_state *state, u32 pc)
 
 	block->pc = pc;
 	block->kunseg_pc = kunseg(pc);
+	block->compile_time = state->current_cycle;
 	block->state = state;
 	block->_jit = _jit;
 	block->opcode_list = list;

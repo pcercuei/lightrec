@@ -64,6 +64,7 @@ struct block {
 	void (*function)(void);
 	const u32 *code;
 	u32 pc, kunseg_pc;
+	u32 compile_time;
 	unsigned int cycles;
 	unsigned int length;
 };
