@@ -166,16 +166,14 @@ static u32 lightrec_rw(struct lightrec_state *state,
 	return 0;
 }
 
-static const u32 * find_code_address(struct lightrec_state *state, u32 pc)
+static struct lightrec_mem_map * find_map(struct lightrec_state *state, u32 pc)
 {
 	struct lightrec_mem_map *map = state->mem_map;
 	unsigned int i;
-	u32 addr = kunseg(pc);
 
-	for (i = 0; i < state->nb_maps; i++) {
-		if (addr >= map[i].pc && addr < map[i].pc + map[i].length)
-			return map[i].address + (addr - map[i].pc);
-	}
+	for (i = 0; i < state->nb_maps; i++)
+		if (pc >= map[i].pc && pc < map[i].pc + map[i].length)
+			return &map[i];
 
 	return NULL;
 }
@@ -338,9 +336,14 @@ struct block * lightrec_recompile_block(struct lightrec_state *state, u32 pc)
 	struct block *block;
 	jit_state_t *_jit;
 	bool skip_next = false;
-	const u32 *code = find_code_address(state, pc);
-	if (!code)
+	const u32 *code;
+	u32 kunseg_pc = kunseg(pc);
+	const struct lightrec_mem_map *map = find_map(state, kunseg_pc);
+
+	if (!map)
 		return NULL;
+
+	code = map->address + (kunseg_pc - map->pc);
 
 	block = malloc(sizeof(*block));
 	if (!block)
@@ -357,13 +360,14 @@ struct block * lightrec_recompile_block(struct lightrec_state *state, u32 pc)
 	lightrec_regcache_reset(state->reg_cache);
 
 	block->pc = pc;
-	block->kunseg_pc = kunseg(pc);
+	block->kunseg_pc = kunseg_pc;
 	block->compile_time = state->current_cycle;
 	block->state = state;
 	block->_jit = _jit;
 	block->opcode_list = list;
 	block->cycles = 0;
 	block->code = code;
+	block->map = map;
 
 	jit_prolog();
 	jit_tramp(256);

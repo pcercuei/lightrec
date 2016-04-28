@@ -52,6 +52,7 @@ struct opcode;
 struct lightrec_state;
 struct blockcache;
 struct regcache;
+struct lightrec_mem_map;
 
 enum block_exit_flags {
 	LIGHTREC_EXIT_NORMAL,
@@ -70,6 +71,7 @@ struct block {
 	u32 compile_time;
 	unsigned int cycles;
 	unsigned int length;
+	const struct lightrec_mem_map *map;
 };
 
 struct lightrec_mem_map_ops {

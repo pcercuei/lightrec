@@ -102,25 +102,14 @@ struct blockcache * lightrec_blockcache_init(void)
 
 bool lightrec_block_is_outdated(struct block *block)
 {
+	const struct lightrec_mem_map *map = block->map;
 	struct lightrec_state *state = block->state;
-	unsigned int i;
 
 	if (block->compile_time >= state->last_invalidation_time)
 		return false;
 
-	for (i = 0; i < state->nb_maps; i++) {
-		struct lightrec_mem_map *map = &state->mem_map[i];
+	if (map->flags & MAP_IS_RWX) {
 		u32 offset, count;
-
-		if (!(map->flags & MAP_IS_RWX))
-			continue;
-
-		if (block->kunseg_pc < map->pc ||
-				block->kunseg_pc > map->pc + map->length)
-			continue;
-
-		if (block->compile_time >= map->last_invalidation_time)
-			return false;
 
 		offset = (block->kunseg_pc - map->pc) >> map->page_shift;
 		count = (block->length + (1 << map->page_shift) - 1)
