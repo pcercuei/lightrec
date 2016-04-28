@@ -100,30 +100,24 @@ struct blockcache * lightrec_blockcache_init(void)
 	return calloc(1, sizeof(struct blockcache));
 }
 
-bool lightrec_block_is_outdated(struct block *block)
+u32 calculate_block_hash(const struct block *block)
 {
 	const struct lightrec_mem_map *map = block->map;
-	struct lightrec_state *state = block->state;
-
-	if (block->compile_time >= state->last_invalidation_time)
-		return false;
+	u32 offset, count, hash = 0;
 
 	if (map->flags & MAP_IS_RWX) {
-		u32 offset, count;
-
 		offset = (block->kunseg_pc - map->pc) >> map->page_shift;
 		count = (block->length + (1 << map->page_shift) - 1)
 			>> map->page_shift;
 
 		while (count--)
-			if (map->invalidation_table[offset++] >
-					block->compile_time)
-				return true;
+			hash += map->invalidation_table[offset++];
 	}
 
-	/* The block is not outdated, so we update its compile_time value to the
-	 * current cycle counter value to speed up the process next time. */
-	block->compile_time = state->last_invalidation_time;
+	return hash;
+}
 
-	return false;
+bool lightrec_block_is_outdated(struct block *block)
+{
+	return block->hash != calculate_block_hash(block);
 }

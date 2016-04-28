@@ -361,13 +361,13 @@ struct block * lightrec_recompile_block(struct lightrec_state *state, u32 pc)
 
 	block->pc = pc;
 	block->kunseg_pc = kunseg_pc;
-	block->compile_time = state->current_cycle;
 	block->state = state;
 	block->_jit = _jit;
 	block->opcode_list = list;
 	block->cycles = 0;
 	block->code = code;
 	block->map = map;
+	block->hash = calculate_block_hash(block);
 
 	jit_prolog();
 	jit_tramp(256);
@@ -478,8 +478,6 @@ struct lightrec_state * lightrec_init(char *argv0,
 		map->invalidation_table = calloc(
 				(map->length >> map->page_shift) + 1,
 				sizeof(u32));
-
-		map->last_invalidation_time = 0;
 	}
 
 	state->cop_ops = cop_ops;
@@ -533,8 +531,6 @@ void lightrec_invalidate(struct lightrec_state *state, u32 addr, u32 len)
 				state->current_cycle;
 		}
 
-		map->last_invalidation_time = state->current_cycle;
-		state->last_invalidation_time = state->current_cycle;
-		return;
+		break;
 	}
 }

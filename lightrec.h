@@ -68,7 +68,7 @@ struct block {
 	void (*function)(void);
 	const u32 *code;
 	u32 pc, kunseg_pc;
-	u32 compile_time;
+	u32 hash;
 	unsigned int cycles;
 	unsigned int length;
 	const struct lightrec_mem_map *map;
@@ -91,7 +91,6 @@ struct lightrec_mem_map {
 	struct lightrec_mem_map_ops *ops;
 	u32 *invalidation_table;
 	unsigned int page_shift;
-	u32 last_invalidation_time;
 };
 
 struct lightrec_cop_ops {
@@ -106,7 +105,6 @@ struct lightrec_state {
 	u32 native_reg_cache[34];
 	u32 next_pc;
 	u32 current_cycle;
-	u32 last_invalidation_time;
 	enum block_exit_flags block_exit_flags;
 	uintptr_t end_of_block;
 	struct block *wrapper, *addr_lookup_block, *current;

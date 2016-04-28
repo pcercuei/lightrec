@@ -26,6 +26,7 @@ void lightrec_unregister_block(struct blockcache *cache, struct block *block);
 struct blockcache * lightrec_blockcache_init(void);
 void lightrec_free_block_cache(struct blockcache *cache);
 
+u32 calculate_block_hash(const struct block *block);
 bool lightrec_block_is_outdated(struct block *block);
 
 #endif /* __BLOCKCACHE_H__ */
