@@ -172,16 +172,8 @@ static void preload_in_regs(struct regcache *cache,
 		case OP_META_LB ... OP_META_LW:
 			if (op->i.rs)
 				lightrec_alloc_reg_in(cache, _jit, op->i.rs);
-
-			/* Force storeback of the JIT_R0 register, in case we have a
-			 * load/store in the delay slot */
-			lightrec_clean_reg(cache, _jit, JIT_R0);
 			break;
 		}
-		break;
-
-	case OP_LB ... OP_SWR:
-		lightrec_clean_regs(cache, _jit);
 		break;
 
 	case OP_SPECIAL:
@@ -192,6 +184,7 @@ static void preload_in_regs(struct regcache *cache,
 	default:
 		if (op->i.rs)
 			lightrec_alloc_reg_in(cache, _jit, op->i.rs);
+	case OP_LB ... OP_SWR:
 	case OP_LUI:
 	case OP_J:
 	case OP_JAL:
