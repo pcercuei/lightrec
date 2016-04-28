@@ -525,11 +525,9 @@ void lightrec_invalidate(struct lightrec_state *state, u32 addr, u32 len)
 		offset = (addr - map->pc) >> map->page_shift;
 		count = (len + (1 << map->page_shift) - 1) >> map->page_shift;
 
-		while (count--) {
-			DEBUG("Invalidating table at offset 0x%x\n", offset);
+		while (count--)
 			map->invalidation_table[offset++] =
 				state->current_cycle;
-		}
 
 		break;
 	}
