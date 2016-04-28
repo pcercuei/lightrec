@@ -718,9 +718,7 @@ static int rec_store(const struct block *block, struct opcode *op, bool swc2)
 	jit_pushargr(rs);
 	lightrec_free_reg(reg_cache, rs);
 
-	if (unlikely(swc2)) {
-		jit_pushargi((intptr_t) op->i.rt);
-	} else {
+	if (likely(!swc2)) {
 		rt = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rt);
 		jit_pushargr(rt);
 		lightrec_free_reg(reg_cache, rt);
@@ -774,8 +772,6 @@ static int rec_load(const struct block *block, struct opcode *op,
 		rt = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rt);
 		jit_pushargr(rt);
 		lightrec_free_reg(reg_cache, rt);
-	} else if (unlikely(lwc2)) {
-		jit_pushargi((intptr_t) op->i.rt);
 	}
 
 	lightrec_storeback_regs(reg_cache, _jit);

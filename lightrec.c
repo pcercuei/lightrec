@@ -138,7 +138,8 @@ static u32 lightrec_rw(struct lightrec_state *state,
 				return 0;
 			}
 
-			*(u32 *) new_addr = state->cop_ops->mfc(state, 2, data);
+			*(u32 *) new_addr = state->cop_ops->mfc(
+					state, 2, op->i.rt);
 			lightrec_invalidate(state, kaddr, 4);
 			return 0;
 		case OP_LB:
@@ -167,7 +168,8 @@ static u32 lightrec_rw(struct lightrec_state *state,
 				return 0;
 			}
 
-			state->cop_ops->mtc(state, 2, data, *(u32 *) new_addr);
+			state->cop_ops->mtc(state, 2,
+					op->i.rt, *(u32 *) new_addr);
 			return 0;
 		case OP_LW:
 		default:
