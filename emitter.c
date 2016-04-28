@@ -702,7 +702,7 @@ static int rec_special_MTLO(const struct block *block,
 	return rec_alu_mv_lo_hi(block, REG_LO, op->r.rs);
 }
 
-static int rec_store(const struct block *block, struct opcode *op)
+static int rec_store(const struct block *block, struct opcode *op, bool swc2)
 {
 	struct regcache *reg_cache = block->state->reg_cache;
 	jit_state_t *_jit = block->_jit;
@@ -718,9 +718,13 @@ static int rec_store(const struct block *block, struct opcode *op)
 	jit_pushargr(rs);
 	lightrec_free_reg(reg_cache, rs);
 
-	rt = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rt);
-	jit_pushargr(rt);
-	lightrec_free_reg(reg_cache, rt);
+	if (unlikely(swc2)) {
+		jit_pushargi((intptr_t) op->i.rt);
+	} else {
+		rt = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rt);
+		jit_pushargr(rt);
+		lightrec_free_reg(reg_cache, rt);
+	}
 
 	lightrec_storeback_regs(reg_cache, _jit);
 
@@ -810,31 +814,36 @@ static int rec_load_meta(const struct block *block,
 static int rec_SB(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_store(block, op);
+	return rec_store(block, op, false);
 }
 
 static int rec_SH(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_store(block, op);
+	return rec_store(block, op, false);
 }
 
 static int rec_SW(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_store(block, op);
+	return rec_store(block, op, false);
 }
 
 static int rec_SWL(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_store(block, op);
+	return rec_store(block, op, false);
 }
 
 static int rec_SWR(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_store(block, op);
+	return rec_store(block, op, false);
+}
+
+static int rec_SWC2(const struct block *block, struct opcode *op, u32 pc)
+{
+	return rec_store(block, op, true);
 }
 
 static int rec_meta_SB(const struct block *block, struct opcode *op, u32 pc)
@@ -1183,7 +1192,7 @@ static const lightrec_rec_func_t rec_standard[64] = {
 	[OP_SW]			= rec_SW,
 	[OP_SWR]		= rec_SWR,
 	[OP_LWC2]		= emit_call_to_interpreter, /* TODO */
-	[OP_SWC2]		= emit_call_to_interpreter, /* TODO */
+	[OP_SWC2]		= rec_SWC2,
 	[OP_HLE]		= emit_call_to_interpreter, /* TODO */
 	[OP_META]		= rec_META,
 };

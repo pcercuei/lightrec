@@ -132,6 +132,15 @@ static u32 lightrec_rw(struct lightrec_state *state,
 			*(u32 *) new_addr = data;
 			lightrec_invalidate(state, kaddr, 4);
 			return 0;
+		case OP_SWC2:
+			if (!state->cop_ops || !state->cop_ops->mfc) {
+				WARNING("Missing MFC callback!\n");
+				return 0;
+			}
+
+			*(u32 *) new_addr = state->cop_ops->mfc(state, 2, data);
+			lightrec_invalidate(state, kaddr, 4);
+			return 0;
 		case OP_LB:
 			return (s32) *(s8 *) new_addr;
 		case OP_LBU:
