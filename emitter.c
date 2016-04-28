@@ -753,7 +753,8 @@ static int rec_store_meta(const struct block *block,
 	return 0;
 }
 
-static int rec_load(const struct block *block, struct opcode *op, bool lwrl)
+static int rec_load(const struct block *block, struct opcode *op,
+		bool lwrl, bool lwc2)
 {
 	struct regcache *reg_cache = block->state->reg_cache;
 	jit_state_t *_jit = block->_jit;
@@ -769,10 +770,12 @@ static int rec_load(const struct block *block, struct opcode *op, bool lwrl)
 	jit_pushargr(rs);
 	lightrec_free_reg(reg_cache, rs);
 
-	if (lwrl) {
+	if (unlikely(lwrl)) {
 		rt = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rt);
 		jit_pushargr(rt);
 		lightrec_free_reg(reg_cache, rt);
+	} else if (unlikely(lwc2)) {
+		jit_pushargi((intptr_t) op->i.rt);
 	}
 
 	lightrec_storeback_regs(reg_cache, _jit);
@@ -782,13 +785,15 @@ static int rec_load(const struct block *block, struct opcode *op, bool lwrl)
 
 	jit_finishi(block->state->rw_op);
 
-	/* If the destination register is $0, we just discard the result now */
-	if (unlikely(!op->i.rt))
-		return 0;
+	if (likely(!lwc2)) {
+		/* If the destination register is $0, we just discard the result now */
+		if (unlikely(!op->i.rt))
+			return 0;
 
-	rt = lightrec_alloc_reg_out(reg_cache, _jit, op->i.rt);
-	jit_retval_i(rt);
-	lightrec_free_reg(reg_cache, rt);
+		rt = lightrec_alloc_reg_out(reg_cache, _jit, op->i.rt);
+		jit_retval_i(rt);
+		lightrec_free_reg(reg_cache, rt);
+	}
 
 	return 0;
 }
@@ -867,43 +872,48 @@ static int rec_meta_SW(const struct block *block, struct opcode *op, u32 pc)
 static int rec_LB(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_load(block, op, false);
+	return rec_load(block, op, false, false);
 }
 
 static int rec_LBU(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_load(block, op, false);
+	return rec_load(block, op, false, false);
 }
 
 static int rec_LH(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_load(block, op, false);
+	return rec_load(block, op, false, false);
 }
 
 static int rec_LHU(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_load(block, op, false);
+	return rec_load(block, op, false, false);
 }
 
 static int rec_LWL(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_load(block, op, true);
+	return rec_load(block, op, true, false);
 }
 
 static int rec_LWR(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_load(block, op, true);
+	return rec_load(block, op, true, false);
 }
 
 static int rec_LW(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_load(block, op, false);
+	return rec_load(block, op, false, false);
+}
+
+static int rec_LWC2(const struct block *block, struct opcode *op, u32 pc)
+{
+	return rec_load(block, op, false, true);
 }
 
 static int rec_meta_LB(const struct block *block, struct opcode *op, u32 pc)
@@ -1191,7 +1201,7 @@ static const lightrec_rec_func_t rec_standard[64] = {
 	[OP_SWL]		= rec_SWL,
 	[OP_SW]			= rec_SW,
 	[OP_SWR]		= rec_SWR,
-	[OP_LWC2]		= emit_call_to_interpreter, /* TODO */
+	[OP_LWC2]		= rec_LWC2,
 	[OP_SWC2]		= rec_SWC2,
 	[OP_HLE]		= emit_call_to_interpreter, /* TODO */
 	[OP_META]		= rec_META,

@@ -161,6 +161,14 @@ static u32 lightrec_rw(struct lightrec_state *state,
 			mask = GENMASK(31, 32 - shift * 8);
 
 			return (data & mask) | (mem_data >> (shift * 8));
+		case OP_LWC2:
+			if (!state->cop_ops || !state->cop_ops->mtc) {
+				WARNING("Missing MFC callback!\n");
+				return 0;
+			}
+
+			state->cop_ops->mtc(state, 2, data, *(u32 *) new_addr);
+			return 0;
 		case OP_LW:
 		default:
 			return *(u32 *) new_addr;
