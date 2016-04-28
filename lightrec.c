@@ -93,15 +93,11 @@ static u32 lightrec_rw(struct lightrec_state *state,
 		u32 shift, mem_data, mask, pc = map[i].pc;
 		uintptr_t new_addr;
 
-		if (unlikely(ops)) {
-			if (addr < pc || addr >= pc + map[i].length)
-				continue;
-
-			return lightrec_rw_ops(state, op, ops, addr, data);
-		}
-
 		if (kaddr < pc || kaddr >= pc + map[i].length)
 			continue;
+
+		if (unlikely(ops))
+			return lightrec_rw_ops(state, op, ops, addr, data);
 
 		new_addr = (uintptr_t) map[i].address + (kaddr - pc);
 
