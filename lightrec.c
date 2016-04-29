@@ -474,12 +474,12 @@ struct lightrec_state * lightrec_init(char *argv0,
 
 	init_jit(argv0);
 
-	state = calloc(1, sizeof(*state) + nb * sizeof(*map));
+	state = calloc(1, sizeof(*state));
 	state->block_cache = lightrec_blockcache_init();
 	state->reg_cache = lightrec_regcache_init();
 
 	state->nb_maps = nb;
-	memcpy(state->mem_map, map, nb * sizeof(*map));
+	state->mem_map = map;
 
 	for (i = 0; i < nb; i++) {
 		struct lightrec_mem_map *map = &state->mem_map[i];

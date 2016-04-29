@@ -116,7 +116,7 @@ struct lightrec_state {
 	const struct lightrec_cop_ops *cop_ops;
 	bool stop;
 	unsigned int nb_maps;
-	struct lightrec_mem_map mem_map[];
+	struct lightrec_mem_map *mem_map;
 };
 
 struct block * lightrec_recompile_block(struct lightrec_state *state, u32 pc);
