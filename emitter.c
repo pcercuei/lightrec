@@ -604,8 +604,13 @@ static int rec_alu_div(const struct block *block,
 	   rt = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rt),
 	   lo = lightrec_alloc_reg_out(reg_cache, _jit, REG_LO),
 	   hi = lightrec_alloc_reg_out(reg_cache, _jit, REG_HI);
+	jit_node_t *branch, *to_end;
 
 	jit_note(__FILE__, __LINE__);
+
+	/* Jump to special handler if dividing by zero  */
+	branch = jit_beqi(rt, 0);
+
 #if __WORDSIZE == 32
 	if (is_signed)
 		jit_qdivr(lo, hi, rs, rt);
@@ -624,6 +629,23 @@ static int rec_alu_div(const struct block *block,
 		jit_qdivr_u(lo, hi, hi, lo);
 	}
 #endif
+
+	/* Jump above the div-by-zero handler */
+	to_end = jit_jmpi();
+
+	jit_patch(branch);
+
+	if (is_signed) {
+		jit_lti(lo, rs, 0);
+		jit_lshi(lo, lo, 1);
+		jit_subi(lo, lo, 1);
+	} else {
+		jit_movi(lo, 0xffffffff);
+	}
+
+	jit_movr(hi, rs);
+
+	jit_patch(to_end);
 
 	lightrec_free_reg(reg_cache, rs);
 	lightrec_free_reg(reg_cache, rt);
