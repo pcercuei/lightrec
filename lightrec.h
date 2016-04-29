@@ -92,6 +92,7 @@ struct lightrec_mem_map {
 	struct lightrec_mem_map_ops *ops;
 	u32 *invalidation_table;
 	unsigned int page_shift;
+	struct lightrec_mem_map *mirror_of;
 };
 
 struct lightrec_cop_ops {

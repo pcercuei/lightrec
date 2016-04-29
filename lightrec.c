@@ -81,7 +81,6 @@ static u32 lightrec_rw_ops(struct lightrec_state *state,
 static u32 lightrec_rw(struct lightrec_state *state,
 		const struct opcode *op, u32 addr, u32 data)
 {
-	struct lightrec_mem_map *map = state->mem_map;
 	unsigned int i;
 	u32 kaddr;
 
@@ -89,17 +88,21 @@ static u32 lightrec_rw(struct lightrec_state *state,
 	kaddr = kunseg(addr);
 
 	for (i = 0; i < state->nb_maps; i++) {
-		struct lightrec_mem_map_ops *ops = map[i].ops;
-		u32 shift, mem_data, mask, pc = map[i].pc;
+		struct lightrec_mem_map *map = &state->mem_map[i];
+		struct lightrec_mem_map_ops *ops = map->ops;
+		u32 shift, mem_data, mask, pc = map->pc;
 		uintptr_t new_addr;
 
-		if (kaddr < pc || kaddr >= pc + map[i].length)
+		if (kaddr < pc || kaddr >= pc + map->length)
 			continue;
 
 		if (unlikely(ops))
 			return lightrec_rw_ops(state, op, ops, addr, data);
 
-		new_addr = (uintptr_t) map[i].address + (kaddr - pc);
+		while (map->mirror_of)
+			map = map->mirror_of;
+
+		new_addr = (uintptr_t) map->address + (kaddr - pc);
 
 		switch (op->i.op) {
 		case OP_SB:
@@ -352,13 +355,18 @@ struct block * lightrec_recompile_block(struct lightrec_state *state, u32 pc)
 	jit_state_t *_jit;
 	bool skip_next = false;
 	const u32 *code;
-	u32 kunseg_pc = kunseg(pc);
+	u32 addr, kunseg_pc = kunseg(pc);
 	const struct lightrec_mem_map *map = find_map(state, kunseg_pc);
 
 	if (!map)
 		return NULL;
 
-	code = map->address + (kunseg_pc - map->pc);
+	addr = kunseg_pc - map->pc;
+
+	while (map->mirror_of)
+		map = map->mirror_of;
+
+	code = map->address + addr;
 
 	block = malloc(sizeof(*block));
 	if (!block)
@@ -375,7 +383,7 @@ struct block * lightrec_recompile_block(struct lightrec_state *state, u32 pc)
 	lightrec_regcache_reset(state->reg_cache);
 
 	block->pc = pc;
-	block->kunseg_pc = kunseg_pc;
+	block->kunseg_pc = map->pc + addr;
 	block->state = state;
 	block->_jit = _jit;
 	block->opcode_list = list;
