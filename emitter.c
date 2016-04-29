@@ -46,7 +46,8 @@ static uintptr_t __get_jump_address_cb(struct lightrec_state *state, u32 cycles)
 	/* Increment the cycle counter */
 	state->current_cycle += cycles;
 
-	if (state->stop)
+	if (unlikely(state->exit_flags != LIGHTREC_EXIT_NORMAL ||
+			state->current_cycle >= state->target_cycle))
 		return state->end_of_block;
 
 	new = lightrec_find_block(state->block_cache, state->next_pc);

@@ -21,6 +21,7 @@
 #include "optimizer.h"
 
 #include <lightning.h>
+#include <limits.h>
 #include <stddef.h>
 #include <string.h>
 
@@ -29,7 +30,6 @@
 
 static void __segfault_cb(struct lightrec_state *state, u32 addr)
 {
-	state->stop = true;
 	lightrec_set_exit_flags(state, LIGHTREC_EXIT_SEGFAULT);
 	ERROR("Segmentation fault in recompiled code: invalid "
 			"load/store at address 0x%08x\n", addr);
@@ -375,7 +375,7 @@ err_no_mem:
 	return NULL;
 }
 
-u32 lightrec_execute(struct lightrec_state *state, u32 pc)
+u32 lightrec_execute(struct lightrec_state *state, u32 pc, u32 target_cycle)
 {
 	void (*func)(void *) = (void (*)(void *)) state->wrapper->function;
 	struct block *block = lightrec_find_block(state->block_cache, pc);
@@ -401,8 +401,11 @@ u32 lightrec_execute(struct lightrec_state *state, u32 pc)
 	state->exit_flags = LIGHTREC_EXIT_NORMAL;
 	state->current = block;
 
-	/* For now exit Lightrec after each trace */
-	state->stop = 1;
+	/* Handle the cycle counter overflowing */
+	if (unlikely(target_cycle < state->current_cycle))
+		target_cycle = UINT_MAX;
+
+	state->target_cycle = target_cycle;
 
 	func((void *) block->function);
 	return state->next_pc;

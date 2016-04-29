@@ -78,7 +78,7 @@ struct lightrec_state * lightrec_init(char *argv0,
 		const struct lightrec_cop_ops *cop_ops);
 void lightrec_destroy(struct lightrec_state *state);
 
-u32 lightrec_execute(struct lightrec_state *state, u32 pc);
+u32 lightrec_execute(struct lightrec_state *state, u32 pc, u32 target_cycle);
 void lightrec_invalidate(struct lightrec_state *state, u32 addr, u32 len);
 
 void lightrec_set_exit_flags(struct lightrec_state *state, u32 flags);
