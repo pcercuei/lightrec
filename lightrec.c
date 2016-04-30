@@ -116,7 +116,7 @@ static u32 lightrec_rw(struct lightrec_state *state,
 		case OP_SWL:
 			shift = kaddr & 3;
 			mem_data = *(u32 *)(new_addr & ~3);
-			mask = GENMASK(31, shift * 8 + 9);
+			mask = GENMASK(31, (shift + 1) * 8);
 
 			*(u32 *)(new_addr & ~3) = (data >> ((3 - shift) * 8))
 				| (mem_data & mask);
