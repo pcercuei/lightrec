@@ -23,10 +23,6 @@
 #include <stddef.h>
 #include <string.h>
 
-#if JIT_V_NUM < 4
-#error "At least 4 callee-saved registers are needed"
-#endif
-
 #define GENMASK(h, l) \
 	(((~0UL) << (l)) & (~0UL >> (__WORDSIZE - 1 - (h))))
 
