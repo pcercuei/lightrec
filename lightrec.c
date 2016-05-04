@@ -78,7 +78,7 @@ static u32 lightrec_rw_ops(struct lightrec_state *state,
 	}
 }
 
-static u32 lightrec_rw(struct lightrec_state *state,
+u32 lightrec_rw(struct lightrec_state *state,
 		const struct opcode *op, u32 addr, u32 data)
 {
 	unsigned int i;
@@ -504,8 +504,6 @@ struct lightrec_state * lightrec_init(char *argv0,
 	}
 
 	state->cop_ops = cop_ops;
-	state->rw_op = lightrec_rw;
-
 	state->wrapper = generate_wrapper_block(state);
 
 	state->addr_lookup_block = generate_address_lookup_block(state, nb);

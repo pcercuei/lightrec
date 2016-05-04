@@ -751,7 +751,7 @@ static int rec_store(const struct block *block, struct opcode *op, bool swc2)
 	/* The call to C trashes the registers, we have to reset the cache */
 	lightrec_regcache_reset(reg_cache);
 
-	jit_finishi(block->state->rw_op);
+	jit_finishi(lightrec_rw);
 	return 0;
 }
 
@@ -801,7 +801,7 @@ static int rec_load(const struct block *block, struct opcode *op,
 	/* The call to C trashes the registers, we have to reset the cache */
 	lightrec_regcache_reset(reg_cache);
 
-	jit_finishi(block->state->rw_op);
+	jit_finishi(lightrec_rw);
 
 	if (likely(!lwc2)) {
 		/* If the destination register is $0, we just discard the result now */

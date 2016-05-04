@@ -113,12 +113,14 @@ struct lightrec_state {
 	struct blockcache *block_cache;
 	struct regcache *reg_cache;
 	void (*addr_lookup)(void);
-	u32 (*rw_op)(struct lightrec_state *, const struct opcode *, u32, u32);
 	const struct lightrec_cop_ops *cop_ops;
 	bool stop;
 	unsigned int nb_maps;
 	struct lightrec_mem_map *mem_map;
 };
+
+u32 lightrec_rw(struct lightrec_state *state,
+		const struct opcode *op, u32 addr, u32 data);
 
 struct block * lightrec_recompile_block(struct lightrec_state *state, u32 pc);
 void lightrec_free_block(struct block *block);
