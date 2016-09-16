@@ -123,6 +123,7 @@ enum meta_opcodes {
 	OP_META_SB		= 0x28,
 	OP_META_SH		= 0x29,
 	OP_META_SW		= 0x2b,
+	OP_META_REG_UNLOAD	= 0x2c,
 };
 
 struct opcode_r {
