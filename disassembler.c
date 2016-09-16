@@ -78,6 +78,7 @@ struct opcode * lightrec_disassemble(const u32 *src, unsigned int *len)
 
 		/* TODO: Take care of endianness */
 		curr->opcode = *src++;
+		curr->flags = 0;
 
 		/* NOTE: The block disassembly ends after the opcode that
 		 * follows an unconditional jump (delay slot) */
@@ -96,7 +97,10 @@ struct opcode * lightrec_disassemble(const u32 *src, unsigned int *len)
 unsigned int lightrec_cycles_of_opcode(const struct opcode *op)
 {
 	/* TODO: Add a proper cycle counter */
-	return 2;
+	if (likely(!(op->flags & LIGHTREC_SKIP_PC_UPDATE)))
+		return 2;
+	else
+		return 0;
 }
 
 unsigned int lightrec_cycles_of_block(const struct block *block,

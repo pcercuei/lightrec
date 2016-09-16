@@ -20,6 +20,8 @@
 
 #include <sys/queue.h>
 
+#define LIGHTREC_SKIP_PC_UPDATE	(1 << 0)
+
 enum standard_opcodes {
 	OP_SPECIAL		= 0x00,
 	OP_REGIMM		= 0x01,
@@ -154,6 +156,7 @@ struct opcode {
 		struct opcode_i i;
 		struct opcode_j j;
 	};
+	u32 flags;
 	SLIST_ENTRY(opcode) next;
 };
 

@@ -17,12 +17,77 @@
 #include "optimizer.h"
 #include "regcache.h"
 
+#include <errno.h>
 #include <stdbool.h>
+#include <stdlib.h>
 
 struct optimizer_list {
 	void (**optimizers)(struct opcode *);
 	unsigned int nb_optimizers;
 };
+
+static bool opcode_reads_register(struct opcode *op, u8 reg)
+{
+	switch (op->i.op) {
+	case OP_SPECIAL:
+		switch (op->r.op) {
+		case OP_SPECIAL_SYSCALL:
+		case OP_SPECIAL_BREAK:
+			return false;
+		case OP_SPECIAL_JR:
+		case OP_SPECIAL_JALR:
+		case OP_SPECIAL_MTHI:
+		case OP_SPECIAL_MTLO:
+			return op->r.rs == reg;
+		case OP_SPECIAL_MFHI:
+			return reg == REG_HI;
+		case OP_SPECIAL_MFLO:
+			return reg == REG_LO;
+		case OP_SPECIAL_SLL:
+		case OP_SPECIAL_SRL:
+		case OP_SPECIAL_SRA:
+			return op->r.rt == reg;
+		default:
+			return op->r.rs == reg || op->r.rt == reg;
+		}
+	case OP_CP0:
+		switch (op->r.rs) {
+		case OP_CP0_MTC0:
+		case OP_CP0_CTC0:
+			return op->r.rt == reg;
+		default:
+			return false;
+		}
+	case OP_CP2:
+		if (op->r.op == OP_CP2_BASIC) {
+			switch (op->r.rs) {
+			case OP_CP2_BASIC_MTC2:
+			case OP_CP2_BASIC_CTC2:
+				return op->r.rt == reg;
+			default:
+				return false;
+			}
+		} else {
+			return false;
+		}
+	case OP_J:
+	case OP_JAL:
+	case OP_LUI:
+		return false;
+	case OP_BEQ:
+	case OP_BNE:
+	case OP_LWL:
+	case OP_LWR:
+	case OP_SB:
+	case OP_SH:
+	case OP_SWL:
+	case OP_SW:
+	case OP_SWR:
+		return op->i.rs == reg || op->i.rt == reg;
+	default:
+		return op->i.rs == reg;
+	}
+}
 
 static bool opcode_writes_register(struct opcode *op, u8 reg)
 {
@@ -151,8 +216,91 @@ static int lightrec_transform_to_nops(struct opcode *list)
 	return 0;
 }
 
+static bool has_delay_slot(struct opcode *op)
+{
+	switch (op->i.op) {
+	case OP_SPECIAL:
+		switch (op->r.op) {
+		case OP_SPECIAL_JR:
+		case OP_SPECIAL_JALR:
+			return true;
+		default:
+			return false;
+		}
+	case OP_J:
+	case OP_JAL:
+	case OP_BEQ:
+	case OP_BNE:
+	case OP_BLEZ:
+	case OP_BGTZ:
+	case OP_REGIMM:
+		return true;
+	default:
+		return false;
+	}
+}
+
+static int lightrec_add_unload(struct opcode *op, u8 reg)
+{
+	struct opcode *meta = malloc(sizeof(*meta));
+
+	if (!meta)
+		return -ENOMEM;
+
+	meta->i.op = OP_META;
+	meta->r.op = OP_META_REG_UNLOAD;
+	meta->i.rs = reg;
+	meta->flags = LIGHTREC_SKIP_PC_UPDATE;
+	SLIST_INSERT_AFTER(op, meta, next);
+
+	return 0;
+}
+
+static int lightrec_early_unload(struct opcode *list)
+{
+	u8 i;
+
+	for (i = 1; i < 34; i++) {
+		struct opcode *op, *last = NULL, *last_r = NULL, *last_w = NULL;
+		unsigned int last_r_id = 0, last_w_id = 0, id = 0;
+		int ret;
+
+		for (op = list; op; last = op,
+				op = SLIST_NEXT(op, next), id++) {
+			if (has_delay_slot(op) ||
+					(last && has_delay_slot(last)))
+				continue;
+
+			if (opcode_reads_register(op, i)) {
+				last_r = op;
+				last_r_id = id;
+			}
+
+			if (opcode_writes_register(op, i)) {
+				last_w = op;
+				last_w_id = id;
+			}
+		}
+
+		if (last_r) {
+			ret = lightrec_add_unload(last_r, i);
+			if (ret)
+				return ret;
+		}
+
+		if (last_w && (!last_r || last_w_id > last_r_id)) {
+			ret = lightrec_add_unload(last_w, i);
+			if (ret)
+				return ret;
+		}
+	}
+
+	return 0;
+}
+
 static int (*lightrec_optimizers[])(struct opcode *) = {
 	&lightrec_transform_to_nops,
+	&lightrec_early_unload,
 };
 
 int lightrec_optimize(struct opcode *list)
