@@ -394,22 +394,20 @@ struct block * lightrec_recompile_block(struct lightrec_state *state, u32 pc)
 	jit_prolog();
 	jit_tramp(256);
 
-	for (elm = list; elm; elm = SLIST_NEXT(elm, next), pc += 4) {
+	for (elm = list; elm; elm = SLIST_NEXT(elm, next)) {
 		int ret;
 
 		block->cycles += lightrec_cycles_of_opcode(elm);
 
 		if (skip_next) {
 			skip_next = false;
-			continue;
+		} else if (elm->opcode) {
+			ret = lightrec_rec_opcode(block, elm, pc);
+			skip_next = ret == SKIP_DELAY_SLOT;
 		}
 
-		/* Don't recompile NOPs */
-		if (!elm->opcode)
-			continue;
-
-		ret = lightrec_rec_opcode(block, elm, pc);
-		skip_next = ret == SKIP_DELAY_SLOT;
+		if (likely(!(elm->flags & LIGHTREC_SKIP_PC_UPDATE)))
+			pc += 4;
 	}
 
 	jit_ret();
