@@ -1185,6 +1185,18 @@ static int rec_CP(const struct block *block, struct opcode *op, u32 pc)
 	return 0;
 }
 
+static int rec_meta_unload(const struct block *block, struct opcode *op, u32 pc)
+{
+	struct lightrec_state *state = block->state;
+	struct regcache *reg_cache = state->reg_cache;
+	jit_state_t *_jit = block->_jit;
+	u8 reg = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rs);
+
+	DEBUG("Unloading reg %u\n", op->i.rs);
+	lightrec_unload_reg(reg_cache, _jit, reg);
+	return 0;
+}
+
 static const lightrec_rec_func_t rec_standard[64] = {
 	[OP_SPECIAL]		= rec_SPECIAL,
 	[OP_REGIMM]		= rec_REGIMM,
@@ -1284,6 +1296,7 @@ static const lightrec_rec_func_t rec_meta[] = {
 	[OP_META_SB]		= rec_meta_SB,
 	[OP_META_SH]		= rec_meta_SH,
 	[OP_META_SW]		= rec_meta_SW,
+	[OP_META_REG_UNLOAD]	= rec_meta_unload,
 };
 
 static int rec_SPECIAL(const struct block *block, struct opcode *op, u32 pc)
