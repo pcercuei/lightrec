@@ -121,7 +121,7 @@ static struct native_register * alloc_in_out(struct regcache *cache, u8 reg)
 	return NULL;
 }
 
-static void unload_reg(struct regcache *cache, jit_state_t *_jit, u8 jit_reg)
+void lightrec_unload_reg(struct regcache *cache, jit_state_t *_jit, u8 jit_reg)
 {
 	struct native_register *nreg = lightning_reg_to_lightrec(
 			cache, jit_reg);
@@ -155,7 +155,7 @@ u8 lightrec_alloc_reg_temp(struct regcache *cache, jit_state_t *_jit)
 	jit_reg = lightrec_reg_to_lightning(cache, nreg);
 	jit_note(__FILE__, __LINE__);
 
-	unload_reg(cache, _jit, jit_reg);
+	lightrec_unload_reg(cache, _jit, jit_reg);
 
 	nreg->used = true;
 	return jit_reg;
@@ -177,7 +177,7 @@ u8 lightrec_alloc_reg_out(struct regcache *cache, jit_state_t *_jit, u8 reg)
 	/* If we get a dirty register that doesn't correspond to the one
 	 * we're requesting, store back the old value */
 	if (nreg->emulated_register != reg)
-		unload_reg(cache, _jit, jit_reg);
+		lightrec_unload_reg(cache, _jit, jit_reg);
 
 	nreg->addr_reg = NULL;
 	nreg->used = true;
@@ -204,7 +204,7 @@ u8 lightrec_alloc_reg_in(struct regcache *cache, jit_state_t *_jit, u8 reg)
 	 * we're requesting, store back the old value */
 	reg_changed = nreg->emulated_register != reg;
 	if (reg_changed)
-		unload_reg(cache, _jit, jit_reg);
+		lightrec_unload_reg(cache, _jit, jit_reg);
 
 	if (!nreg->loaded && !nreg->dirty && reg != 0) {
 		s16 offset = offsetof(struct lightrec_state, native_reg_cache)
@@ -317,7 +317,7 @@ u8 lightrec_alloc_reg_in_address(struct regcache *cache,
 	/* XXX: We unload JIT_R0 as it will be used to return the native address
 	 * by the address lookup block.
 	 * Is that arch-independent? */
-	unload_reg(cache, _jit, JIT_R0);
+	lightrec_unload_reg(cache, _jit, JIT_R0);
 
 	if (offset || rs != JIT_R0)
 		jit_addi(JIT_R0, rs, offset);
