@@ -23,6 +23,9 @@
 #define NUM_TEMPS (JIT_R_NUM)
 #define LIGHTREC_REG_STATE (JIT_V(JIT_V_NUM - 1))
 
+#define REG_LO 32
+#define REG_HI 33
+
 struct register_value {
 	bool known;
 	u32 value;
@@ -40,6 +43,7 @@ void lightrec_free_reg(struct regcache *cache, u8 jit_reg);
 void lightrec_free_regs(struct regcache *cache);
 void lightrec_clean_reg(struct regcache *cache, jit_state_t *_jit, u8 jit_reg);
 void lightrec_clean_regs(struct regcache *cache, jit_state_t *_jit);
+void lightrec_unload_reg(struct regcache *cache, jit_state_t *_jit, u8 jit_reg);
 void lightrec_storeback_regs(struct regcache *cache, jit_state_t *_jit);
 void lightrec_unlink_addresses(struct regcache *cache);
 

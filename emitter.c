@@ -21,9 +21,6 @@
 #include <lightning.h>
 #include <stddef.h>
 
-#define REG_LO 32
-#define REG_HI 33
-
 typedef int (*lightrec_rec_func_t)(const struct block *, struct opcode *, u32);
 
 /* Forward declarations */
