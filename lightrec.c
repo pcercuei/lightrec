@@ -18,6 +18,7 @@
 #include "emitter.h"
 #include "lightrec.h"
 #include "regcache.h"
+#include "optimizer.h"
 
 #include <lightning.h>
 #include <stddef.h>
@@ -387,6 +388,8 @@ struct block * lightrec_recompile_block(struct lightrec_state *state, u32 pc)
 	block->code = code;
 	block->map = map;
 	block->hash = calculate_block_hash(block);
+
+	lightrec_optimize(list);
 
 	jit_prolog();
 	jit_tramp(256);

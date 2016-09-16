@@ -17,11 +17,6 @@
 
 struct opcode;
 
-struct optimizer_list {
-	void (**optimizers)(struct opcode *);
-	unsigned int nb_optimizers;
-};
-
-extern struct optimizer_list lightrec_optimizer_list;
+int lightrec_optimize(struct opcode *list);
 
 #endif /* __OPTIMIZER_H__ */
