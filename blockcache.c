@@ -20,7 +20,7 @@
 
 /* Must be power of two */
 #define TINY_LUT_SIZE 0x100
-#define LUT_SIZE 0x4000
+#define LUT_SIZE 0x40000
 
 struct blockcache {
 	struct block * tiny_lut[TINY_LUT_SIZE];
