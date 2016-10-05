@@ -563,3 +563,13 @@ u32 lightrec_exit_flags(struct lightrec_state *state)
 {
 	return state->exit_flags;
 }
+
+void lightrec_dump_registers(struct lightrec_state *state, u32 regs[34])
+{
+	memcpy(regs, state->native_reg_cache, sizeof(state->native_reg_cache));
+}
+
+void lightrec_restore_registers(struct lightrec_state *state, u32 regs[34])
+{
+	memcpy(state->native_reg_cache, regs, sizeof(state->native_reg_cache));
+}

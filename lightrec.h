@@ -135,4 +135,7 @@ void lightrec_invalidate(struct lightrec_state *state, u32 addr, u32 len);
 void lightrec_set_exit_flags(struct lightrec_state *state, u32 flags);
 u32 lightrec_exit_flags(struct lightrec_state *state);
 
+void lightrec_dump_registers(struct lightrec_state *state, u32 regs[34]);
+void lightrec_restore_registers(struct lightrec_state *state, u32 regs[34]);
+
 #endif /* __LIGHTREC_H__ */
