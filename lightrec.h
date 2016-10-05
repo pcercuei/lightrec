@@ -54,13 +54,12 @@ struct blockcache;
 struct regcache;
 struct lightrec_mem_map;
 
-enum block_exit_flags {
-	LIGHTREC_EXIT_NORMAL,
-	LIGHTREC_EXIT_SYSCALL,
-	LIGHTREC_EXIT_BREAK,
-	LIGHTREC_EXIT_CHECK_INTERRUPT,
-	LIGHTREC_EXIT_SEGFAULT,
-};
+/* Exit flags */
+#define LIGHTREC_EXIT_NORMAL	(0)
+#define LIGHTREC_EXIT_SYSCALL	(1 << 0)
+#define LIGHTREC_EXIT_BREAK	(1 << 1)
+#define LIGHTREC_EXIT_CHECK_INTERRUPT	(1 << 2)
+#define LIGHTREC_EXIT_SEGFAULT	(1 << 3)
 
 struct block {
 	jit_state_t *_jit;
@@ -107,7 +106,7 @@ struct lightrec_state {
 	u32 native_reg_cache[34];
 	u32 next_pc;
 	u32 current_cycle;
-	enum block_exit_flags block_exit_flags;
+	u32 exit_flags;
 	uintptr_t end_of_block;
 	struct block *wrapper, *addr_lookup_block, *current;
 	struct blockcache *block_cache;
@@ -132,5 +131,8 @@ void lightrec_destroy(struct lightrec_state *state);
 
 u32 lightrec_execute(struct lightrec_state *state, u32 pc);
 void lightrec_invalidate(struct lightrec_state *state, u32 addr, u32 len);
+
+void lightrec_set_exit_flags(struct lightrec_state *state, u32 flags);
+u32 lightrec_exit_flags(struct lightrec_state *state);
 
 #endif /* __LIGHTREC_H__ */

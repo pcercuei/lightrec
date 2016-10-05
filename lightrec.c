@@ -30,7 +30,7 @@
 static void __segfault_cb(struct lightrec_state *state, u32 addr)
 {
 	state->stop = true;
-	state->block_exit_flags = LIGHTREC_EXIT_SEGFAULT;
+	lightrec_set_exit_flags(state, LIGHTREC_EXIT_SEGFAULT);
 	ERROR("Segmentation fault in recompiled code: invalid "
 			"load/store at address 0x%08x\n", addr);
 }
@@ -456,7 +456,7 @@ u32 lightrec_execute(struct lightrec_state *state, u32 pc)
 		lightrec_register_block(state->block_cache, block);
 	}
 
-	state->block_exit_flags = LIGHTREC_EXIT_NORMAL;
+	state->exit_flags = LIGHTREC_EXIT_NORMAL;
 	state->current = block;
 
 	/* For now exit Lightrec after each trace */
@@ -552,4 +552,14 @@ void lightrec_invalidate(struct lightrec_state *state, u32 addr, u32 len)
 
 		break;
 	}
+}
+
+void lightrec_set_exit_flags(struct lightrec_state *state, u32 flags)
+{
+	state->exit_flags |= flags;
+}
+
+u32 lightrec_exit_flags(struct lightrec_state *state)
+{
+	return state->exit_flags;
 }

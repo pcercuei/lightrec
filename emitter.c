@@ -961,13 +961,12 @@ static int rec_meta_LW(const struct block *block, struct opcode *op, u32 pc)
 	return rec_load_meta(block, op, jit_code_ldxi_i);
 }
 
-static int rec_break_syscall(const struct block *block,
-		u32 pc, enum block_exit_flags exit_flags)
+static int rec_break_syscall(const struct block *block, u32 pc, u32 exit_flags)
 {
 	struct regcache *reg_cache = block->state->reg_cache;
 	jit_state_t *_jit = block->_jit;
 	u8 tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
-	u32 offset = offsetof(struct lightrec_state, block_exit_flags);
+	u32 offset = offsetof(struct lightrec_state, exit_flags);
 
 	jit_movi(tmp, exit_flags);
 	jit_stxi_i(offset, LIGHTREC_REG_STATE, tmp);
