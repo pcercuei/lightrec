@@ -6,6 +6,14 @@ set(PROJECT_VERSION_MINOR 1)
 
 set(BUILD_SHARED_LIBS ON CACHE BOOL "Build shared libraries")
 
+if (NOT LOG_LEVEL)
+	set(LOG_LEVEL Info CACHE STRING "Log level" FORCE)
+	set_property(CACHE LOG_LEVEL PROPERTY STRINGS NoLog Error Warning Info Debug)
+endif()
+
+string(TOUPPER ${LOG_LEVEL} LIGHTREC_LOG_LEVEL)
+add_definitions(-DLOG_LEVEL=${LIGHTREC_LOG_LEVEL}_L)
+
 file(GLOB LIGHTREC_SOURCES *.c)
 file(GLOB LIGHTREC_HEADERS *.h)
 

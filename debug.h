@@ -17,7 +17,7 @@
 
 #include <stdio.h>
 
-#define NODEBUG_L 0
+#define NOLOG_L 0
 #define ERROR_L 1
 #define WARNING_L 2
 #define INFO_L 3
