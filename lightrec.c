@@ -573,3 +573,19 @@ void lightrec_restore_registers(struct lightrec_state *state, u32 regs[34])
 {
 	memcpy(state->native_reg_cache, regs, sizeof(state->native_reg_cache));
 }
+
+u32 lightrec_current_cycle_count(const struct lightrec_state *state,
+		const struct opcode *op)
+{
+	u32 cycles = state->current_cycle;
+
+	if (op)
+		cycles += lightrec_cycles_of_block(state->current, op);
+
+	return cycles;
+}
+
+void lightrec_reset_cycle_count(struct lightrec_state *state, u32 cycles)
+{
+	state->current_cycle = cycles;
+}
