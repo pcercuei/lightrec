@@ -459,6 +459,9 @@ u32 lightrec_execute(struct lightrec_state *state, u32 pc)
 	state->block_exit_flags = LIGHTREC_EXIT_NORMAL;
 	state->current = block;
 
+	/* For now exit Lightrec after each trace */
+	state->stop = 1;
+
 	func((void *) block->function);
 	return state->next_pc;
 }
