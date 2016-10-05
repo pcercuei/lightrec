@@ -57,8 +57,8 @@ struct lightrec_mem_map {
 	u32 length;
 	u32 flags;
 	void *address;
-	struct lightrec_mem_map_ops *ops;
-	struct lightrec_mem_map *mirror_of;
+	const struct lightrec_mem_map_ops *ops;
+	const struct lightrec_mem_map *mirror_of;
 };
 
 struct lightrec_cop_ops {

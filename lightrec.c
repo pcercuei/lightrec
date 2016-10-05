@@ -46,7 +46,7 @@ static u32 kunseg(u32 addr)
 }
 
 static u32 lightrec_rw_ops(struct lightrec_state *state,
-		const struct opcode *op, struct lightrec_mem_map_ops *ops,
+		const struct opcode *op, const struct lightrec_mem_map_ops *ops,
 		u32 addr, u32 data)
 {
 	switch (op->i.op) {
@@ -85,8 +85,8 @@ u32 lightrec_rw(struct lightrec_state *state,
 	kaddr = kunseg(addr);
 
 	for (i = 0; i < state->nb_maps; i++) {
-		struct lightrec_mem_map *map = &state->mem_map[i].map;
-		struct lightrec_mem_map_ops *ops = map->ops;
+		const struct lightrec_mem_map *map = &state->mem_map[i].map;
+		const struct lightrec_mem_map_ops *ops = map->ops;
 		u32 shift, mem_data, mask, pc = map->pc;
 		uintptr_t new_addr;
 
