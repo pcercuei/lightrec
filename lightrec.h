@@ -16,6 +16,7 @@
 #define __LIGHTREC_H__
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 typedef uint64_t u64;
@@ -57,8 +58,6 @@ struct lightrec_mem_map {
 	u32 flags;
 	void *address;
 	struct lightrec_mem_map_ops *ops;
-	u32 *invalidation_table;
-	unsigned int page_shift;
 	struct lightrec_mem_map *mirror_of;
 };
 
@@ -71,7 +70,7 @@ struct lightrec_cop_ops {
 };
 
 struct lightrec_state * lightrec_init(char *argv0,
-		struct lightrec_mem_map *map, unsigned int nb,
+		const struct lightrec_mem_map *map, size_t nb,
 		const struct lightrec_cop_ops *cop_ops);
 void lightrec_destroy(struct lightrec_state *state);
 

@@ -37,6 +37,12 @@ typedef struct jit_state jit_state_t;
 struct blockcache;
 struct regcache;
 
+struct lightrec_mem_map_priv {
+	struct lightrec_mem_map map;
+	u32 *invalidation_table;
+	unsigned int page_shift;
+};
+
 struct block {
 	jit_state_t *_jit;
 	struct lightrec_state *state;
@@ -47,7 +53,7 @@ struct block {
 	u32 hash;
 	unsigned int cycles;
 	unsigned int length;
-	const struct lightrec_mem_map *map;
+	const struct lightrec_mem_map_priv *map;
 };
 
 struct lightrec_state {
@@ -63,7 +69,7 @@ struct lightrec_state {
 	const struct lightrec_cop_ops *cop_ops;
 	bool stop;
 	unsigned int nb_maps;
-	struct lightrec_mem_map *mem_map;
+	struct lightrec_mem_map_priv *mem_map;
 };
 
 u32 lightrec_rw(struct lightrec_state *state,

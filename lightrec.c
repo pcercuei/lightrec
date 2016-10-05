@@ -85,7 +85,7 @@ u32 lightrec_rw(struct lightrec_state *state,
 	kaddr = kunseg(addr);
 
 	for (i = 0; i < state->nb_maps; i++) {
-		struct lightrec_mem_map *map = &state->mem_map[i];
+		struct lightrec_mem_map *map = &state->mem_map[i].map;
 		struct lightrec_mem_map_ops *ops = map->ops;
 		u32 shift, mem_data, mask, pc = map->pc;
 		uintptr_t new_addr;
@@ -181,13 +181,15 @@ u32 lightrec_rw(struct lightrec_state *state,
 	return 0;
 }
 
-static struct lightrec_mem_map * find_map(struct lightrec_state *state, u32 pc)
+static struct lightrec_mem_map_priv * find_map(
+		struct lightrec_state *state, u32 pc)
 {
-	struct lightrec_mem_map *map = state->mem_map;
+	struct lightrec_mem_map_priv *map = state->mem_map;
 	unsigned int i;
 
 	for (i = 0; i < state->nb_maps; i++)
-		if (pc >= map[i].pc && pc < map[i].pc + map[i].length)
+		if (pc >= map[i].map.pc &&
+				pc < map[i].map.pc + map[i].map.length)
 			return &map[i];
 
 	return NULL;
@@ -353,11 +355,13 @@ struct block * lightrec_recompile_block(struct lightrec_state *state, u32 pc)
 	bool skip_next = false;
 	const u32 *code;
 	u32 addr, kunseg_pc = kunseg(pc);
-	const struct lightrec_mem_map *map = find_map(state, kunseg_pc);
+	const struct lightrec_mem_map_priv *pmap = find_map(state, kunseg_pc);
+	const struct lightrec_mem_map *map;
 
-	if (!map)
+	if (!pmap)
 		return NULL;
 
+	map = &pmap->map;
 	addr = kunseg_pc - map->pc;
 
 	while (map->mirror_of)
@@ -386,7 +390,7 @@ struct block * lightrec_recompile_block(struct lightrec_state *state, u32 pc)
 	block->opcode_list = list;
 	block->cycles = 0;
 	block->code = code;
-	block->map = map;
+	block->map = pmap;
 	block->hash = calculate_block_hash(block);
 
 	lightrec_optimize(list);
@@ -474,7 +478,7 @@ void lightrec_free_block(struct block *block)
 }
 
 struct lightrec_state * lightrec_init(char *argv0,
-		struct lightrec_mem_map *map, unsigned int nb,
+		const struct lightrec_mem_map *map, size_t nb,
 		const struct lightrec_cop_ops *cop_ops)
 {
 	struct lightrec_state *state;
@@ -483,24 +487,39 @@ struct lightrec_state * lightrec_init(char *argv0,
 	init_jit(argv0);
 
 	state = calloc(1, sizeof(*state));
+	if (!state)
+		goto err_finish_jit;
+
 	state->block_cache = lightrec_blockcache_init();
+	if (!state->block_cache)
+		goto err_free_state;
+
 	state->reg_cache = lightrec_regcache_init();
+	if (!state->reg_cache)
+		goto err_free_block_cache;
+
+	state->mem_map = calloc(nb, sizeof(*state->mem_map));
+	if (!state->mem_map)
+		goto err_free_reg_cache;
 
 	state->nb_maps = nb;
-	state->mem_map = map;
 
 	for (i = 0; i < nb; i++) {
-		struct lightrec_mem_map *map = &state->mem_map[i];
+		struct lightrec_mem_map_priv *map_priv = &state->mem_map[i];
 
-		if (!(map->flags & MAP_IS_RWX))
+		map_priv->map = map[i];
+
+		if (!(map_priv->map.flags & MAP_IS_RWX))
 			continue;
 
 		/* TODO: calculate the best page shift */
-		map->page_shift = 9;
+		map_priv->page_shift = 9;
 
-		map->invalidation_table = calloc(
-				(map->length >> map->page_shift) + 1,
+		map_priv->invalidation_table = calloc(
+				(map->length >> map_priv->page_shift) + 1,
 				sizeof(u32));
+		if (!map_priv->invalidation_table)
+			goto err_free_invalidation_tables;
 	}
 
 	state->cop_ops = cop_ops;
@@ -509,6 +528,20 @@ struct lightrec_state * lightrec_init(char *argv0,
 	state->addr_lookup_block = generate_address_lookup_block(state, nb);
 	state->addr_lookup = state->addr_lookup_block->function;
 	return state;
+
+err_free_invalidation_tables:
+	for (i = 0; i < nb; i++)
+		free(state->mem_map[i].invalidation_table);
+	free(state->mem_map);
+err_free_reg_cache:
+	lightrec_free_regcache(state->reg_cache);
+err_free_block_cache:
+	lightrec_free_block_cache(state->block_cache);
+err_free_state:
+	free(state);
+err_finish_jit:
+	finish_jit();
+	return NULL;
 }
 
 void lightrec_destroy(struct lightrec_state *state)
@@ -522,8 +555,8 @@ void lightrec_destroy(struct lightrec_state *state)
 	finish_jit();
 
 	for (i = 0; i < state->nb_maps; i++)
-		if (state->mem_map[i].flags & MAP_IS_RWX)
-			free(state->mem_map[i].invalidation_table);
+		free(state->mem_map[i].invalidation_table);
+	free(state->mem_map);
 	free(state);
 }
 
@@ -534,16 +567,16 @@ void lightrec_invalidate(struct lightrec_state *state, u32 addr, u32 len)
 	addr = kunseg(addr);
 
 	for (i = 0; i < state->nb_maps; i++) {
-		struct lightrec_mem_map *map = &state->mem_map[i];
+		struct lightrec_mem_map_priv *map = &state->mem_map[i];
 		u32 offset, count;
 
-		if (!(map->flags & MAP_IS_RWX))
+		if (!(map->map.flags & MAP_IS_RWX))
 			continue;
 
-		if (addr < map->pc || addr > map->pc + map->length)
+		if (addr < map->map.pc || addr > map->map.pc + map->map.length)
 			continue;
 
-		offset = (addr - map->pc) >> map->page_shift;
+		offset = (addr - map->map.pc) >> map->page_shift;
 		count = (len + (1 << map->page_shift) - 1) >> map->page_shift;
 
 		while (count--)
