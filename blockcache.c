@@ -14,7 +14,7 @@
 
 #include "blockcache.h"
 #include "debug.h"
-#include "lightrec.h"
+#include "lightrec-private.h"
 
 #include <stdlib.h>
 

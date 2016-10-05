@@ -15,7 +15,7 @@
 #ifndef __REGCACHE_H__
 #define __REGCACHE_H__
 
-#include "lightrec.h"
+#include "lightrec-private.h"
 
 #include <stdbool.h>
 

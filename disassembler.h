@@ -16,7 +16,7 @@
 #define __DISASSEMBLER_H__
 
 #include "debug.h"
-#include "lightrec.h"
+#include "lightrec-private.h"
 
 #include <sys/queue.h>
 

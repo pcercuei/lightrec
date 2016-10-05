@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 Paul Cercueil <paul@crapouillou.net>
+ * Copyright (C) 2016 Paul Cercueil <paul@crapouillou.net>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -18,11 +18,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define __weak __attribute__((weak))
-#define __packed __attribute__((packed))
-
-#define ARRAY_SIZE(x) (sizeof(x) ? sizeof(x) / sizeof((x)[0]) : 0)
-
 typedef uint64_t u64;
 typedef uint32_t u32;
 typedef uint16_t u16;
@@ -33,25 +28,8 @@ typedef int32_t s32;
 typedef int16_t s16;
 typedef int8_t  s8;
 
-#ifdef __GNUC__
-#	define likely(x)       __builtin_expect(!!(x),1)
-#	define unlikely(x)     __builtin_expect(!!(x),0)
-#else
-#	define likely(x)       (x)
-#	define unlikely(x)     (x)
-#endif
-
-#define MAP_IS_RWX	(1 << 0)
-
-
-/* Definition of jit_state_t (avoids inclusion of <lightning.h>) */
-struct jit_state;
-typedef struct jit_state jit_state_t;
-
 struct opcode;
 struct lightrec_state;
-struct blockcache;
-struct regcache;
 struct lightrec_mem_map;
 
 /* Exit flags */
@@ -61,18 +39,8 @@ struct lightrec_mem_map;
 #define LIGHTREC_EXIT_CHECK_INTERRUPT	(1 << 2)
 #define LIGHTREC_EXIT_SEGFAULT	(1 << 3)
 
-struct block {
-	jit_state_t *_jit;
-	struct lightrec_state *state;
-	struct opcode *opcode_list;
-	void (*function)(void);
-	const u32 *code;
-	u32 pc, kunseg_pc;
-	u32 hash;
-	unsigned int cycles;
-	unsigned int length;
-	const struct lightrec_mem_map *map;
-};
+/* Flags for lightrec_mem_map */
+#define MAP_IS_RWX	(1 << 0)
 
 struct lightrec_mem_map_ops {
 	void (*sb)(struct lightrec_state *, const struct opcode *, u32, u8);
@@ -101,28 +69,6 @@ struct lightrec_cop_ops {
 	void (*ctc)(struct lightrec_state *state, int cp, u8 reg, u32 value);
 	void (*op)(struct lightrec_state *state, int cp, u32 func);
 };
-
-struct lightrec_state {
-	u32 native_reg_cache[34];
-	u32 next_pc;
-	u32 current_cycle;
-	u32 exit_flags;
-	uintptr_t end_of_block;
-	struct block *wrapper, *addr_lookup_block, *current;
-	struct blockcache *block_cache;
-	struct regcache *reg_cache;
-	void (*addr_lookup)(void);
-	const struct lightrec_cop_ops *cop_ops;
-	bool stop;
-	unsigned int nb_maps;
-	struct lightrec_mem_map *mem_map;
-};
-
-u32 lightrec_rw(struct lightrec_state *state,
-		const struct opcode *op, u32 addr, u32 data);
-
-struct block * lightrec_recompile_block(struct lightrec_state *state, u32 pc);
-void lightrec_free_block(struct block *block);
 
 struct lightrec_state * lightrec_init(char *argv0,
 		struct lightrec_mem_map *map, unsigned int nb,
