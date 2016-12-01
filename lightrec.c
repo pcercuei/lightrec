@@ -221,12 +221,43 @@ static struct lightrec_mem_map_priv * find_map(
 	return NULL;
 }
 
+static struct block * get_block(struct lightrec_state *state, u32 pc)
+{
+	struct block *block = lightrec_find_block(state->block_cache, pc);
+
+	if (block && lightrec_block_is_outdated(block)) {
+		DEBUG("Block at PC 0x%08x is outdated!\n", block->pc);
+
+		lightrec_unregister_block(state->block_cache, block);
+		lightrec_free_block(block);
+		block = NULL;
+	}
+
+	if (!block) {
+		block = lightrec_recompile_block(state, pc);
+		if (!block) {
+			ERROR("Unable to recompile block at PC 0x%x\n", pc);
+			return NULL;
+		}
+
+		lightrec_register_block(state->block_cache, block);
+	}
+
+	return block;
+}
+
+static struct block * get_next_block(struct lightrec_state *state)
+{
+	return get_block(state, state->next_pc);
+}
+
 static struct block * generate_wrapper_block(struct lightrec_state *state)
 {
 	struct block *block;
 	jit_state_t *_jit;
-	jit_node_t *addr;
+	jit_node_t *to_end, *to_end2, *loop, *addr2;
 	unsigned int i;
+	u32 offset;
 
 	block = malloc(sizeof(*block));
 	if (!block)
@@ -252,13 +283,51 @@ static struct block * generate_wrapper_block(struct lightrec_state *state)
 	 * register that Lightning provides */
 	jit_movi(LIGHTREC_REG_STATE, (intptr_t) state);
 
+	loop = jit_label();
+
 	/* Call the block's code */
 	jit_jmpr(JIT_R0);
 
-	jit_note(__FILE__, __LINE__);
+	/* The block will jump here, with the number of cycles executed in
+	 * JIT_R0 */
+	addr2 = jit_indirect();
 
-	/* The block will not return, but jump right here */
-	addr = jit_indirect();
+	/* Increment the cycle counter */
+	offset = offsetof(struct lightrec_state, current_cycle);
+	jit_ldxi_i(JIT_R1, LIGHTREC_REG_STATE, offset);
+	jit_addr(JIT_R1, JIT_R1, JIT_R0);
+	jit_stxi_i(offset, LIGHTREC_REG_STATE, JIT_R1);
+
+	/* Jump to end if (state->exit_flags != LIGHTREC_EXIT_NORMAL ||
+	 *		state->target_cycle < state->current_cycle) */
+	jit_ldxi_i(JIT_R0, LIGHTREC_REG_STATE,
+			offsetof(struct lightrec_state, target_cycle));
+	jit_ldxi_i(JIT_R2, LIGHTREC_REG_STATE,
+			offsetof(struct lightrec_state, exit_flags));
+	jit_ltr_u(JIT_R0, JIT_R0, JIT_R1);
+	jit_orr(JIT_R0, JIT_R0, JIT_R2);
+	to_end = jit_bnei(JIT_R0, 0);
+
+	/* Get the next block */
+	jit_prepare();
+	jit_pushargr(LIGHTREC_REG_STATE);
+	jit_finishi(&get_next_block);
+	jit_retval(JIT_R0);
+
+	/* If we get NULL, jump to end */
+	to_end2 = jit_beqi(JIT_R0, 0);
+
+	offset = offsetof(struct lightrec_state, current);
+	jit_stxi(offset, LIGHTREC_REG_STATE, JIT_R0);
+
+	/* Load the next block function in JIT_R0 and loop */
+	jit_ldxi(JIT_R0, JIT_R0, offsetof(struct block, function));
+	jit_patch_at(jit_jmpi(), loop);
+
+	/* When exiting, the recompiled code will jump to that address */
+	jit_note(__FILE__, __LINE__);
+	jit_patch(to_end);
+	jit_patch(to_end2);
 	jit_epilog();
 
 	block->state = state;
@@ -266,8 +335,7 @@ static struct block * generate_wrapper_block(struct lightrec_state *state)
 	block->function = jit_emit();
 	block->opcode_list = NULL;
 
-	/* When exiting, the recompiled code will jump to that address */
-	state->end_of_block = (uintptr_t) jit_address(addr);
+	state->eob_wrapper_func = jit_address(addr2);
 
 #if (LOG_LEVEL >= DEBUG_L)
 	DEBUG("Wrapper block:\n");
@@ -378,25 +446,10 @@ err_no_mem:
 u32 lightrec_execute(struct lightrec_state *state, u32 pc, u32 target_cycle)
 {
 	void (*func)(void *) = (void (*)(void *)) state->wrapper->function;
-	struct block *block = lightrec_find_block(state->block_cache, pc);
+	struct block *block = get_block(state, pc);
 
-	if (block && lightrec_block_is_outdated(block)) {
-		DEBUG("Block at PC 0x%08x is outdated!\n", block->pc);
-
-		lightrec_unregister_block(state->block_cache, block);
-		lightrec_free_block(block);
-		block = NULL;
-	}
-
-	if (!block) {
-		block = lightrec_recompile_block(state, pc);
-		if (!block) {
-			ERROR("Unable to recompile block at PC 0x%x\n", pc);
-			return pc;
-		}
-
-		lightrec_register_block(state->block_cache, block);
-	}
+	if (unlikely(!block))
+		return pc;
 
 	state->exit_flags = LIGHTREC_EXIT_NORMAL;
 	state->current = block;

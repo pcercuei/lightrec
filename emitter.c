@@ -39,39 +39,6 @@ static int emit_call_to_interpreter(const struct block *block,
 	return 0;
 }
 
-static uintptr_t __get_jump_address_cb(struct lightrec_state *state, u32 cycles)
-{
-	struct block *new;
-
-	/* Increment the cycle counter */
-	state->current_cycle += cycles;
-
-	if (unlikely(state->exit_flags != LIGHTREC_EXIT_NORMAL ||
-			state->current_cycle >= state->target_cycle))
-		return state->end_of_block;
-
-	new = lightrec_find_block(state->block_cache, state->next_pc);
-
-	if (new && lightrec_block_is_outdated(new)) {
-		DEBUG("Block at PC 0x%08x is outdated!\n", new->pc);
-
-		lightrec_unregister_block(state->block_cache, new);
-		lightrec_free_block(new);
-		new = NULL;
-	}
-
-	if (!new) {
-		new = lightrec_recompile_block(state, state->next_pc);
-		if (!new)
-			return state->end_of_block;
-		lightrec_register_block(state->block_cache, new);
-	}
-
-	state->current = new;
-
-	return (uintptr_t) new->function;
-}
-
 static int lightrec_emit_end_of_block(const struct block *block, u32 pc,
 		s8 reg_new_pc, u32 imm, u32 link, struct opcode *delay_slot)
 {
@@ -109,12 +76,9 @@ static int lightrec_emit_end_of_block(const struct block *block, u32 pc,
 
 	lightrec_storeback_regs(reg_cache, _jit);
 
-	jit_prepare();
-	jit_pushargr(LIGHTREC_REG_STATE);
-	jit_pushargi(cycles);
-	jit_finishi(&__get_jump_address_cb);
-	jit_retval(JIT_R0);
-	jit_jmpr(JIT_R0);
+	jit_movi(JIT_R0, cycles);
+	jit_calli(block->state->eob_wrapper_func);
+
 	return SKIP_DELAY_SLOT;
 }
 
