@@ -62,7 +62,7 @@ struct opcode * lightrec_disassemble(const u32 *src, unsigned int *len)
 	unsigned int i;
 
 	for (i = 0, last = NULL; ; i += sizeof(u32), last = curr) {
-		curr = malloc(sizeof(*curr));
+		curr = calloc(1, sizeof(*curr));
 		if (!curr) {
 			ERROR("Unable to allocate memory\n");
 			lightrec_free_opcode_list(SLIST_FIRST(&head));
@@ -70,7 +70,6 @@ struct opcode * lightrec_disassemble(const u32 *src, unsigned int *len)
 		}
 
 		if (!last) {
-			SLIST_NEXT(curr, next) = NULL;
 			SLIST_INSERT_HEAD(&head, curr, next);
 		} else {
 			SLIST_INSERT_AFTER(last, curr, next);
@@ -78,7 +77,6 @@ struct opcode * lightrec_disassemble(const u32 *src, unsigned int *len)
 
 		/* TODO: Take care of endianness */
 		curr->opcode = *src++;
-		curr->flags = 0;
 
 		/* NOTE: The block disassembly ends after the opcode that
 		 * follows an unconditional jump (delay slot) */
