@@ -87,7 +87,7 @@ struct opcode * lightrec_disassemble(const u32 *src, unsigned int *len)
 	}
 
 	if (len)
-		*len = i;
+		*len = i + sizeof(u32);
 
 	return SLIST_FIRST(&head);
 }
