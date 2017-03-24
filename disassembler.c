@@ -121,23 +121,21 @@ unsigned int lightrec_cycles_of_block(const struct block *block,
 void lightrec_print_disassembly(const struct block *block)
 {
 	struct disassemble_info info;
-	const struct opcode *curr;
 	const u32 *code = block->code;
+	unsigned int i;
 
 	memset(&info, 0, sizeof(info));
 	init_disassemble_info(&info, stdout, (fprintf_ftype) fprintf);
 
 	info.buffer = (bfd_byte *) code;
 	info.buffer_vma = (bfd_vma) code;
-	for (info.buffer_length = 0, curr = block->opcode_list; curr;
-			curr = SLIST_NEXT(curr, next), info.buffer_length += 4);
-
+	info.buffer_length = block->length;
 	info.flavour = bfd_target_unknown_flavour;
 	info.arch = bfd_arch_mips;
 	info.mach = bfd_mach_mips3000;
 	disassemble_init_for_target(&info);
 
-	for (curr = block->opcode_list; curr; curr = SLIST_NEXT(curr, next)) {
+	for (i = 0; i < block->length; i += 4) {
 		putc('\t', stdout);
 		print_insn_little_mips((uintptr_t) code++, &info);
 		putc('\n', stdout);
