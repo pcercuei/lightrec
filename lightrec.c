@@ -326,8 +326,12 @@ static struct block * generate_wrapper_block(struct lightrec_state *state)
 
 	/* When exiting, the recompiled code will jump to that address */
 	jit_note(__FILE__, __LINE__);
-	jit_patch(to_end);
 	jit_patch(to_end2);
+	jit_movi(JIT_R0, LIGHTREC_EXIT_SEGFAULT);
+	jit_stxi_i(offsetof(struct lightrec_state, exit_flags),
+			LIGHTREC_REG_STATE, JIT_R0);
+
+	jit_patch(to_end);
 	jit_epilog();
 
 	block->state = state;
@@ -448,8 +452,10 @@ u32 lightrec_execute(struct lightrec_state *state, u32 pc, u32 target_cycle)
 	void (*func)(void *) = (void (*)(void *)) state->wrapper->function;
 	struct block *block = get_block(state, pc);
 
-	if (unlikely(!block))
+	if (unlikely(!block)) {
+		state->exit_flags = LIGHTREC_EXIT_SEGFAULT;
 		return pc;
+	}
 
 	state->exit_flags = LIGHTREC_EXIT_NORMAL;
 	state->current = block;
