@@ -22,6 +22,9 @@
 
 #define ARRAY_SIZE(x) (sizeof(x) ? sizeof(x) / sizeof((x)[0]) : 0)
 
+#define container_of(ptr, type, member) \
+	((type *)((char *)(ptr) - offsetof(type, member)))
+
 #ifdef __GNUC__
 #	define likely(x)       __builtin_expect(!!(x),1)
 #	define unlikely(x)     __builtin_expect(!!(x),0)

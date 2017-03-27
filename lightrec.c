@@ -75,6 +75,26 @@ static u32 lightrec_rw_ops(struct lightrec_state *state,
 	}
 }
 
+static void lightrec_invalidate_map(const struct lightrec_mem_map *map,
+		u32 addr, u32 len, u32 current_cycle)
+{
+	struct lightrec_mem_map_priv *priv;
+	u32 offset, count;
+
+	while (map->mirror_of)
+		map = map->mirror_of;
+
+	if (!(map->flags & MAP_IS_RWX))
+		return;
+
+	priv = container_of(map, struct lightrec_mem_map_priv, map);
+	offset = (addr - map->pc) >> priv->page_shift;
+	count = (len + (1 << priv->page_shift) - 1) >> priv->page_shift;
+
+	while (count--)
+		priv->invalidation_table[offset++] = current_cycle;
+}
+
 u32 lightrec_rw(struct lightrec_state *state,
 		const struct opcode *op, u32 addr, u32 data)
 {
@@ -104,11 +124,13 @@ u32 lightrec_rw(struct lightrec_state *state,
 		switch (op->i.op) {
 		case OP_SB:
 			*(u8 *) new_addr = (u8) data;
-			lightrec_invalidate(state, kaddr, 1);
+			lightrec_invalidate_map(map, kaddr, 1,
+					state->current_cycle);
 			return 0;
 		case OP_SH:
 			*(u16 *) new_addr = (u16) data;
-			lightrec_invalidate(state, kaddr, 2);
+			lightrec_invalidate_map(map, kaddr, 2,
+					state->current_cycle);
 			return 0;
 		case OP_SWL:
 			shift = kaddr & 3;
@@ -117,7 +139,8 @@ u32 lightrec_rw(struct lightrec_state *state,
 
 			*(u32 *)(new_addr & ~3) = (data >> ((3 - shift) * 8))
 				| (mem_data & mask);
-			lightrec_invalidate(state, kaddr & ~0x3, 4);
+			lightrec_invalidate_map(map, kaddr & ~0x3, 4,
+					state->current_cycle);
 			return 0;
 		case OP_SWR:
 			shift = kaddr & 3;
@@ -126,11 +149,13 @@ u32 lightrec_rw(struct lightrec_state *state,
 
 			*(u32 *)(new_addr & ~3) = (data << (shift * 8))
 				| (mem_data & mask);
-			lightrec_invalidate(state, kaddr & ~0x3, 4);
+			lightrec_invalidate_map(map, kaddr & ~0x3, 4,
+					state->current_cycle);
 			return 0;
 		case OP_SW:
 			*(u32 *) new_addr = data;
-			lightrec_invalidate(state, kaddr, 4);
+			lightrec_invalidate_map(map, kaddr, 4,
+					state->current_cycle);
 			return 0;
 		case OP_SWC2:
 			if (!state->cop_ops || !state->cop_ops->mfc) {
@@ -140,7 +165,8 @@ u32 lightrec_rw(struct lightrec_state *state,
 
 			*(u32 *) new_addr = state->cop_ops->mfc(
 					state, 2, op->i.rt);
-			lightrec_invalidate(state, kaddr, 4);
+			lightrec_invalidate_map(map, kaddr, 4,
+					state->current_cycle);
 			return 0;
 		case OP_LB:
 			return (s32) *(s8 *) new_addr;
@@ -567,23 +593,14 @@ void lightrec_invalidate(struct lightrec_state *state, u32 addr, u32 len)
 	addr = kunseg(addr);
 
 	for (i = 0; i < state->nb_maps; i++) {
-		struct lightrec_mem_map_priv *map = &state->mem_map[i];
+		const struct lightrec_mem_map *map = &state->mem_map[i].map;
 		u32 offset, count;
 
-		if (!(map->map.flags & MAP_IS_RWX))
-			continue;
-
-		if (addr < map->map.pc || addr > map->map.pc + map->map.length)
-			continue;
-
-		offset = (addr - map->map.pc) >> map->page_shift;
-		count = (len + (1 << map->page_shift) - 1) >> map->page_shift;
-
-		while (count--)
-			map->invalidation_table[offset++] =
-				state->current_cycle;
-
-		break;
+		if (addr >= map->pc && addr <= map->pc + map->length) {
+			lightrec_invalidate_map(map, addr, len,
+					state->current_cycle);
+			break;
+		}
 	}
 }
 
