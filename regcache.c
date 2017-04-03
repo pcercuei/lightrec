@@ -25,6 +25,7 @@ struct native_register {
 
 struct regcache {
 	struct native_register lightrec_regs[NUM_REGS + NUM_TEMPS];
+	struct native_register lightrec_regs_backup[NUM_REGS + NUM_TEMPS];
 };
 
 static inline u8 lightrec_reg_number(const struct regcache *cache,
@@ -272,6 +273,18 @@ void lightrec_clean_reg(struct regcache *cache, jit_state_t *_jit, u8 jit_reg)
 {
 	struct native_register *reg = lightning_reg_to_lightrec(cache, jit_reg);
 	clean_reg(_jit, reg, jit_reg, true);
+}
+
+void lightrec_regcache_enter_branch(struct regcache *cache)
+{
+	memcpy(&cache->lightrec_regs_backup, &cache->lightrec_regs,
+			sizeof(cache->lightrec_regs));
+}
+
+void lightrec_regcache_leave_branch(struct regcache *cache)
+{
+	memcpy(&cache->lightrec_regs, &cache->lightrec_regs_backup,
+			sizeof(cache->lightrec_regs));
 }
 
 void lightrec_regcache_reset(struct regcache *cache)
