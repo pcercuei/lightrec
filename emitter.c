@@ -154,38 +154,6 @@ static int rec_JAL(const struct block *block, struct opcode *op, u32 pc)
 			SLIST_NEXT(op, next));
 }
 
-static void preload_in_regs(struct regcache *cache,
-		jit_state_t *_jit, struct opcode *op)
-{
-	switch (op->i.op) {
-	case OP_META:
-		switch (op->r.op) {
-		case OP_META_SB ... OP_META_SW:
-			if (op->i.rt)
-				lightrec_alloc_reg_in(cache, _jit, op->i.rt);
-		case OP_META_LB ... OP_META_LW:
-			if (op->i.rs)
-				lightrec_alloc_reg_in(cache, _jit, op->i.rs);
-			break;
-		}
-		break;
-
-	case OP_SPECIAL:
-	case OP_BEQ:
-	case OP_BNE:
-		if (op->i.rt)
-			lightrec_alloc_reg_in(cache, _jit, op->i.rt);
-	default:
-		if (op->i.rs)
-			lightrec_alloc_reg_in(cache, _jit, op->i.rs);
-	case OP_LB ... OP_SWR:
-	case OP_LUI:
-	case OP_J:
-	case OP_JAL:
-		break;
-	}
-}
-
 static int rec_b(const struct block *block, struct opcode *op, u32 pc,
 		jit_code_t code, u32 link, bool unconditional, bool bz)
 {
@@ -196,39 +164,24 @@ static int rec_b(const struct block *block, struct opcode *op, u32 pc,
 
 	jit_note(__FILE__, __LINE__);
 
-	if (delay_slot->opcode) {
-		/* We have to clean the cache here, to ensure that the
-		 * recompiler of the delay slot won't invalidate a loaded
-		 * register when allocating its output register. */
-		lightrec_clean_regs(reg_cache, _jit);
-		lightrec_regcache_reset(reg_cache);
-
-		preload_in_regs(reg_cache, _jit, delay_slot);
-	}
-
 	if (!unconditional) {
 		u8 rs = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rs),
 		   rt = bz ? 0 : lightrec_alloc_reg_in(
 				   reg_cache, _jit, op->i.rt);
 
-		/* Little trick: lightrec_emit_end_of_block() might require the
-		 * allocation of a temporary register. In case a dirty register
-		 * gets allocated, we don't want the store-back to happen only
-		 * in one branch. Here we ensure that the store-back, if needed,
-		 * happens before the conditional branch. */
-		if (!delay_slot->opcode)
-			lightrec_alloc_reg_temp(reg_cache, _jit);
-
+		/* Generate the branch opcode */
 		addr = jit_new_node_pww(code, NULL, rs, rt);
-	}
 
-	lightrec_free_regs(reg_cache);
+		lightrec_free_regs(reg_cache);
+		lightrec_regcache_enter_branch(reg_cache);
+	}
 
 	lightrec_emit_end_of_block(block, pc, -1,
 			pc + 4 + (s16) (op->i.imm << 2), link, delay_slot);
 
 	if (!unconditional) {
 		jit_patch(addr);
+		lightrec_regcache_leave_branch(reg_cache);
 
 		if (delay_slot->opcode /* TODO: BL opcodes */)
 			lightrec_rec_opcode(block, delay_slot, pc + 4);
