@@ -411,6 +411,11 @@ u32 lightrec_execute(struct lightrec_state *state, u32 pc, u32 target_cycle)
 	return state->next_pc;
 }
 
+u32 lightrec_execute_one(struct lightrec_state *state, u32 pc)
+{
+	return lightrec_execute(state, pc, state->current_cycle);
+}
+
 void lightrec_free_block(struct block *block)
 {
 	lightrec_free_opcode_list(block->opcode_list);
