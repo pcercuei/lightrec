@@ -117,15 +117,7 @@ enum cp2_basic_opcodes {
 };
 
 enum meta_opcodes {
-	OP_META_LB		= 0x20,
-	OP_META_LH		= 0x21,
-	OP_META_LW		= 0x23,
-	OP_META_LBU		= 0x24,
-	OP_META_LHU		= 0x25,
-	OP_META_SB		= 0x28,
-	OP_META_SH		= 0x29,
-	OP_META_SW		= 0x2b,
-	OP_META_REG_UNLOAD	= 0x2c,
+	OP_META_REG_UNLOAD	= 0x20,
 };
 
 struct opcode_r {

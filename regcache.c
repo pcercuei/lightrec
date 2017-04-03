@@ -19,7 +19,6 @@
 #include <stddef.h>
 
 struct native_register {
-	struct native_register *addr_reg;
 	bool used, loaded, dirty, output;
 	s8 emulated_register;
 };
@@ -62,16 +61,7 @@ static struct native_register * alloc_temp(struct regcache *cache)
 	 * memory. */
 	for (i = ARRAY_SIZE(cache->lightrec_regs); i; i--) {
 		struct native_register *nreg = &cache->lightrec_regs[i - 1];
-		if (!nreg->used && !nreg->loaded && !nreg->dirty &&
-				(!nreg->addr_reg ||
-				 nreg->addr_reg->addr_reg != nreg))
-			return nreg;
-	}
-
-	for (i = ARRAY_SIZE(cache->lightrec_regs); i; i--) {
-		struct native_register *nreg = &cache->lightrec_regs[i - 1];
-		if (!nreg->used && (!nreg->addr_reg ||
-					nreg->addr_reg->addr_reg != nreg))
+		if (!nreg->used && !nreg->loaded && !nreg->dirty)
 			return nreg;
 	}
 
@@ -134,7 +124,6 @@ void lightrec_unload_reg(struct regcache *cache, jit_state_t *_jit, u8 jit_reg)
 		jit_stxi_i(offset, LIGHTREC_REG_STATE, jit_reg);
 	}
 
-	nreg->addr_reg = NULL;
 	nreg->loaded = false;
 	nreg->output = false;
 	nreg->dirty = false;
@@ -179,7 +168,6 @@ u8 lightrec_alloc_reg_out(struct regcache *cache, jit_state_t *_jit, u8 reg)
 	if (nreg->emulated_register != reg)
 		lightrec_unload_reg(cache, _jit, jit_reg);
 
-	nreg->addr_reg = NULL;
 	nreg->used = true;
 	nreg->output = true;
 	nreg->emulated_register = reg;
@@ -228,10 +216,8 @@ u8 lightrec_alloc_reg_in(struct regcache *cache, jit_state_t *_jit, u8 reg)
 static void free_reg(struct native_register *nreg)
 {
 	/* Set output registers as dirty */
-	if (nreg->used && nreg->output && nreg->emulated_register > 0) {
+	if (nreg->used && nreg->output && nreg->emulated_register > 0)
 		nreg->dirty = true;
-		nreg->addr_reg = NULL;
-	}
 	nreg->used = false;
 }
 
@@ -288,65 +274,9 @@ void lightrec_clean_reg(struct regcache *cache, jit_state_t *_jit, u8 jit_reg)
 	clean_reg(_jit, reg, jit_reg, true);
 }
 
-void lightrec_unlink_addresses(struct regcache *cache)
-{
-	unsigned int i;
-
-	for (i = 0; i < ARRAY_SIZE(cache->lightrec_regs); i++)
-		cache->lightrec_regs[i].addr_reg = NULL;
-}
-
 void lightrec_regcache_reset(struct regcache *cache)
 {
 	memset(&cache->lightrec_regs, 0, sizeof(cache->lightrec_regs));
-}
-
-u8 lightrec_alloc_reg_in_address(struct regcache *cache,
-		jit_state_t *_jit, u8 reg, s16 offset)
-{
-	u8 addr, rs = lightrec_alloc_reg_in(cache, _jit, reg);
-	struct native_register *tmpreg, *nreg =
-		lightning_reg_to_lightrec(cache, rs);
-
-	/* Reuse the previous temp register if it wasn't invalidated */
-	if (nreg->addr_reg && nreg->addr_reg->addr_reg == nreg) {
-		nreg->addr_reg->used = true;
-		return lightrec_reg_to_lightning(cache, nreg->addr_reg);
-	}
-
-	/* XXX: We unload JIT_R0 as it will be used to return the native address
-	 * by the address lookup block.
-	 * Is that arch-independent? */
-	lightrec_unload_reg(cache, _jit, JIT_R0);
-
-	if (offset || rs != JIT_R0)
-		jit_addi(JIT_R0, rs, offset);
-	lightrec_free_reg(cache, rs);
-
-	jit_prepare();
-	jit_pushargr(JIT_R0);
-
-	jit_ldxi(JIT_R0, LIGHTREC_REG_STATE,
-			offsetof(struct lightrec_state, addr_lookup));
-	jit_finishr(JIT_R0);
-
-	addr = lightrec_alloc_reg_temp(cache, _jit);
-
-	if (offset) {
-		jit_retval(JIT_R0);
-		jit_subi(addr, JIT_R0, offset);
-	} else {
-		jit_retval(addr);
-	}
-
-	tmpreg = lightning_reg_to_lightrec(cache, addr);
-
-	/* Link the two registers */
-	tmpreg->addr_reg = nreg;
-	nreg->addr_reg = tmpreg;
-	nreg->used = true;
-
-	return addr;
 }
 
 struct regcache * lightrec_regcache_init(void)

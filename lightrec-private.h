@@ -65,10 +65,9 @@ struct lightrec_state {
 	u32 current_cycle;
 	u32 exit_flags;
 	uintptr_t end_of_block;
-	struct block *wrapper, *addr_lookup_block, *current;
+	struct block *wrapper, *current;
 	struct blockcache *block_cache;
 	struct regcache *reg_cache;
-	void (*addr_lookup)(void);
 	const struct lightrec_cop_ops *cop_ops;
 	bool stop;
 	unsigned int nb_maps;
