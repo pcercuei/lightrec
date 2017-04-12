@@ -521,7 +521,7 @@ struct lightrec_state * lightrec_init(char *argv0,
 		map_priv->page_shift = 9;
 
 		map_priv->invalidation_table = calloc(
-				(map->length >> map_priv->page_shift) + 1,
+				(map[i].length >> map_priv->page_shift) + 1,
 				sizeof(u32));
 		if (!map_priv->invalidation_table)
 			goto err_free_invalidation_tables;
