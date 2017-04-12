@@ -35,16 +35,6 @@ static void __segfault_cb(struct lightrec_state *state, u32 addr)
 			"load/store at address 0x%08x\n", addr);
 }
 
-static u32 kunseg(u32 addr)
-{
-	if (unlikely(addr >= 0xa0000000))
-		return addr - 0xa0000000;
-	else if (addr >= 0x80000000)
-		return addr - 0x80000000;
-	else
-		return addr;
-}
-
 static u32 lightrec_rw_ops(struct lightrec_state *state,
 		const struct opcode *op, const struct lightrec_mem_map_ops *ops,
 		u32 addr, u32 data)

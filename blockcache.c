@@ -27,16 +27,6 @@ struct blockcache {
 	struct block * lut[LUT_SIZE];
 };
 
-static inline u32 kunseg(u32 addr)
-{
-	if (unlikely(addr >= 0xa0000000))
-		return addr - 0xa0000000;
-	else if (addr >= 0x80000000)
-		return addr - 0x80000000;
-	else
-		return addr;
-}
-
 struct block * lightrec_find_block(struct blockcache *cache, u32 pc)
 {
 	struct block *block;
