@@ -47,6 +47,9 @@ void lightrec_unload_reg(struct regcache *cache, jit_state_t *_jit, u8 jit_reg);
 void lightrec_discard_reg(struct regcache *cache, u8 jit_reg);
 void lightrec_storeback_regs(struct regcache *cache, jit_state_t *_jit);
 
+void lightrec_clear_caller_saved_regs(struct regcache *cache,
+		jit_state_t *_jit);
+
 u8 lightrec_alloc_reg_in_address(struct regcache *cache,
 		jit_state_t *_jit, u8 reg, s16 offset);
 

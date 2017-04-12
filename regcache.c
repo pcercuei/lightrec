@@ -274,6 +274,14 @@ static void clean_regs(struct regcache *cache, jit_state_t *_jit, bool clean)
 	}
 }
 
+void lightrec_clear_caller_saved_regs(struct regcache *cache, jit_state_t *_jit)
+{
+	unsigned int i;
+
+	for (i = 0; i < NUM_TEMPS; i++)
+		lightrec_unload_reg(cache, _jit, JIT_R(i));
+}
+
 void lightrec_storeback_regs(struct regcache *cache, jit_state_t *_jit)
 {
 	clean_regs(cache, _jit, false);
