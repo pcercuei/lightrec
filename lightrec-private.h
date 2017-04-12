@@ -77,6 +77,9 @@ u32 lightrec_rw(struct lightrec_state *state,
 struct block * lightrec_recompile_block(struct lightrec_state *state, u32 pc);
 void lightrec_free_block(struct block *block);
 
+const struct lightrec_mem_map * lightrec_find_map(
+		struct lightrec_state *state, u32 kaddr);
+
 static inline struct lightrec_mem_map_priv * get_map_priv(
 		struct lightrec_state *state,
 		const struct lightrec_mem_map *map)

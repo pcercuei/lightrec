@@ -17,6 +17,7 @@
 #include "disassembler.h"
 #include "emitter.h"
 #include "regcache.h"
+#include "rw-callbacks.h"
 
 #include <lightning.h>
 #include <stddef.h>
@@ -745,6 +746,34 @@ static int rec_SWC2(const struct block *block, struct opcode *op, u32 pc)
 	return rec_store(block, op, true);
 }
 
+static int rec_load_c(const struct block *block, struct opcode *op, void (*f)())
+{
+	struct regcache *reg_cache = block->state->reg_cache;
+	jit_state_t *_jit = block->_jit;
+	u8 rt, rs;
+
+	jit_note(__FILE__, __LINE__);
+
+	/* Make sure that the 'rs' register in the cache is up to date */
+	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rs);
+	lightrec_clean_reg(reg_cache, _jit, rs);
+	lightrec_free_reg(reg_cache, rs);
+
+	/* The 'rt' register will be overwritten in the cache directly, make
+	 * sure it is not mapped */
+	rt = lightrec_alloc_reg_out(reg_cache, _jit, op->r.rt);
+	lightrec_discard_reg(reg_cache, rt);
+	lightrec_free_reg(reg_cache, rt);
+
+	lightrec_clear_caller_saved_regs(reg_cache, _jit);
+
+	jit_prepare();
+	jit_pushargr(LIGHTREC_REG_STATE);
+	jit_pushargi((uintptr_t) op);
+	jit_finishi(f);
+	return 0;
+}
+
 static int rec_LB(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
@@ -784,7 +813,7 @@ static int rec_LWR(const struct block *block, struct opcode *op, u32 pc)
 static int rec_LW(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_load(block, op, false, false);
+	return rec_load_c(block, op, lightrec_lw);
 }
 
 static int rec_LWC2(const struct block *block, struct opcode *op, u32 pc)

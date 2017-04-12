@@ -203,6 +203,20 @@ static const struct lightrec_mem_map * find_map(
 	return NULL;
 }
 
+const struct lightrec_mem_map * lightrec_find_map(
+		struct lightrec_state *state, u32 kaddr)
+{
+	const struct lightrec_mem_map *map = find_map(state, kaddr);
+
+	if (unlikely(!map)) {
+		state->exit_flags |= LIGHTREC_EXIT_SEGFAULT;
+		ERROR("Segmentation fault in recompiled code: invalid "
+				"load/store at address 0x%08x\n", kaddr);
+	}
+
+	return map;
+}
+
 static struct block * get_block(struct lightrec_state *state, u32 pc)
 {
 	struct block *block = lightrec_find_block(state->block_cache, pc);
