@@ -18,6 +18,7 @@
 struct lightrec_state;
 struct opcode;
 
+void lightrec_lb(struct lightrec_state *state, const struct opcode *op);
 void lightrec_lh(struct lightrec_state *state, const struct opcode *op);
 void lightrec_lw(struct lightrec_state *state, const struct opcode *op);
 

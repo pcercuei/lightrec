@@ -777,13 +777,13 @@ static int rec_load_c(const struct block *block, struct opcode *op, void (*f)())
 static int rec_LB(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_load(block, op, false, false);
+	return rec_load_c(block, op, lightrec_lb);
 }
 
 static int rec_LBU(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_load(block, op, false, false);
+	return rec_load_c(block, op, lightrec_lb);
 }
 
 static int rec_LH(const struct block *block, struct opcode *op, u32 pc)
