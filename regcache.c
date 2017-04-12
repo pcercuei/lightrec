@@ -121,6 +121,11 @@ static void lightrec_discard_nreg(struct native_register *nreg)
 	nreg->emulated_register = -1;
 }
 
+void lightrec_discard_reg(struct regcache *cache, u8 jit_reg)
+{
+	lightrec_discard_nreg(lightning_reg_to_lightrec(cache, jit_reg));
+}
+
 static void lightrec_unload_nreg(struct regcache *cache, jit_state_t *_jit,
 		struct native_register *nreg, u8 jit_reg)
 {
