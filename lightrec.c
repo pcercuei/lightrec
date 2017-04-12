@@ -65,7 +65,7 @@ static u32 lightrec_rw_ops(struct lightrec_state *state,
 	}
 }
 
-static void lightrec_invalidate_map(struct lightrec_state *state,
+void lightrec_invalidate_map(struct lightrec_state *state,
 		const struct lightrec_mem_map *map, u32 addr, u32 len)
 {
 	struct lightrec_mem_map_priv *priv;

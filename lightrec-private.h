@@ -79,6 +79,8 @@ void lightrec_free_block(struct block *block);
 
 const struct lightrec_mem_map * lightrec_find_map(
 		struct lightrec_state *state, u32 kaddr);
+void lightrec_invalidate_map(struct lightrec_state *state,
+		const struct lightrec_mem_map *map, u32 addr, u32 len);
 
 static inline struct lightrec_mem_map_priv * get_map_priv(
 		struct lightrec_state *state,

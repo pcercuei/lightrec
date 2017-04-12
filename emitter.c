@@ -711,6 +711,34 @@ static int rec_load(const struct block *block, struct opcode *op,
 	return 0;
 }
 
+static int rec_store_c(const struct block *block,
+		struct opcode *op, void (*f)())
+{
+	struct regcache *reg_cache = block->state->reg_cache;
+	jit_state_t *_jit = block->_jit;
+	u8 rt, rs;
+
+	jit_note(__FILE__, __LINE__);
+
+	/* Make sure that the 'rs' and 'rt' registers in the cache are up
+	 * to date
+	 */
+	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rs);
+	rt = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rt);
+	lightrec_clean_reg(reg_cache, _jit, rs);
+	lightrec_clean_reg(reg_cache, _jit, rt);
+	lightrec_free_reg(reg_cache, rs);
+	lightrec_free_reg(reg_cache, rt);
+
+	lightrec_clear_caller_saved_regs(reg_cache, _jit);
+
+	jit_prepare();
+	jit_pushargr(LIGHTREC_REG_STATE);
+	jit_pushargi((uintptr_t) op);
+	jit_finishi(f);
+	return 0;
+}
+
 static int rec_SB(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
@@ -726,7 +754,7 @@ static int rec_SH(const struct block *block, struct opcode *op, u32 pc)
 static int rec_SW(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_store(block, op, false);
+	return rec_store_c(block, op, lightrec_sw);
 }
 
 static int rec_SWL(const struct block *block, struct opcode *op, u32 pc)
