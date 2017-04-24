@@ -81,13 +81,10 @@ static void lightrec_invalidate_map(struct lightrec_state *state,
 	struct lightrec_mem_map_priv *priv;
 	u32 offset, count;
 
-	while (map->mirror_of)
-		map = map->mirror_of;
-
 	if (!(map->flags & MAP_IS_RWX))
 		return;
 
-	priv = container_of(map, struct lightrec_mem_map_priv, map);
+	priv = get_map_priv(state, map);
 	offset = (addr - map->pc) >> priv->page_shift;
 	count = (len + (1 << priv->page_shift) - 1) >> priv->page_shift;
 
@@ -105,7 +102,7 @@ u32 lightrec_rw(struct lightrec_state *state,
 	kaddr = kunseg(addr);
 
 	for (i = 0; i < state->nb_maps; i++) {
-		const struct lightrec_mem_map *map = &state->mem_map[i].map;
+		const struct lightrec_mem_map *map = &state->maps[i];
 		const struct lightrec_mem_map_ops *ops = map->ops;
 		u32 shift, mem_data, mask, pc = map->pc;
 		uintptr_t new_addr;
@@ -201,16 +198,17 @@ u32 lightrec_rw(struct lightrec_state *state,
 	return 0;
 }
 
-static struct lightrec_mem_map_priv * find_map(
+static const struct lightrec_mem_map * find_map(
 		struct lightrec_state *state, u32 pc)
 {
-	struct lightrec_mem_map_priv *map = state->mem_map;
 	unsigned int i;
 
-	for (i = 0; i < state->nb_maps; i++)
-		if (pc >= map[i].map.pc &&
-				pc < map[i].map.pc + map[i].map.length)
-			return &map[i];
+	for (i = 0; i < state->nb_maps; i++) {
+		const struct lightrec_mem_map *map = &state->maps[i];
+
+		if (pc >= map->pc && pc < map->pc + map->length)
+			return map;
+	}
 
 	return NULL;
 }
@@ -359,13 +357,11 @@ struct block * lightrec_recompile_block(struct lightrec_state *state, u32 pc)
 	bool skip_next = false;
 	const u32 *code;
 	u32 addr, kunseg_pc = kunseg(pc);
-	const struct lightrec_mem_map_priv *pmap = find_map(state, kunseg_pc);
-	const struct lightrec_mem_map *map;
+	const struct lightrec_mem_map *map = find_map(state, kunseg_pc);
 
-	if (!pmap)
+	if (!map)
 		return NULL;
 
-	map = &pmap->map;
 	addr = kunseg_pc - map->pc;
 
 	while (map->mirror_of)
@@ -394,7 +390,7 @@ struct block * lightrec_recompile_block(struct lightrec_state *state, u32 pc)
 	block->opcode_list = list;
 	block->cycles = 0;
 	block->code = code;
-	block->map = pmap;
+	block->map = map;
 	block->hash = calculate_block_hash(block);
 
 	lightrec_optimize(list);
@@ -502,13 +498,12 @@ struct lightrec_state * lightrec_init(char *argv0,
 		goto err_free_reg_cache;
 
 	state->nb_maps = nb;
+	state->maps = map;
 
 	for (i = 0; i < nb; i++) {
 		struct lightrec_mem_map_priv *map_priv = &state->mem_map[i];
 
-		map_priv->map = map[i];
-
-		if (!(map_priv->map.flags & MAP_IS_RWX))
+		if (!(map[i].flags & MAP_IS_RWX))
 			continue;
 
 		/* TODO: calculate the best page shift */
@@ -558,18 +553,14 @@ void lightrec_destroy(struct lightrec_state *state)
 
 void lightrec_invalidate(struct lightrec_state *state, u32 addr, u32 len)
 {
-	unsigned int i;
+	u32 kaddr = kunseg(addr);
+	const struct lightrec_mem_map *map = find_map(state, kaddr);
 
-	addr = kunseg(addr);
+	if (map) {
+		while (map->mirror_of)
+			map = map->mirror_of;
 
-	for (i = 0; i < state->nb_maps; i++) {
-		const struct lightrec_mem_map *map = &state->mem_map[i].map;
-		u32 offset, count;
-
-		if (addr >= map->pc && addr <= map->pc + map->length) {
-			lightrec_invalidate_map(state, map, addr, len);
-			break;
-		}
+		lightrec_invalidate_map(state, map, kaddr, len);
 	}
 }
 

@@ -22,9 +22,6 @@
 
 #define ARRAY_SIZE(x) (sizeof(x) ? sizeof(x) / sizeof((x)[0]) : 0)
 
-#define container_of(ptr, type, member) \
-	((type *)((char *)(ptr) - offsetof(type, member)))
-
 #ifdef __GNUC__
 #	define likely(x)       __builtin_expect(!!(x),1)
 #	define unlikely(x)     __builtin_expect(!!(x),0)
@@ -41,7 +38,6 @@ struct blockcache;
 struct regcache;
 
 struct lightrec_mem_map_priv {
-	struct lightrec_mem_map map;
 	u32 *invalidation_table;
 	unsigned int page_shift;
 };
@@ -56,7 +52,7 @@ struct block {
 	u32 hash;
 	unsigned int cycles;
 	unsigned int length;
-	const struct lightrec_mem_map_priv *map;
+	const struct lightrec_mem_map *map;
 };
 
 struct lightrec_state {
@@ -71,6 +67,7 @@ struct lightrec_state {
 	void (*eob_wrapper_func)(void);
 	const struct lightrec_cop_ops *cop_ops;
 	unsigned int nb_maps;
+	const struct lightrec_mem_map *maps;
 	struct lightrec_mem_map_priv *mem_map;
 };
 
@@ -79,5 +76,12 @@ u32 lightrec_rw(struct lightrec_state *state,
 
 struct block * lightrec_recompile_block(struct lightrec_state *state, u32 pc);
 void lightrec_free_block(struct block *block);
+
+static inline struct lightrec_mem_map_priv * get_map_priv(
+		struct lightrec_state *state,
+		const struct lightrec_mem_map *map)
+{
+	return &state->mem_map[(map - state->maps) / sizeof(*state->maps)];
+}
 
 #endif /* __LIGHTREC_PRIVATE_H__ */
