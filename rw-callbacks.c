@@ -15,6 +15,9 @@
 #include "disassembler.h"
 #include "lightrec-private.h"
 
+#define GENMASK(h, l) \
+	(((~0UL) << (l)) & (~0UL >> (__WORDSIZE - 1 - (h))))
+
 void lightrec_lb(struct lightrec_state *state, const struct opcode *op)
 {
 	const struct lightrec_mem_map *map;
@@ -98,6 +101,47 @@ void lightrec_lw(struct lightrec_state *state, const struct opcode *op)
 		val = map->ops->lw(state, op, addr);
 	else
 		val = *(u32 *)((uintptr_t) map->address + offset);
+
+	if (likely(op->i.rt > 0))
+		state->native_reg_cache[op->i.rt] = val;
+}
+
+void lightrec_lwlr(struct lightrec_state *state, const struct opcode *op)
+{
+	const struct lightrec_mem_map *map;
+	u32 val, kaddr, addr, offset;
+
+	addr = state->native_reg_cache[op->i.rs] + (s16) op->i.imm;
+	kaddr = kunseg(addr);
+	map = lightrec_find_map(state, kaddr);
+
+	if (unlikely(!map))
+		return;
+
+	offset = kaddr - map->pc;
+
+	while (map->mirror_of)
+		map = map->mirror_of;
+
+	if (unlikely(map->ops)) {
+		val = map->ops->lw(state, op, addr);
+	} else {
+		uintptr_t haddr = (uintptr_t) map->address + offset;
+		u32 mem_data = *(u32 *)(haddr & ~3);
+		u32 data = state->native_reg_cache[op->i.rt];
+		u32 shift = kaddr & 3;
+		u32 mask, mem_shift;
+
+		if (op->i.op == OP_LWL) {
+			mask = (1 << (24 - shift * 8)) - 1;
+			mem_shift = 24 - shift * 8;
+			val = (data & mask) | (mem_data << mem_shift);
+		} else {
+			mask = GENMASK(31, 32 - shift * 8);
+			mem_shift = shift * 8;
+			val = (data & mask) | (mem_data >> mem_shift);
+		}
+	}
 
 	if (likely(op->i.rt > 0))
 		state->native_reg_cache[op->i.rt] = val;
