@@ -668,49 +668,6 @@ static int rec_store(const struct block *block, struct opcode *op, bool swc2)
 	return 0;
 }
 
-static int rec_load(const struct block *block, struct opcode *op,
-		bool lwrl, bool lwc2)
-{
-	struct regcache *reg_cache = block->state->reg_cache;
-	jit_state_t *_jit = block->_jit;
-	u8 rt, rs;
-
-	jit_note(__FILE__, __LINE__);
-
-	jit_prepare();
-	jit_pushargr(LIGHTREC_REG_STATE);
-	jit_pushargi((intptr_t) op);
-
-	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rs);
-	jit_pushargr(rs);
-	lightrec_free_reg(reg_cache, rs);
-
-	if (unlikely(lwrl)) {
-		rt = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rt);
-		jit_pushargr(rt);
-		lightrec_free_reg(reg_cache, rt);
-	}
-
-	lightrec_storeback_regs(reg_cache, _jit);
-
-	/* The call to C trashes the registers, we have to reset the cache */
-	lightrec_regcache_reset(reg_cache);
-
-	jit_finishi(lightrec_rw);
-
-	if (likely(!lwc2)) {
-		/* If the destination register is $0, we just discard the result now */
-		if (unlikely(!op->i.rt))
-			return 0;
-
-		rt = lightrec_alloc_reg_out(reg_cache, _jit, op->i.rt);
-		jit_retval_i(rt);
-		lightrec_free_reg(reg_cache, rt);
-	}
-
-	return 0;
-}
-
 static int rec_store_c(const struct block *block,
 		struct opcode *op, void (*f)())
 {
@@ -850,7 +807,24 @@ static int rec_LWR(const struct block *block, struct opcode *op, u32 pc)
 
 static int rec_LWC2(const struct block *block, struct opcode *op, u32 pc)
 {
-	return rec_load(block, op, false, true);
+	struct regcache *reg_cache = block->state->reg_cache;
+	jit_state_t *_jit = block->_jit;
+	u8 rt, rs;
+
+	jit_note(__FILE__, __LINE__);
+
+	/* Make sure that the 'rs' register in the cache is up to date */
+	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rs);
+	lightrec_clean_reg(reg_cache, _jit, rs);
+	lightrec_free_reg(reg_cache, rs);
+
+	lightrec_clear_caller_saved_regs(reg_cache, _jit);
+
+	jit_prepare();
+	jit_pushargr(LIGHTREC_REG_STATE);
+	jit_pushargi((uintptr_t) op);
+	jit_finishi(lightrec_lwc2);
+	return 0;
 }
 
 static int rec_break_syscall(const struct block *block, u32 pc, u32 exit_flags)
