@@ -168,6 +168,33 @@ void lightrec_lwc2(struct lightrec_state *state, const struct opcode *op)
 	state->cop_ops->mtc(state, 2, op->i.rt, val);
 }
 
+void lightrec_sh(struct lightrec_state *state, const struct opcode *op)
+{
+	const struct lightrec_mem_map *map;
+	u32 kaddr, addr, offset;
+	u16 data;
+
+	addr = state->native_reg_cache[op->i.rs] + (s16) op->i.imm;
+	data = (u16) state->native_reg_cache[op->i.rt];
+	kaddr = kunseg(addr);
+	map = lightrec_find_map(state, kaddr);
+
+	if (unlikely(!map))
+		return;
+
+	offset = kaddr - map->pc;
+
+	while (map->mirror_of)
+		map = map->mirror_of;
+
+	if (unlikely(map->ops)) {
+		map->ops->sh(state, op, addr, data);
+	} else {
+		*(u16 *)((uintptr_t) map->address + offset) = data;
+		lightrec_invalidate_map(state, map, kaddr, 2);
+	}
+}
+
 void lightrec_sw(struct lightrec_state *state, const struct opcode *op)
 {
 	const struct lightrec_mem_map *map;

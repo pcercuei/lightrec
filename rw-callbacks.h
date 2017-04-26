@@ -23,6 +23,7 @@ void lightrec_lh(struct lightrec_state *state, const struct opcode *op);
 void lightrec_lw(struct lightrec_state *state, const struct opcode *op);
 void lightrec_lwlr(struct lightrec_state *state, const struct opcode *op);
 void lightrec_lwc2(struct lightrec_state *state, const struct opcode *op);
+void lightrec_sh(struct lightrec_state *state, const struct opcode *op);
 void lightrec_sw(struct lightrec_state *state, const struct opcode *op);
 
 #endif /* __RW_CALLBACKS_H__ */
