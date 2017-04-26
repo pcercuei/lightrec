@@ -717,13 +717,13 @@ static int rec_SW(const struct block *block, struct opcode *op, u32 pc)
 static int rec_SWL(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_store(block, op, false);
+	return rec_store_c(block, op, lightrec_swrl);
 }
 
 static int rec_SWR(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_store(block, op, false);
+	return rec_store_c(block, op, lightrec_swrl);
 }
 
 static int rec_SWC2(const struct block *block, struct opcode *op, u32 pc)

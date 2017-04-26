@@ -247,3 +247,45 @@ void lightrec_sw(struct lightrec_state *state, const struct opcode *op)
 		lightrec_invalidate_map(state, map, kaddr, 4);
 	}
 }
+
+void lightrec_swrl(struct lightrec_state *state, const struct opcode *op)
+{
+	const struct lightrec_mem_map *map;
+	u32 kaddr, addr, data, offset;
+
+	addr = state->native_reg_cache[op->i.rs] + (s16) op->i.imm;
+	data = state->native_reg_cache[op->i.rt];
+	kaddr = kunseg(addr);
+	map = lightrec_find_map(state, kaddr);
+
+	if (unlikely(!map))
+		return;
+
+	offset = kaddr - map->pc;
+
+	while (map->mirror_of)
+		map = map->mirror_of;
+
+	if (unlikely(map->ops)) {
+		map->ops->sw(state, op, addr, data);
+	} else {
+		uintptr_t haddr = (uintptr_t) map->address + offset;
+		u32 *mem_ptr = (u32 *)(haddr & ~3);
+		u32 data = state->native_reg_cache[op->i.rt];
+		u32 shift = kaddr & 3;
+		u32 mask, mem_shift;
+
+		if (op->i.op == OP_SWL) {
+			mask = GENMASK(31, (shift + 1) * 8);
+			mem_shift = 24 - shift * 8;
+
+			*mem_ptr = (data >> mem_shift) | (*mem_ptr & mask);
+		} else {
+			mask = (1 << (shift * 8)) - 1;
+			mem_shift = shift * 8;
+
+			*mem_ptr = (data << mem_shift) | (*mem_ptr & mask);
+		}
+		lightrec_invalidate_map(state, map, kaddr & ~0x3, 4);
+	}
+}
