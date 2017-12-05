@@ -77,7 +77,9 @@ static int lightrec_emit_end_of_block(const struct block *block, u32 pc,
 	lightrec_storeback_regs(reg_cache, _jit);
 
 	jit_movi(JIT_R0, cycles);
-	jit_calli(block->state->eob_wrapper_func);
+
+	jit_movi(JIT_R1, (uintptr_t) block->state->eob_wrapper_func);
+	jit_jmpr(JIT_R1);
 
 	return SKIP_DELAY_SLOT;
 }
