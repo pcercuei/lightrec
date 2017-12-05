@@ -136,6 +136,7 @@ void lightrec_print_disassembly(const struct block *block)
 	disassemble_init_for_target(&info);
 
 	for (i = 0; i < block->length; i += 4) {
+		void print_insn_little_mips(uintptr_t, struct disassemble_info *);
 		putc('\t', stdout);
 		print_insn_little_mips((uintptr_t) code++, &info);
 		putc('\n', stdout);
