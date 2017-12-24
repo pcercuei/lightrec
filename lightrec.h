@@ -35,7 +35,6 @@ typedef int8_t  s8;
 
 struct opcode;
 struct lightrec_state;
-struct lightrec_mem_map;
 
 /* Exit flags */
 #define LIGHTREC_EXIT_NORMAL	(0)
@@ -44,25 +43,13 @@ struct lightrec_mem_map;
 #define LIGHTREC_EXIT_CHECK_INTERRUPT	(1 << 2)
 #define LIGHTREC_EXIT_SEGFAULT	(1 << 3)
 
-/* Flags for lightrec_mem_map */
-#define MAP_IS_RWX	(1 << 0)
-
-struct lightrec_mem_map_ops {
+struct lightrec_hw_ops {
 	void (*sb)(struct lightrec_state *, const struct opcode *, u32, u8);
 	void (*sh)(struct lightrec_state *, const struct opcode *, u32, u16);
 	void (*sw)(struct lightrec_state *, const struct opcode *, u32, u32);
 	u8 (*lb)(struct lightrec_state *, const struct opcode *, u32);
 	u16 (*lh)(struct lightrec_state *, const struct opcode *, u32);
 	u32 (*lw)(struct lightrec_state *, const struct opcode *, u32);
-};
-
-struct lightrec_mem_map {
-	u32 pc;
-	u32 length;
-	u32 flags;
-	void *address;
-	const struct lightrec_mem_map_ops *ops;
-	const struct lightrec_mem_map *mirror_of;
 };
 
 struct lightrec_cop_ops {
@@ -74,8 +61,9 @@ struct lightrec_cop_ops {
 };
 
 struct lightrec_state * lightrec_init(char *argv0,
-		const struct lightrec_mem_map *map, size_t nb,
-		const struct lightrec_cop_ops *cop_ops);
+		const struct lightrec_hw_ops *hw_ops,
+		const struct lightrec_cop_ops *cop_ops,
+		void *ram, void *bios, void *scratchpad);
 void lightrec_destroy(struct lightrec_state *state);
 
 u32 lightrec_execute(struct lightrec_state *state, u32 pc, u32 target_cycle);

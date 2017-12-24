@@ -36,9 +36,10 @@ static void __segfault_cb(struct lightrec_state *state, u32 addr)
 }
 
 static u32 lightrec_rw_ops(struct lightrec_state *state,
-		const struct opcode *op, const struct lightrec_mem_map_ops *ops,
-		u32 addr, u32 data)
+		const struct opcode *op, u32 addr, u32 data)
 {
+	const struct lightrec_hw_ops *ops = state->hw_ops;
+
 	switch (op->i.op) {
 	case OP_SB:
 		ops->sb(state, op, addr, (u8) data);
@@ -65,142 +66,99 @@ static u32 lightrec_rw_ops(struct lightrec_state *state,
 	}
 }
 
-static void lightrec_invalidate_map(struct lightrec_state *state,
-		const struct lightrec_mem_map *map, u32 addr, u32 len)
-{
-	struct lightrec_mem_map_priv *priv;
-	u32 offset, count;
-
-	if (!(map->flags & MAP_IS_RWX))
-		return;
-
-	priv = get_map_priv(state, map);
-	offset = (addr - map->pc) >> priv->page_shift;
-	count = (len + (1 << priv->page_shift) - 1) >> priv->page_shift;
-
-	while (count--)
-		priv->invalidation_table[offset++] = state->current_cycle;
-}
-
 u32 lightrec_rw(struct lightrec_state *state,
 		const struct opcode *op, u32 addr, u32 data)
 {
 	unsigned int i;
 	u32 kaddr;
+	void *new_addr;
+	u32 shift, mem_data, mask;
 
 	addr += (s16) op->i.imm;
 	kaddr = kunseg(addr);
 
-	for (i = 0; i < state->nb_maps; i++) {
-		const struct lightrec_mem_map *map = &state->maps[i];
-		const struct lightrec_mem_map_ops *ops = map->ops;
-		u32 shift, mem_data, mask, pc = map->pc;
-		uintptr_t new_addr;
+	new_addr = base_addr(state, kaddr);
 
-		if (kaddr < pc || kaddr >= pc + map->length)
-			continue;
+	if (!new_addr)
+		return lightrec_rw_ops(state, op, addr, data);
 
-		if (unlikely(ops))
-			return lightrec_rw_ops(state, op, ops, addr, data);
+	switch (op->i.op) {
+	case OP_SB:
+		*(u8 *) new_addr = (u8) data;
+		lightrec_invalidate(state, kaddr, 1);
+		return 0;
+	case OP_SH:
+		*(u16 *) new_addr = (u16) data;
+		lightrec_invalidate(state, kaddr, 2);
+		return 0;
+	case OP_SWL:
+		shift = kaddr & 3;
+		mem_data = *(u32 *)((uintptr_t) new_addr & ~3);
+		mask = GENMASK(31, (shift + 1) * 8);
 
-		while (map->mirror_of)
-			map = map->mirror_of;
+		*(u32 *)((uintptr_t) new_addr & ~3) = (data >> ((3 - shift) * 8))
+			| (mem_data & mask);
+		lightrec_invalidate(state, kaddr & ~0x3, 4);
+		return 0;
+	case OP_SWR:
+		shift = kaddr & 3;
+		mem_data = *(u32 *)((uintptr_t) new_addr & ~3);
+		mask = (1 << (shift * 8)) - 1;
 
-		new_addr = (uintptr_t) map->address + (kaddr - pc);
-
-		switch (op->i.op) {
-		case OP_SB:
-			*(u8 *) new_addr = (u8) data;
-			lightrec_invalidate_map(state, map, kaddr, 1);
+		*(u32 *)((uintptr_t) new_addr & ~3) = (data << (shift * 8))
+			| (mem_data & mask);
+		lightrec_invalidate(state, kaddr & ~0x3, 4);
+		return 0;
+	case OP_SW:
+		*(u32 *) new_addr = data;
+		lightrec_invalidate(state, kaddr, 4);
+		return 0;
+	case OP_SWC2:
+		if (!state->cop_ops || !state->cop_ops->mfc) {
+			WARNING("Missing MFC callback!\n");
 			return 0;
-		case OP_SH:
-			*(u16 *) new_addr = (u16) data;
-			lightrec_invalidate_map(state, map, kaddr, 2);
-			return 0;
-		case OP_SWL:
-			shift = kaddr & 3;
-			mem_data = *(u32 *)(new_addr & ~3);
-			mask = GENMASK(31, (shift + 1) * 8);
-
-			*(u32 *)(new_addr & ~3) = (data >> ((3 - shift) * 8))
-				| (mem_data & mask);
-			lightrec_invalidate_map(state, map, kaddr & ~0x3, 4);
-			return 0;
-		case OP_SWR:
-			shift = kaddr & 3;
-			mem_data = *(u32 *)(new_addr & ~3);
-			mask = (1 << (shift * 8)) - 1;
-
-			*(u32 *)(new_addr & ~3) = (data << (shift * 8))
-				| (mem_data & mask);
-			lightrec_invalidate_map(state, map, kaddr & ~0x3, 4);
-			return 0;
-		case OP_SW:
-			*(u32 *) new_addr = data;
-			lightrec_invalidate_map(state, map, kaddr, 4);
-			return 0;
-		case OP_SWC2:
-			if (!state->cop_ops || !state->cop_ops->mfc) {
-				WARNING("Missing MFC callback!\n");
-				return 0;
-			}
-
-			*(u32 *) new_addr = state->cop_ops->mfc(
-					state, 2, op->i.rt);
-			lightrec_invalidate_map(state, map, kaddr, 4);
-			return 0;
-		case OP_LB:
-			return (s32) *(s8 *) new_addr;
-		case OP_LBU:
-			return *(u8 *) new_addr;
-		case OP_LH:
-			return (s32) *(s16 *) new_addr;
-		case OP_LHU:
-			return *(u16 *) new_addr;
-		case OP_LWL:
-			shift = kaddr & 3;
-			mem_data = *(u32 *)(new_addr & ~3);
-			mask = (1 << (24 - shift * 8)) - 1;
-
-			return (data & mask) | (mem_data << (24 - shift * 8));
-		case OP_LWR:
-			shift = kaddr & 3;
-			mem_data = *(u32 *)(new_addr & ~3);
-			mask = GENMASK(31, 32 - shift * 8);
-
-			return (data & mask) | (mem_data >> (shift * 8));
-		case OP_LWC2:
-			if (!state->cop_ops || !state->cop_ops->mtc) {
-				WARNING("Missing MFC callback!\n");
-				return 0;
-			}
-
-			state->cop_ops->mtc(state, 2,
-					op->i.rt, *(u32 *) new_addr);
-			return 0;
-		case OP_LW:
-		default:
-			return *(u32 *) new_addr;
 		}
+
+		*(u32 *) new_addr = state->cop_ops->mfc(
+				state, 2, op->i.rt);
+		lightrec_invalidate(state, kaddr, 4);
+		return 0;
+	case OP_LB:
+		return (s32) *(s8 *) new_addr;
+	case OP_LBU:
+		return *(u8 *) new_addr;
+	case OP_LH:
+		return (s32) *(s16 *) new_addr;
+	case OP_LHU:
+		return *(u16 *) new_addr;
+	case OP_LWL:
+		shift = kaddr & 3;
+		mem_data = *(u32 *)((uintptr_t) new_addr & ~3);
+		mask = (1 << (24 - shift * 8)) - 1;
+
+		return (data & mask) | (mem_data << (24 - shift * 8));
+	case OP_LWR:
+		shift = kaddr & 3;
+		mem_data = *(u32 *)((uintptr_t) new_addr & ~3);
+		mask = GENMASK(31, 32 - shift * 8);
+
+		return (data & mask) | (mem_data >> (shift * 8));
+	case OP_LWC2:
+		if (!state->cop_ops || !state->cop_ops->mtc) {
+			WARNING("Missing MFC callback!\n");
+			return 0;
+		}
+
+		state->cop_ops->mtc(state, 2,
+				op->i.rt, *(u32 *) new_addr);
+		return 0;
+	case OP_LW:
+	default:
+		return *(u32 *) new_addr;
 	}
 
 	__segfault_cb(state, addr);
 	return 0;
-}
-
-static const struct lightrec_mem_map * find_map(
-		struct lightrec_state *state, u32 pc)
-{
-	unsigned int i;
-
-	for (i = 0; i < state->nb_maps; i++) {
-		const struct lightrec_mem_map *map = &state->maps[i];
-
-		if (pc >= map->pc && pc < map->pc + map->length)
-			return map;
-	}
-
-	return NULL;
 }
 
 static struct block * get_block(struct lightrec_state *state, u32 pc)
@@ -346,18 +304,9 @@ struct block * lightrec_recompile_block(struct lightrec_state *state, u32 pc)
 	jit_state_t *_jit;
 	bool skip_next = false;
 	const u32 *code;
-	u32 addr, kunseg_pc = kunseg(pc);
-	const struct lightrec_mem_map *map = find_map(state, kunseg_pc);
+	u32 addr = kunseg(pc);
 
-	if (!map)
-		return NULL;
-
-	addr = kunseg_pc - map->pc;
-
-	while (map->mirror_of)
-		map = map->mirror_of;
-
-	code = map->address + addr;
+	code = base_addr(state, addr);
 
 	block = malloc(sizeof(*block));
 	if (!block)
@@ -374,13 +323,12 @@ struct block * lightrec_recompile_block(struct lightrec_state *state, u32 pc)
 	lightrec_regcache_reset(state->reg_cache);
 
 	block->pc = pc;
-	block->kunseg_pc = map->pc + addr;
+	block->kunseg_pc = addr;
 	block->state = state;
 	block->_jit = _jit;
 	block->opcode_list = list;
 	block->cycles = 0;
 	block->code = code;
-	block->map = map;
 	block->hash = calculate_block_hash(block);
 
 	lightrec_optimize(list);
@@ -463,8 +411,9 @@ void lightrec_free_block(struct block *block)
 }
 
 struct lightrec_state * lightrec_init(char *argv0,
-		const struct lightrec_mem_map *map, size_t nb,
-		const struct lightrec_cop_ops *cop_ops)
+		const struct lightrec_hw_ops *hw_ops,
+		const struct lightrec_cop_ops *cop_ops,
+		void *ram, void *bios, void *scratchpad)
 {
 	struct lightrec_state *state;
 	unsigned int i;
@@ -483,38 +432,29 @@ struct lightrec_state * lightrec_init(char *argv0,
 	if (!state->reg_cache)
 		goto err_free_block_cache;
 
-	state->mem_map = calloc(nb, sizeof(*state->mem_map));
-	if (!state->mem_map)
+	/* TODO: calculate the best page shift */
+	state->page_shift = 9;
+
+	state->invalidation_table = calloc(
+				(0x200000 >> state->page_shift) + 1,
+				sizeof(u32));
+	if (!state->invalidation_table)
 		goto err_free_reg_cache;
 
-	state->nb_maps = nb;
-	state->maps = map;
-
-	for (i = 0; i < nb; i++) {
-		struct lightrec_mem_map_priv *map_priv = &state->mem_map[i];
-
-		if (!(map[i].flags & MAP_IS_RWX))
-			continue;
-
-		/* TODO: calculate the best page shift */
-		map_priv->page_shift = 9;
-
-		map_priv->invalidation_table = calloc(
-				(map[i].length >> map_priv->page_shift) + 1,
-				sizeof(u32));
-		if (!map_priv->invalidation_table)
-			goto err_free_invalidation_tables;
-	}
-
-	state->cop_ops = cop_ops;
 	state->wrapper = generate_wrapper_block(state);
+	if (!state->wrapper)
+		goto err_free_invalidation_table;
+
+	state->hw_ops = hw_ops;
+	state->cop_ops = cop_ops;
+	state->ram_addr = ram;
+	state->bios_addr = bios;
+	state->scratch_addr = scratchpad;
 
 	return state;
 
-err_free_invalidation_tables:
-	for (i = 0; i < nb; i++)
-		free(state->mem_map[i].invalidation_table);
-	free(state->mem_map);
+err_free_invalidation_table:
+	free(state->invalidation_table);
 err_free_reg_cache:
 	lightrec_free_regcache(state->reg_cache);
 err_free_block_cache:
@@ -535,22 +475,20 @@ void lightrec_destroy(struct lightrec_state *state)
 	lightrec_free_block(state->wrapper);
 	finish_jit();
 
-	for (i = 0; i < state->nb_maps; i++)
-		free(state->mem_map[i].invalidation_table);
-	free(state->mem_map);
+	free(state->invalidation_table);
 	free(state);
 }
 
 void lightrec_invalidate(struct lightrec_state *state, u32 addr, u32 len)
 {
-	u32 kaddr = kunseg(addr);
-	const struct lightrec_mem_map *map = find_map(state, kaddr);
+	u32 offset, count, kaddr = kunseg(addr);
 
-	if (map) {
-		while (map->mirror_of)
-			map = map->mirror_of;
+	if (kaddr < 0x200000) {
+		offset = kaddr >> state->page_shift;
+		count = (len + (1 << state->page_shift) - 1) >> state->page_shift;
 
-		lightrec_invalidate_map(state, map, kaddr, len);
+		while (count--)
+			state->invalidation_table[offset++] = state->current_cycle;
 	}
 }
 

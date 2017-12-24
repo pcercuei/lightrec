@@ -92,18 +92,16 @@ struct blockcache * lightrec_blockcache_init(void)
 
 u32 calculate_block_hash(const struct block *block)
 {
+	struct lightrec_state *state = block->state;
 	u32 offset, count, hash = 0;
 
-	if (block->map->flags & MAP_IS_RWX) {
-		const struct lightrec_mem_map_priv *map =
-			get_map_priv(block->state, block->map);
-
-		offset = (block->kunseg_pc - block->map->pc) >> map->page_shift;
-		count = (block->length + (1 << map->page_shift) - 1)
-			>> map->page_shift;
+	if (block->kunseg_pc < 0x200000) {
+		offset = block->kunseg_pc >> state->page_shift;
+		count = (block->length + (1 << state->page_shift) - 1)
+			>> state->page_shift;
 
 		while (count--)
-			hash += map->invalidation_table[offset++];
+			hash += state->invalidation_table[offset++];
 	}
 
 	return hash;
