@@ -56,7 +56,8 @@ enum standard_opcodes {
 	OP_LWC2			= 0x32,
 	OP_SWC2			= 0x3a,
 	OP_HLE			= 0x3b,
-	OP_META			= 0x3f,
+
+	OP_META_REG_UNLOAD	= 0x11,
 };
 
 enum special_opcodes {
@@ -114,10 +115,6 @@ enum cp2_basic_opcodes {
 	OP_CP2_BASIC_CFC2	= 0x02,
 	OP_CP2_BASIC_MTC2	= 0x04,
 	OP_CP2_BASIC_CTC2	= 0x06,
-};
-
-enum meta_opcodes {
-	OP_META_REG_UNLOAD	= 0x20,
 };
 
 struct opcode_r {
