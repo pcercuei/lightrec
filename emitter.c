@@ -126,6 +126,7 @@ static int rec_b(const struct block *block, struct opcode *op, u32 pc,
 {
 	struct regcache *reg_cache = block->state->reg_cache;
 	struct opcode *delay_slot = SLIST_NEXT(op, next);
+	struct native_register *regs_backup;
 	jit_state_t *_jit = block->_jit;
 	jit_node_t *addr;
 
@@ -140,7 +141,7 @@ static int rec_b(const struct block *block, struct opcode *op, u32 pc,
 		addr = jit_new_node_pww(code, NULL, rs, rt);
 
 		lightrec_free_regs(reg_cache);
-		lightrec_regcache_enter_branch(reg_cache);
+		regs_backup = lightrec_regcache_enter_branch(reg_cache);
 	}
 
 	lightrec_emit_end_of_block(block, pc, -1,
@@ -148,7 +149,7 @@ static int rec_b(const struct block *block, struct opcode *op, u32 pc,
 
 	if (!unconditional) {
 		jit_patch(addr);
-		lightrec_regcache_leave_branch(reg_cache);
+		lightrec_regcache_leave_branch(reg_cache, regs_backup);
 
 		if (delay_slot->opcode /* TODO: BL opcodes */)
 			lightrec_rec_opcode(block, delay_slot, pc + 4);

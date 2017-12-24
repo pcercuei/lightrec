@@ -25,7 +25,6 @@ struct native_register {
 
 struct regcache {
 	struct native_register lightrec_regs[NUM_REGS + NUM_TEMPS];
-	struct native_register lightrec_regs_backup[NUM_REGS + NUM_TEMPS];
 };
 
 static inline u8 lightrec_reg_number(const struct regcache *cache,
@@ -285,16 +284,20 @@ void lightrec_clean_reg(struct regcache *cache, jit_state_t *_jit, u8 jit_reg)
 	clean_reg(_jit, reg, jit_reg, true);
 }
 
-void lightrec_regcache_enter_branch(struct regcache *cache)
+struct native_register * lightrec_regcache_enter_branch(struct regcache *cache)
 {
-	memcpy(&cache->lightrec_regs_backup, &cache->lightrec_regs,
-			sizeof(cache->lightrec_regs));
+	struct native_register *backup = malloc(sizeof(cache->lightrec_regs));
+
+	memcpy(backup, &cache->lightrec_regs, sizeof(cache->lightrec_regs));
+
+	return backup;
 }
 
-void lightrec_regcache_leave_branch(struct regcache *cache)
+void lightrec_regcache_leave_branch(struct regcache *cache,
+			struct native_register *regs)
 {
-	memcpy(&cache->lightrec_regs, &cache->lightrec_regs_backup,
-			sizeof(cache->lightrec_regs));
+	memcpy(&cache->lightrec_regs, regs, sizeof(cache->lightrec_regs));
+	free(regs);
 }
 
 void lightrec_regcache_reset(struct regcache *cache)

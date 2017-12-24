@@ -31,6 +31,7 @@ struct register_value {
 	u32 value;
 };
 
+struct native_register;
 struct regcache;
 
 u8 lightrec_alloc_reg_temp(struct regcache *cache, jit_state_t *_jit);
@@ -49,8 +50,9 @@ void lightrec_storeback_regs(struct regcache *cache, jit_state_t *_jit);
 u8 lightrec_alloc_reg_in_address(struct regcache *cache,
 		jit_state_t *_jit, u8 reg, s16 offset);
 
-void lightrec_regcache_enter_branch(struct regcache *cache);
-void lightrec_regcache_leave_branch(struct regcache *cache);
+struct native_register * lightrec_regcache_enter_branch(struct regcache *cache);
+void lightrec_regcache_leave_branch(struct regcache *cache,
+			struct native_register *regs);
 
 struct regcache * lightrec_regcache_init(void);
 void lightrec_free_regcache(struct regcache *cache);
