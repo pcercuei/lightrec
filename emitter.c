@@ -1029,6 +1029,51 @@ static int rec_meta_unload(const struct block *block, struct opcode *op, u32 pc)
 	return 0;
 }
 
+static int rec_meta_load(const struct block *block, struct opcode *op, u32 pc)
+{
+	struct regcache *reg_cache = block->state->reg_cache;
+	jit_state_t *_jit = block->_jit;
+	u32 kaddr = kunseg(op->value);
+	void *addr;
+	u8 rt;
+
+	jit_name(__func__);
+	jit_note(__FILE__, __LINE__);
+
+	addr = base_addr(block->state, kaddr);
+	if (!addr) {
+		DEBUG("META load from HW register at address 0x%08x\n", addr);
+		return rec_load(block, op, false, false);
+	}
+
+	rt = lightrec_alloc_reg_out(reg_cache, _jit, op->i.rt);
+	jit_movi(rt, (uintptr_t) addr);
+
+	DEBUG("META load from address 0x%08x\n", kaddr);
+	switch (op->i.op) {
+		case OP_META_LB:
+			jit_ldxi_c(rt, rt, 0);
+			break;
+		case OP_META_LH:
+			jit_ldxi_s(rt, rt, 0);
+			break;
+		default:
+		case OP_META_LW:
+			jit_ldxi_i(rt, rt, 0);
+			break;
+		case OP_META_LBU:
+			jit_ldxi_uc(rt, rt, 0);
+			break;
+		case OP_META_LHU:
+			jit_ldxi_us(rt, rt, 0);
+			break;
+	}
+
+	lightrec_free_reg(reg_cache, rt);
+
+	return 0;
+}
+
 static const lightrec_rec_func_t rec_standard[64] = {
 	[OP_SPECIAL]		= rec_SPECIAL,
 	[OP_REGIMM]		= rec_REGIMM,
@@ -1065,6 +1110,11 @@ static const lightrec_rec_func_t rec_standard[64] = {
 	[OP_HLE]		= emit_call_to_interpreter, /* TODO */
 
 	[OP_META_REG_UNLOAD]	= rec_meta_unload,
+	[OP_META_LB]		= rec_meta_load,
+	[OP_META_LH]		= rec_meta_load,
+	[OP_META_LW]		= rec_meta_load,
+	[OP_META_LBU]		= rec_meta_load,
+	[OP_META_LHU]		= rec_meta_load,
 };
 
 static const lightrec_rec_func_t rec_special[64] = {

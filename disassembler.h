@@ -21,6 +21,7 @@
 #include <sys/queue.h>
 
 #define LIGHTREC_SKIP_PC_UPDATE	(1 << 0)
+#define LIGHTREC_VALUE_IS_KNOWN	(1 << 1)
 
 enum standard_opcodes {
 	OP_SPECIAL		= 0x00,
@@ -58,6 +59,11 @@ enum standard_opcodes {
 	OP_HLE			= 0x3b,
 
 	OP_META_REG_UNLOAD	= 0x11,
+	OP_META_LB		= 0x13,
+	OP_META_LH		= 0x14,
+	OP_META_LW		= 0x16,
+	OP_META_LBU		= 0x17,
+	OP_META_LHU		= 0x18,
 };
 
 enum special_opcodes {
@@ -146,6 +152,7 @@ struct opcode {
 		struct opcode_j j;
 	};
 	u32 flags;
+	u32 value;
 	SLIST_ENTRY(opcode) next;
 };
 

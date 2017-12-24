@@ -53,14 +53,19 @@ static u32 lightrec_rw_ops(struct lightrec_state *state,
 		ops->sw(state, op, addr, data);
 		return 0;
 	case OP_LB:
+	case OP_META_LB:
 		return (s32) (s8) ops->lb(state, op, addr);
 	case OP_LBU:
+	case OP_META_LBU:
 		return ops->lb(state, op, addr);
 	case OP_LH:
+	case OP_META_LH:
 		return (s32) (s16) ops->lh(state, op, addr);
 	case OP_LHU:
+	case OP_META_LHU:
 		return ops->lh(state, op, addr);
 	case OP_LW:
+	case OP_META_LW:
 	default:
 		return ops->lw(state, op, addr);
 	}

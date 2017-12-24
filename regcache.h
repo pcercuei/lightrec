@@ -26,11 +26,6 @@
 #define REG_LO 32
 #define REG_HI 33
 
-struct register_value {
-	bool known;
-	u32 value;
-};
-
 struct native_register;
 struct regcache;
 
