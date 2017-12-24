@@ -20,6 +20,7 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <string.h>
 
 struct optimizer_list {
 	void (**optimizers)(struct opcode *);
@@ -240,6 +241,71 @@ static bool has_delay_slot(struct opcode *op)
 	}
 }
 
+static int lightrec_const_prop(struct opcode *list)
+{
+	struct opcode *op;
+	bool reg_known[34];
+	u32 reg_value[34];
+	unsigned int i;
+
+	memset(reg_known, 0, sizeof(reg_known));
+
+	for (op = list; op; op = SLIST_NEXT(op, next)) {
+		switch (op->i.op) {
+			case OP_LUI:
+				op->value = op->i.imm << 16;
+				op->flags |= LIGHTREC_VALUE_IS_KNOWN;
+				reg_value[op->i.rt] = op->value;
+				reg_known[op->i.rt] = true;
+				break;
+
+			case OP_ORI:
+				if (reg_known[op->i.rt] = reg_known[op->i.rs]) {
+					op->value = reg_value[op->i.rs] | op->i.imm;
+					op->flags |= LIGHTREC_VALUE_IS_KNOWN;
+					reg_value[op->i.rt] = op->value;
+				}
+				break;
+
+			case OP_XORI:
+				if (reg_known[op->i.rt] = reg_known[op->i.rs]) {
+					op->value = reg_value[op->i.rs] ^ op->i.imm;
+					op->flags |= LIGHTREC_VALUE_IS_KNOWN;
+					reg_value[op->i.rt] = op->value;
+				}
+				break;
+
+			case OP_ANDI:
+				if (reg_known[op->i.rt] = reg_known[op->i.rs]) {
+					op->value = reg_value[op->i.rs] & op->i.imm;
+					op->flags |= LIGHTREC_VALUE_IS_KNOWN;
+					reg_value[op->i.rt] = op->value;
+				}
+				break;
+
+			case OP_LB:
+			case OP_LH:
+			case OP_LW:
+			case OP_LBU:
+			case OP_LHU:
+				if (reg_known[op->i.rs]) {
+					/* Convert it to a META opcode */
+					op->value = (s32) reg_value[op->i.rs] + (s16) op->i.imm;
+					op->i.op = OP_META_LB + (op->i.op - OP_LB);
+					reg_known[op->i.rt] = false;
+				}
+				break;
+
+			default:
+				for (i = 0; i < 34; i++) {
+					if (opcode_writes_register(op, i))
+						reg_known[i] = false;
+				}
+				break;
+		}
+	}
+}
+
 static int lightrec_add_unload(struct opcode *op, u8 reg)
 {
 	struct opcode *meta = malloc(sizeof(*meta));
@@ -299,6 +365,7 @@ static int lightrec_early_unload(struct opcode *list)
 
 static int (*lightrec_optimizers[])(struct opcode *) = {
 	&lightrec_transform_to_nops,
+	&lightrec_const_prop,
 	&lightrec_early_unload,
 };
 
