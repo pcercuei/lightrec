@@ -64,6 +64,9 @@ enum standard_opcodes {
 	OP_META_LW		= 0x16,
 	OP_META_LBU		= 0x17,
 	OP_META_LHU		= 0x18,
+	OP_META_SB		= 0x19,
+	OP_META_SH		= 0x1a,
+	OP_META_SW		= 0x1c,
 };
 
 enum special_opcodes {

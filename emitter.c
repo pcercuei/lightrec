@@ -1074,6 +1074,70 @@ static int rec_meta_load(const struct block *block, struct opcode *op, u32 pc)
 	return 0;
 }
 
+static void rec_gen_invalidate(struct lightrec_state *state,
+			jit_state_t *_jit, u32 kaddr, u8 reg)
+{
+	struct regcache *reg_cache = state->reg_cache;
+	uintptr_t addr;
+	u8 tmp;
+
+	/* Get the current value of the cycle counter */
+	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
+	jit_movi(tmp, (uintptr_t) &state->current_cycle);
+	jit_ldxi_i(tmp, tmp, 0);
+
+	/* Write the invalidation table */
+	addr = (uintptr_t) &state->invalidation_table[kaddr >> state->page_shift];
+	jit_movi(reg, addr);
+	jit_stxi_i(0, reg, tmp);
+
+	lightrec_free_reg(reg_cache, tmp);
+}
+
+static int rec_meta_store(const struct block *block, struct opcode *op, u32 pc)
+{
+	struct regcache *reg_cache = block->state->reg_cache;
+	jit_state_t *_jit = block->_jit;
+	u32 kaddr = kunseg(op->value);
+	void *addr;
+	u8 rt, tmp;
+
+	jit_name(__func__);
+	jit_note(__FILE__, __LINE__);
+
+	addr = base_addr(block->state, kaddr);
+	if (!addr) {
+		DEBUG("META store to HW register at address 0x%08x\n", addr);
+		return rec_store(block, op, false);
+	}
+
+	rt = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rt);
+	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
+
+	jit_movi(tmp, (uintptr_t) addr);
+
+	DEBUG("META store to address 0x%08x\n", kaddr);
+	switch (op->i.op) {
+		case OP_META_SB:
+			jit_stxi_c(0, tmp, rt);
+			break;
+		case OP_META_SH:
+			jit_stxi_s(0, tmp, rt);
+			break;
+		default:
+		case OP_META_SW:
+			jit_stxi_i(0, tmp, rt);
+			break;
+	}
+
+	lightrec_free_reg(reg_cache, rt);
+
+	rec_gen_invalidate(block->state, _jit, kaddr, tmp);
+	lightrec_free_reg(reg_cache, tmp);
+
+	return 0;
+}
+
 static const lightrec_rec_func_t rec_standard[64] = {
 	[OP_SPECIAL]		= rec_SPECIAL,
 	[OP_REGIMM]		= rec_REGIMM,
@@ -1115,6 +1179,9 @@ static const lightrec_rec_func_t rec_standard[64] = {
 	[OP_META_LW]		= rec_meta_load,
 	[OP_META_LBU]		= rec_meta_load,
 	[OP_META_LHU]		= rec_meta_load,
+	[OP_META_SB]		= rec_meta_store,
+	[OP_META_SH]		= rec_meta_store,
+	[OP_META_SW]		= rec_meta_store,
 };
 
 static const lightrec_rec_func_t rec_special[64] = {

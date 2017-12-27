@@ -42,14 +42,17 @@ static u32 lightrec_rw_ops(struct lightrec_state *state,
 
 	switch (op->i.op) {
 	case OP_SB:
+	case OP_META_SB:
 		ops->sb(state, op, addr, (u8) data);
 		return 0;
 	case OP_SH:
+	case OP_META_SH:
 		ops->sh(state, op, addr, (u16) data);
 		return 0;
 	case OP_SWL:
 	case OP_SWR:
 	case OP_SW:
+	case OP_META_SW:
 		ops->sw(state, op, addr, data);
 		return 0;
 	case OP_LB:
