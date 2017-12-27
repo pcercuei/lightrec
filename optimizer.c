@@ -296,6 +296,16 @@ static int lightrec_const_prop(struct opcode *list)
 				}
 				break;
 
+			case OP_SB:
+			case OP_SH:
+			case OP_SW:
+				if (reg_known[op->i.rs]) {
+					/* Convert it to a META opcode */
+					op->value = (s32) reg_value[op->i.rs] + (s16) op->i.imm;
+					op->i.op = OP_META_SB + (op->i.op - OP_SB);
+				}
+				break;
+
 			default:
 				for (i = 0; i < 34; i++) {
 					if (opcode_writes_register(op, i))
