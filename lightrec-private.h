@@ -35,6 +35,7 @@ struct jit_state;
 typedef struct jit_state jit_state_t;
 
 struct blockcache;
+struct recompiler;
 struct regcache;
 
 struct block {
@@ -58,6 +59,7 @@ struct lightrec_state {
 	void *ram_addr, *bios_addr, *scratch_addr;
 	struct block *wrapper, *current;
 	struct blockcache *block_cache;
+	struct recompiler *recompiler;
 	struct regcache *reg_cache;
 	void (*eob_wrapper_func)(void);
 	const struct lightrec_hw_ops *hw_ops;

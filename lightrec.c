@@ -17,6 +17,7 @@
 #include "disassembler.h"
 #include "emitter.h"
 #include "lightrec.h"
+#include "recompiler.h"
 #include "regcache.h"
 #include "optimizer.h"
 
@@ -173,16 +174,6 @@ static struct block * get_block(struct lightrec_state *state, u32 pc)
 		block = NULL;
 	}
 
-	if (!block) {
-		block = lightrec_recompile_block(state, pc);
-		if (!block) {
-			ERROR("Unable to recompile block at PC 0x%x\n", pc);
-			return NULL;
-		}
-
-		lightrec_register_block(state->block_cache, block);
-	}
-
 	return block;
 }
 
@@ -267,7 +258,7 @@ static struct block * generate_wrapper_block(struct lightrec_state *state)
 	/* When exiting, the recompiled code will jump to that address */
 	jit_note(__FILE__, __LINE__);
 	jit_patch(to_end2);
-	jit_movi(JIT_R0, LIGHTREC_EXIT_SEGFAULT);
+	jit_movi(JIT_R0, LIGHTREC_EXIT_INTERPRETER);
 	jit_stxi_i(offsetof(struct lightrec_state, exit_flags),
 			LIGHTREC_REG_STATE, JIT_R0);
 
@@ -381,7 +372,9 @@ u32 lightrec_execute(struct lightrec_state *state, u32 pc, u32 target_cycle)
 	struct block *block = get_block(state, pc);
 
 	if (unlikely(!block)) {
-		state->exit_flags = LIGHTREC_EXIT_SEGFAULT;
+		lightrec_request_recompile(state->recompiler, pc);
+
+		state->exit_flags = LIGHTREC_EXIT_INTERPRETER;
 		return pc;
 	}
 
@@ -445,6 +438,10 @@ struct lightrec_state * lightrec_init(char *argv0,
 	if (!state->wrapper)
 		goto err_free_invalidation_table;
 
+	state->recompiler = lightrec_recompiler_init(state);
+	if (!state->recompiler)
+		goto err_free_wrapper;
+
 	state->hw_ops = hw_ops;
 	state->cop_ops = cop_ops;
 	state->ram_addr = ram;
@@ -453,6 +450,8 @@ struct lightrec_state * lightrec_init(char *argv0,
 
 	return state;
 
+err_free_wrapper:
+	lightrec_free_block(state->wrapper);
 err_free_invalidation_table:
 	free(state->invalidation_table);
 err_free_reg_cache:
@@ -470,6 +469,7 @@ void lightrec_destroy(struct lightrec_state *state)
 {
 	unsigned int i;
 
+	lightrec_free_recompiler(state->recompiler);
 	lightrec_free_regcache(state->reg_cache);
 	lightrec_free_block_cache(state->block_cache);
 	lightrec_free_block(state->wrapper);

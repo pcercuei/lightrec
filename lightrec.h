@@ -42,6 +42,7 @@ struct lightrec_state;
 #define LIGHTREC_EXIT_BREAK	(1 << 1)
 #define LIGHTREC_EXIT_CHECK_INTERRUPT	(1 << 2)
 #define LIGHTREC_EXIT_SEGFAULT	(1 << 3)
+#define LIGHTREC_EXIT_INTERPRETER	(1 << 4)
 
 struct lightrec_hw_ops {
 	void (*sb)(struct lightrec_state *, const struct opcode *, u32, u8);
