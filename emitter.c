@@ -638,74 +638,42 @@ static int rec_special_MTLO(const struct block *block,
 	return rec_alu_mv_lo_hi(block, REG_LO, op->r.rs);
 }
 
-static int rec_store(const struct block *block, struct opcode *op, bool swc2)
+static int rec_io(const struct block *block, struct opcode *op,
+		  bool load_rt, bool read_rt)
 {
 	struct regcache *reg_cache = block->state->reg_cache;
 	jit_state_t *_jit = block->_jit;
-	u8 rt, rs;
+	u8 rt, rs, tmp;
 
 	jit_note(__FILE__, __LINE__);
 
-	jit_prepare();
-	jit_pushargr(LIGHTREC_REG_STATE);
-	jit_pushargi((intptr_t) op);
-
 	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rs);
-	jit_pushargr(rs);
-	lightrec_free_reg(reg_cache, rs);
+	jit_stxi_i(offsetof(struct lightrec_state, op_data.addr),
+		   LIGHTREC_REG_STATE, rs);
+	lightrec_unload_reg(reg_cache, _jit, rs);
 
-	if (likely(!swc2)) {
+	if (load_rt) {
 		rt = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rt);
-		jit_pushargr(rt);
-		lightrec_free_reg(reg_cache, rt);
+		jit_stxi_i(offsetof(struct lightrec_state, op_data.data),
+			   LIGHTREC_REG_STATE, rt);
+		lightrec_unload_reg(reg_cache, _jit, rt);
 	}
 
-	lightrec_storeback_regs(reg_cache, _jit);
-
-	/* The call to C trashes the registers, we have to reset the cache */
-	lightrec_regcache_reset(reg_cache);
-
-	jit_finishi(lightrec_rw);
-	return 0;
-}
-
-static int rec_load(const struct block *block, struct opcode *op,
-		bool lwrl, bool lwc2)
-{
-	struct regcache *reg_cache = block->state->reg_cache;
-	jit_state_t *_jit = block->_jit;
-	u8 rt, rs;
+	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
+	jit_movi(tmp, (uintptr_t)op);
+	jit_stxi(offsetof(struct lightrec_state, op_data.op),
+		 LIGHTREC_REG_STATE, tmp);
 
 	jit_note(__FILE__, __LINE__);
 
-	jit_prepare();
-	jit_pushargr(LIGHTREC_REG_STATE);
-	jit_pushargi((intptr_t) op);
+	jit_movi(tmp, (uintptr_t)block->state->rw_wrapper->function);
+	jit_callr(tmp);
+	lightrec_free_reg(reg_cache, tmp);
 
-	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rs);
-	jit_pushargr(rs);
-	lightrec_free_reg(reg_cache, rs);
-
-	if (unlikely(lwrl)) {
-		rt = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rt);
-		jit_pushargr(rt);
-		lightrec_free_reg(reg_cache, rt);
-	}
-
-	lightrec_storeback_regs(reg_cache, _jit);
-
-	/* The call to C trashes the registers, we have to reset the cache */
-	lightrec_regcache_reset(reg_cache);
-
-	jit_finishi(lightrec_rw);
-
-	if (likely(!lwc2)) {
-		/* If the destination register is $0, we just discard the result now */
-		if (unlikely(!op->i.rt))
-			return 0;
-
+	if (read_rt && likely(op->i.rt)) {
 		rt = lightrec_alloc_reg_out(reg_cache, _jit, op->i.rt);
-		jit_retval_i(rt);
+		jit_ldxi_i(rt, LIGHTREC_REG_STATE,
+			   offsetof(struct lightrec_state, op_data.data));
 		lightrec_free_reg(reg_cache, rt);
 	}
 
@@ -715,83 +683,83 @@ static int rec_load(const struct block *block, struct opcode *op,
 static int rec_SB(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_store(block, op, false);
+	return rec_io(block, op, true, false);
 }
 
 static int rec_SH(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_store(block, op, false);
+	return rec_io(block, op, true, false);
 }
 
 static int rec_SW(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_store(block, op, false);
+	return rec_io(block, op, true, false);
 }
 
 static int rec_SWL(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_store(block, op, false);
+	return rec_io(block, op, true, false);
 }
 
 static int rec_SWR(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_store(block, op, false);
+	return rec_io(block, op, true, false);
 }
 
 static int rec_SWC2(const struct block *block, struct opcode *op, u32 pc)
 {
-	return rec_store(block, op, true);
+	return rec_io(block, op, false, false);
 }
 
 static int rec_LB(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_load(block, op, false, false);
+	return rec_io(block, op, false, true);
 }
 
 static int rec_LBU(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_load(block, op, false, false);
+	return rec_io(block, op, false, true);
 }
 
 static int rec_LH(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_load(block, op, false, false);
+	return rec_io(block, op, false, true);
 }
 
 static int rec_LHU(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_load(block, op, false, false);
+	return rec_io(block, op, false, true);
 }
 
 static int rec_LWL(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_load(block, op, true, false);
+	return rec_io(block, op, true, true);
 }
 
 static int rec_LWR(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_load(block, op, true, false);
+	return rec_io(block, op, true, true);
 }
 
 static int rec_LW(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_load(block, op, false, false);
+	return rec_io(block, op, false, true);
 }
 
 static int rec_LWC2(const struct block *block, struct opcode *op, u32 pc)
 {
-	return rec_load(block, op, false, true);
+	return rec_io(block, op, false, false);
 }
 
 static int rec_break_syscall(const struct block *block, u32 pc, u32 exit_flags)

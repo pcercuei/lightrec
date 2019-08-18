@@ -82,8 +82,8 @@ static void lightrec_invalidate_map(struct lightrec_state *state,
 		priv->invalidation_table[offset++] = state->current_cycle;
 }
 
-u32 lightrec_rw(struct lightrec_state *state,
-		const struct opcode *op, u32 addr, u32 data)
+static u32 lightrec_do_rw(struct lightrec_state *state,
+			  const struct opcode *op, u32 addr, u32 data)
 {
 	unsigned int i;
 	u32 kaddr;
@@ -188,6 +188,14 @@ u32 lightrec_rw(struct lightrec_state *state,
 	return 0;
 }
 
+void lightrec_rw(struct lightrec_state *state)
+{
+	struct lightrec_op_data *opdata = &state->op_data;
+
+	opdata->data = lightrec_do_rw(state, opdata->op,
+				      opdata->addr, opdata->data);
+}
+
 static const struct lightrec_mem_map * find_map(
 		struct lightrec_state *state, u32 pc)
 {
@@ -231,6 +239,63 @@ static struct block * get_block(struct lightrec_state *state, u32 pc)
 static struct block * get_next_block(struct lightrec_state *state)
 {
 	return get_block(state, state->next_pc);
+}
+
+static struct block * generate_wrapper(struct lightrec_state *state,
+				       void (*f)(struct lightrec_state *))
+{
+	struct block *block;
+	jit_state_t *_jit;
+	unsigned int i;
+	int stack_ptr;
+
+	block = malloc(sizeof(*block));
+	if (!block)
+		goto err_no_mem;
+
+	_jit = jit_new_state();
+	if (!_jit)
+		goto err_free_block;
+
+	jit_name("RW wrapper");
+	jit_note(__FILE__, __LINE__);
+
+	jit_prolog();
+
+	stack_ptr = jit_allocai(sizeof(uintptr_t) * NUM_TEMPS);
+
+	for (i = 0; i < NUM_TEMPS; i++)
+		jit_stxi(stack_ptr + i * sizeof(uintptr_t), JIT_FP, JIT_R(i));
+
+	jit_prepare();
+	jit_pushargr(LIGHTREC_REG_STATE);
+
+	jit_finishi(f);
+
+	for (i = 0; i < NUM_TEMPS; i++)
+		jit_ldxi(JIT_R(i), JIT_FP, stack_ptr + i * sizeof(uintptr_t));
+
+	jit_ret();
+	jit_epilog();
+
+	block->state = state;
+	block->_jit = _jit;
+	block->function = jit_emit();
+	block->opcode_list = NULL;
+
+#if (LOG_LEVEL >= DEBUG_L)
+	DEBUG("RW block:\n");
+	jit_disassemble();
+#endif
+
+	jit_clear_state();
+	return block;
+
+err_free_block:
+	free(block);
+err_no_mem:
+	ERROR("Unable to compile wrapper: Out of memory\n");
+	return NULL;
 }
 
 static struct block * generate_wrapper_block(struct lightrec_state *state)
@@ -508,6 +573,7 @@ struct lightrec_state * lightrec_init(char *argv0,
 
 	state->cop_ops = cop_ops;
 	state->wrapper = generate_wrapper_block(state);
+	state->rw_wrapper = generate_wrapper(state, lightrec_rw);
 
 	return state;
 
@@ -533,6 +599,7 @@ void lightrec_destroy(struct lightrec_state *state)
 	lightrec_free_regcache(state->reg_cache);
 	lightrec_free_block_cache(state->block_cache);
 	lightrec_free_block(state->wrapper);
+	lightrec_free_block(state->rw_wrapper);
 	finish_jit();
 
 	for (i = 0; i < state->nb_maps; i++)

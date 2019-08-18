@@ -55,13 +55,20 @@ struct block {
 	const struct lightrec_mem_map *map;
 };
 
+struct lightrec_op_data {
+	const struct opcode *op;
+	u32 addr;
+	u32 data;
+};
+
 struct lightrec_state {
 	u32 native_reg_cache[34];
 	u32 next_pc;
 	u32 current_cycle;
 	u32 target_cycle;
 	u32 exit_flags;
-	struct block *wrapper, *current;
+	struct lightrec_op_data op_data;
+	struct block *wrapper, *rw_wrapper, *current;
 	struct blockcache *block_cache;
 	struct regcache *reg_cache;
 	void (*eob_wrapper_func)(void);
@@ -71,8 +78,7 @@ struct lightrec_state {
 	struct lightrec_mem_map_priv *mem_map;
 };
 
-u32 lightrec_rw(struct lightrec_state *state,
-		const struct opcode *op, u32 addr, u32 data);
+void lightrec_rw(struct lightrec_state *state);
 
 struct block * lightrec_recompile_block(struct lightrec_state *state, u32 pc);
 void lightrec_free_block(struct block *block);
