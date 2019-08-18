@@ -129,6 +129,7 @@ static int rec_b(const struct block *block, struct opcode *op, u32 pc,
 	struct native_register *regs_backup;
 	jit_state_t *_jit = block->_jit;
 	jit_node_t *addr;
+	u8 link_reg;
 
 	jit_note(__FILE__, __LINE__);
 
@@ -151,6 +152,13 @@ static int rec_b(const struct block *block, struct opcode *op, u32 pc,
 	if (!unconditional) {
 		jit_patch(addr);
 		lightrec_regcache_leave_branch(reg_cache, regs_backup);
+
+		if (bz && link) {
+			/* Update the $ra register */
+			link_reg = lightrec_alloc_reg_out(reg_cache, _jit, 31);
+			jit_movi(link_reg, link);
+			lightrec_free_reg(reg_cache, link_reg);
+		}
 
 		if (delay_slot->opcode /* TODO: BL opcodes */)
 			lightrec_rec_opcode(block, delay_slot, pc + 4);
