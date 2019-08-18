@@ -791,134 +791,120 @@ static int rec_special_BREAK(const struct block *block,
 	return rec_break_syscall(block, pc, LIGHTREC_EXIT_BREAK);
 }
 
-static int lightrec_mfc(const struct block *block,
-		struct opcode *op, int cpX, bool copy)
+static int lightrec_mfc(const struct block *block, struct opcode *op)
 {
-	u8 rt;
+	u8 rt, tmp;
 	struct lightrec_state *state = block->state;
 	const struct lightrec_cop_ops *ops = state->cop_ops;
 	struct regcache *reg_cache = state->reg_cache;
 	jit_state_t *_jit = block->_jit;
 
-	if (!ops) {
+	if (!ops || !ops->cfc || !ops->mfc) {
 		WARNING("Missing coprocessor callbacks\n");
-		return 0;
-	}
-
-	if ((copy && !ops->cfc) || (!copy && !ops->mfc)) {
-		WARNING("Missing %s callback\n", copy ? "CFC" : "MFC");
 		return 0;
 	}
 
 	jit_note(__FILE__, __LINE__);
 
-	jit_prepare();
-	jit_pushargr(LIGHTREC_REG_STATE);
-	jit_pushargi(cpX);
-	jit_pushargi(op->r.rd);
+	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
+	jit_movi(tmp, (uintptr_t)op);
+	jit_stxi(offsetof(struct lightrec_state, op_data.op),
+		 LIGHTREC_REG_STATE, tmp);
 
-	lightrec_storeback_regs(reg_cache, _jit);
-
-	/* The call to C trashes the registers, we have to reset the cache */
-	lightrec_regcache_reset(reg_cache);
-
-	jit_finishi(copy ? ops->cfc : ops->mfc);
+	jit_movi(tmp, (uintptr_t)block->state->mfc_wrapper->function);
+	jit_callr(tmp);
+	lightrec_free_reg(reg_cache, tmp);
 
 	rt = lightrec_alloc_reg_out(reg_cache, _jit, op->r.rt);
-	jit_retval_i(rt);
+	jit_ldxi_i(rt, LIGHTREC_REG_STATE,
+		   offsetof(struct lightrec_state, op_data.data));
 	lightrec_free_reg(reg_cache, rt);
+
 	return 0;
 }
 
-static int lightrec_mtc(const struct block *block,
-		struct opcode *op, int cpX, bool copy)
+static int lightrec_mtc(const struct block *block, struct opcode *op)
 {
-	u8 rt;
 	struct lightrec_state *state = block->state;
 	struct regcache *reg_cache = state->reg_cache;
 	const struct lightrec_cop_ops *ops = state->cop_ops;
 	jit_state_t *_jit = block->_jit;
+	u8 rt, tmp;
 
-	if (!ops) {
+	if (!ops || !ops->ctc || !ops->mtc) {
 		WARNING("Missing coprocessor callbacks\n");
 		return 0;
 	}
 
-	if ((copy && !ops->ctc) || (!copy && !ops->mtc)) {
-		WARNING("Missing %s callback\n", copy ? "CTC" : "MTC");
-		return 0;
-	}
-
-	rt = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rt);
-
 	jit_note(__FILE__, __LINE__);
 
-	jit_prepare();
-	jit_pushargr(LIGHTREC_REG_STATE);
-	jit_pushargi(cpX);
-	jit_pushargi(op->r.rd);
-	jit_pushargr(rt);
+	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
+	jit_movi(tmp, (uintptr_t)op);
+	jit_stxi(offsetof(struct lightrec_state, op_data.op),
+		 LIGHTREC_REG_STATE, tmp);
+
+	rt = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rt);
+	jit_stxi_i(offsetof(struct lightrec_state, op_data.data),
+		   LIGHTREC_REG_STATE, rt);
 	lightrec_free_reg(reg_cache, rt);
 
-	lightrec_storeback_regs(reg_cache, _jit);
+	jit_movi(tmp, (uintptr_t)block->state->mtc_wrapper->function);
+	jit_callr(tmp);
+	lightrec_free_reg(reg_cache, tmp);
 
-	/* The call to C trashes the registers, we have to reset the cache */
-	lightrec_regcache_reset(reg_cache);
-
-	jit_finishi(copy ? ops->ctc : ops->mtc);
 	return 0;
 }
 
 static int rec_cp0_MFC0(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return lightrec_mfc(block, op, 0, false);
+	return lightrec_mfc(block, op);
 }
 
 static int rec_cp0_CFC0(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return lightrec_mfc(block, op, 0, true);
+	return lightrec_mfc(block, op);
 }
 
 static int rec_cp0_MTC0(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return lightrec_mtc(block, op, 0, false);
+	return lightrec_mtc(block, op);
 }
 
 static int rec_cp0_CTC0(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return lightrec_mtc(block, op, 0, true);
+	return lightrec_mtc(block, op);
 }
 
 static int rec_cp2_basic_MFC2(const struct block *block,
 		struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return lightrec_mfc(block, op, 2, false);
+	return lightrec_mfc(block, op);
 }
 
 static int rec_cp2_basic_CFC2(const struct block *block,
 		struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return lightrec_mfc(block, op, 2, true);
+	return lightrec_mfc(block, op);
 }
 
 static int rec_cp2_basic_MTC2(const struct block *block,
 		struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return lightrec_mtc(block, op, 2, false);
+	return lightrec_mtc(block, op);
 }
 
 static int rec_cp2_basic_CTC2(const struct block *block,
 		struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return lightrec_mtc(block, op, 2, true);
+	return lightrec_mtc(block, op);
 }
 
 static void rec_cp0_RFE_C(struct lightrec_state *state)
