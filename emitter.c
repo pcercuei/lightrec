@@ -146,7 +146,7 @@ static int rec_b(const struct block *block, struct opcode *op, u32 pc,
 	}
 
 	lightrec_emit_end_of_block(block, pc, -1,
-			pc + 4 + (s16) (op->i.imm << 2), 31, link,
+			pc + 4 + ((s16)op->i.imm << 2), 31, link,
 			delay_slot);
 
 	if (!unconditional) {
