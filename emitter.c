@@ -253,9 +253,13 @@ static int rec_alu_special(const struct block *block, struct opcode *op,
 		} else if (code == jit_code_rshr_u) {
 			jit_extr_ui(rd, rt);
 			jit_new_node_www(code, rd, rd, temp);
-		} else
-#endif
+		} else {
 			jit_new_node_www(code, rd, rt, temp);
+			jit_extr_i(rd, rd);
+		}
+#else
+		jit_new_node_www(code, rd, rt, temp);
+#endif
 
 		lightrec_free_reg(reg_cache, temp);
 	}
@@ -434,6 +438,7 @@ static int rec_alu_shift(const struct block *block,
 #if __WORDSIZE == 64
 	if (code == jit_code_lshi) {
 		jit_new_node_www(code, rd, rt, op->r.imm);
+		jit_extr_i(rd, rd);
 	} else if (code == jit_code_rshi_u) {
 		jit_extr_ui(rd, rt);
 		jit_new_node_www(code, rd, rd, op->r.imm);
