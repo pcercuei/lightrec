@@ -21,6 +21,7 @@
 #define __packed __attribute__((packed))
 
 #define ARRAY_SIZE(x) (sizeof(x) ? sizeof(x) / sizeof((x)[0]) : 0)
+#define BIT(x) (1 << (x))
 
 #ifdef __GNUC__
 #	define likely(x)       __builtin_expect(!!(x),1)
@@ -60,7 +61,7 @@ struct block {
 };
 
 struct lightrec_op_data {
-	const struct opcode *op;
+	struct opcode *op;
 	u32 addr;
 	u32 data;
 };
@@ -80,10 +81,11 @@ struct lightrec_state {
 	unsigned int nb_maps;
 	const struct lightrec_mem_map *maps;
 	struct lightrec_mem_map_priv *mem_map;
+	uintptr_t offset_ram, offset_bios, offset_scratch;
 };
 
 u32 lightrec_rw(struct lightrec_state *state,
-		const struct opcode *op, u32 addr, u32 data);
+		struct opcode *op, u32 addr, u32 data);
 
 void lightrec_free_block(struct block *block);
 

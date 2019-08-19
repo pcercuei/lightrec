@@ -731,28 +731,119 @@ static int rec_SWC2(const struct block *block, struct opcode *op, u32 pc)
 	return rec_io(block, op, false, false);
 }
 
+static int rec_load_direct(const struct block *block, struct opcode *op,
+			   u32 pc, jit_code_t code)
+{
+	struct lightrec_state *state = block->state;
+	struct regcache *reg_cache = state->reg_cache;
+	jit_state_t *_jit = block->_jit;
+	jit_node_t *to_not_ram, *to_not_bios, *to_end, *to_end2;
+	u8 tmp, rs, rt;
+
+	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rs);
+	rt = lightrec_alloc_reg_out(reg_cache, _jit, op->i.rt);
+	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
+
+	jit_andi(tmp, rs, BIT(28));
+
+	if (state->offset_ram == state->offset_bios &&
+	    state->offset_ram == state->offset_scratch) {
+		jit_rshi_u(tmp, tmp, 28 - 22);
+		jit_ori(tmp, tmp, 0x1f9fffff);
+		jit_andr(rt, rs, tmp);
+
+		if (state->offset_ram) {
+			jit_movi(tmp, state->offset_ram);
+			jit_addr(rt, rt, tmp);
+		}
+	} else {
+		to_not_ram = jit_bnei(tmp, 0);
+
+		/* Convert to KUNSEG and avoid RAM mirrors */
+		jit_andi(rt, rs, 0x1fffff);
+
+		if (state->offset_ram) {
+			jit_movi(tmp, state->offset_ram);
+			jit_addr(rt, rt, tmp);
+		}
+
+		to_end = jit_jmpi();
+
+		jit_patch(to_not_ram);
+
+		if (state->offset_bios != state->offset_scratch) {
+			jit_rshi(tmp, tmp, 28 - 22);
+			jit_andr(tmp, rs, tmp);
+			to_not_bios = jit_beqi(tmp, 0);
+		}
+
+		/* Convert to KUNSEG */
+		jit_andi(rt, rs, 0x1fc7ffff);
+
+		if (state->offset_bios) {
+			jit_movi(tmp, state->offset_bios);
+			jit_addr(rt, rt, tmp);
+		}
+
+		if (state->offset_bios != state->offset_scratch) {
+			to_end2 = jit_jmpi();
+
+			jit_patch(to_not_bios);
+
+			/* Convert to KUNSEG */
+			jit_andi(rt, rs, 0x1f800fff);
+
+			if (state->offset_scratch) {
+				jit_movi(tmp, state->offset_scratch);
+				jit_addr(rt, rt, tmp);
+			}
+
+			jit_patch(to_end2);
+		}
+
+		jit_patch(to_end);
+	}
+
+	jit_new_node_www(code, rt, rt, (s16)op->i.imm);
+
+	lightrec_free_reg(reg_cache, rs);
+	lightrec_free_reg(reg_cache, rt);
+	lightrec_free_reg(reg_cache, tmp);
+
+	return 0;
+}
+
+static int rec_load(const struct block *block, struct opcode *op,
+		    u32 pc, jit_code_t code)
+{
+	if (op->flags & LIGHTREC_DIRECT_IO)
+		return rec_load_direct(block, op, pc, code);
+	else
+		return rec_io(block, op, false, true);
+}
+
 static int rec_LB(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_io(block, op, false, true);
+	return rec_load(block, op, pc, jit_code_ldxi_c);
 }
 
 static int rec_LBU(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_io(block, op, false, true);
+	return rec_load(block, op, pc, jit_code_ldxi_uc);
 }
 
 static int rec_LH(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_io(block, op, false, true);
+	return rec_load(block, op, pc, jit_code_ldxi_s);
 }
 
 static int rec_LHU(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_io(block, op, false, true);
+	return rec_load(block, op, pc, jit_code_ldxi_us);
 }
 
 static int rec_LWL(const struct block *block, struct opcode *op, u32 pc)
@@ -770,7 +861,7 @@ static int rec_LWR(const struct block *block, struct opcode *op, u32 pc)
 static int rec_LW(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_io(block, op, false, true);
+	return rec_load(block, op, pc, jit_code_ldxi_i);
 }
 
 static int rec_LWC2(const struct block *block, struct opcode *op, u32 pc)

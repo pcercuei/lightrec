@@ -105,7 +105,7 @@ lightrec_get_map(struct lightrec_state *state, u32 kaddr)
 }
 
 u32 lightrec_rw(struct lightrec_state *state,
-		const struct opcode *op, u32 addr, u32 data)
+		struct opcode *op, u32 addr, u32 data)
 {
 	const struct lightrec_mem_map *map;
 	const struct lightrec_mem_map_ops *ops;
@@ -131,6 +131,8 @@ u32 lightrec_rw(struct lightrec_state *state,
 
 	while (map->mirror_of)
 		map = map->mirror_of;
+
+	op->flags |= LIGHTREC_DIRECT_IO;
 
 	new_addr = (uintptr_t) map->address + (kaddr - pc);
 
@@ -673,6 +675,15 @@ struct lightrec_state * lightrec_init(char *argv0,
 	state->rw_wrapper = generate_wrapper(state, lightrec_rw_cb);
 	state->mfc_wrapper = generate_wrapper(state, lightrec_mfc_cb);
 	state->mtc_wrapper = generate_wrapper(state, lightrec_mtc_cb);
+
+	map = &state->maps[PSX_MAP_BIOS];
+	state->offset_bios = (uintptr_t)map->address - map->pc;
+
+	map = &state->maps[PSX_MAP_SCRATCH_PAD];
+	state->offset_scratch = (uintptr_t)map->address - map->pc;
+
+	map = &state->maps[PSX_MAP_KERNEL_USER_RAM];
+	state->offset_ram = (uintptr_t)map->address - map->pc;
 
 	return state;
 
