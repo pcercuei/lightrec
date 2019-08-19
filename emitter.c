@@ -537,6 +537,9 @@ static int rec_alu_div(const struct block *block,
 
 	jit_note(__FILE__, __LINE__);
 
+	lightrec_clean_reg(reg_cache, _jit, JIT_R0);
+	lightrec_clean_reg(reg_cache, _jit, JIT_R3);
+
 	/* Jump to special handler if dividing by zero  */
 	branch = jit_beqi(rt, 0);
 
