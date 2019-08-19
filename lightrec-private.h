@@ -36,6 +36,7 @@ typedef struct jit_state jit_state_t;
 
 struct blockcache;
 struct regcache;
+struct opcode;
 
 struct lightrec_mem_map_priv {
 	u32 *invalidation_table;
@@ -53,6 +54,9 @@ struct block {
 	unsigned int cycles;
 	unsigned int length;
 	const struct lightrec_mem_map *map;
+	struct {
+		struct block *sle_next;
+	} next;
 };
 
 struct lightrec_op_data {

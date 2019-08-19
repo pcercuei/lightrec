@@ -17,6 +17,7 @@
 #include "lightrec-private.h"
 
 #include <stdlib.h>
+#include <sys/queue.h>
 
 /* Must be power of two */
 #define TINY_LUT_SIZE 0x100
@@ -38,22 +39,23 @@ struct block * lightrec_find_block(struct blockcache *cache, u32 pc)
 		return block;
 
 	block = cache->lut[(pc >> 2) & (LUT_SIZE - 1)];
-	if (block && block->kunseg_pc == pc) {
-		cache->tiny_lut[(pc >> 2) & (TINY_LUT_SIZE - 1)] = block;
-		return block;
-	} else {
-		return NULL;
+	for (block = cache->lut[(pc >> 2) & (LUT_SIZE - 1)];
+	     block; block = SLIST_NEXT(block, next)) {
+		if (block->kunseg_pc == pc) {
+			cache->tiny_lut[(pc >> 2) & (TINY_LUT_SIZE - 1)] = block;
+			return block;
+		}
 	}
+
+	return NULL;
 }
 
 void lightrec_register_block(struct blockcache *cache, struct block *block)
 {
 	u32 pc = block->kunseg_pc;
 	struct block *old = cache->lut[(pc >> 2) & (LUT_SIZE - 1)];
-	if (old && old != block) {
-		DEBUG("Freeing old block at pc 0x%x\n", old->pc);
-		lightrec_free_block(old);
-	}
+	if (old)
+		SLIST_NEXT(block, next) = old;
 
 	cache->lut[(pc >> 2) & (LUT_SIZE - 1)] = block;
 	cache->tiny_lut[(pc >> 2) & (TINY_LUT_SIZE - 1)] = block;
@@ -64,24 +66,35 @@ void lightrec_unregister_block(struct blockcache *cache, struct block *block)
 	u32 pc = block->kunseg_pc;
 	struct block *old = cache->lut[(pc >> 2) & (LUT_SIZE - 1)];
 
-	if (old) {
-		if (old != block) {
-			ERROR("Block at PC 0x%x is not in cache\n", block->pc);
+	cache->tiny_lut[(pc >> 2) & (TINY_LUT_SIZE - 1)] = NULL;
+
+	if (old == block) {
+		cache->lut[(pc >> 2) & (LUT_SIZE - 1)] = SLIST_NEXT(old, next);
+		return;
+	}
+
+	for (; old; old = SLIST_NEXT(old, next)) {
+		if (SLIST_NEXT(old, next) == block) {
+			SLIST_NEXT(old, next) = SLIST_NEXT(block, next);
 			return;
 		}
-
-		cache->lut[(pc >> 2) & (LUT_SIZE - 1)] = NULL;
-		cache->tiny_lut[(pc >> 2) & (TINY_LUT_SIZE - 1)] = NULL;
 	}
+
+	ERROR("Block at PC 0x%x is not in cache\n", block->pc);
 }
 
 void lightrec_free_block_cache(struct blockcache *cache)
 {
+	struct block *block, *next;
 	unsigned int i;
 
-	for (i = 0; i < LUT_SIZE; i++)
-		if (cache->lut[i])
-			lightrec_free_block(cache->lut[i]);
+	for (i = 0; i < LUT_SIZE; i++) {
+		for (block = cache->lut[i]; block; block = next) {
+			next = SLIST_NEXT(block, next);
+			lightrec_free_block(block);
+		}
+	}
+
 	free(cache);
 }
 

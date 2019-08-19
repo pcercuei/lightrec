@@ -481,6 +481,7 @@ struct block * lightrec_recompile_block(struct lightrec_state *state, u32 pc)
 	block->code = code;
 	block->map = map;
 	block->hash = calculate_block_hash(block);
+	block->next.sle_next = NULL;
 
 	lightrec_optimize(list);
 
