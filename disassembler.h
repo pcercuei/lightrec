@@ -21,6 +21,7 @@
 #include <sys/queue.h>
 
 #define LIGHTREC_SKIP_PC_UPDATE	(1 << 0)
+#define LIGHTREC_DIRECT_IO	(1 << 1)
 
 enum standard_opcodes {
 	OP_SPECIAL		= 0x00,

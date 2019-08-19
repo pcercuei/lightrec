@@ -83,7 +83,7 @@ static void lightrec_invalidate_map(struct lightrec_state *state,
 }
 
 static u32 lightrec_do_rw(struct lightrec_state *state,
-			  const struct opcode *op, u32 addr, u32 data)
+			  struct opcode *op, u32 addr, u32 data)
 {
 	unsigned int i;
 	u32 kaddr;
@@ -102,6 +102,9 @@ static u32 lightrec_do_rw(struct lightrec_state *state,
 
 		if (unlikely(ops))
 			return lightrec_rw_ops(state, op, ops, addr, data);
+
+		if (!map->mirror_of && (addr - (kaddr - pc) == (uintptr_t)map->address))
+			op->flags |= LIGHTREC_DIRECT_IO;
 
 		while (map->mirror_of)
 			map = map->mirror_of;

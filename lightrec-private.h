@@ -60,7 +60,7 @@ struct block {
 };
 
 struct lightrec_op_data {
-	const struct opcode *op;
+	struct opcode *op;
 	u32 addr;
 	u32 data;
 };

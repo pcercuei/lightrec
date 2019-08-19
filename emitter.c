@@ -733,28 +733,79 @@ static int rec_SWC2(const struct block *block, struct opcode *op, u32 pc)
 	return rec_io(block, op, false, false);
 }
 
+static int rec_load(const struct block *block, struct opcode *op,
+		    u32 pc, jit_code_t code)
+{
+	struct regcache *reg_cache = block->state->reg_cache;
+	jit_state_t *_jit = block->_jit;
+	jit_node_t *to_slow_path, *to_end;
+	u8 tmp2, tmp, rs, rt;
+
+	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rs);
+	rt = lightrec_alloc_reg_out(reg_cache, _jit, op->i.rt);
+	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
+
+	if (op->i.rs != 29) {
+		tmp2 = rs != rt ? rt : lightrec_alloc_reg_temp(reg_cache, _jit);
+
+		jit_movi(tmp, (uintptr_t)op);
+		jit_ldxi_i(tmp2, tmp, offsetof(struct opcode, flags));
+		jit_andi(tmp2, tmp2, LIGHTREC_DIRECT_IO);
+		to_slow_path = jit_beqi(tmp2, 0);
+	}
+
+	jit_andi(rt, rs, 0x1fffffff);
+	jit_movi(tmp, 0x80000000);
+	jit_orr(rt, rt, tmp);
+	jit_new_node_www(code, rt, rt, (s16)op->i.imm);
+
+	if (op->i.rs != 29) {
+		to_end = jit_jmpi();
+
+		jit_patch(to_slow_path);
+		jit_stxi(offsetof(struct lightrec_state, op_data.op),
+			 LIGHTREC_REG_STATE, tmp);
+		jit_stxi_i(offsetof(struct lightrec_state, op_data.addr),
+			   LIGHTREC_REG_STATE, rs);
+		jit_movi(tmp, (uintptr_t)block->state->rw_wrapper->function);
+		jit_callr(tmp);
+
+		jit_ldxi_i(rt, LIGHTREC_REG_STATE,
+			   offsetof(struct lightrec_state, op_data.data));
+
+		jit_patch(to_end);
+	}
+
+	lightrec_free_reg(reg_cache, rs);
+	lightrec_free_reg(reg_cache, rt);
+	lightrec_free_reg(reg_cache, tmp);
+	lightrec_free_reg(reg_cache, tmp2);
+
+	return 0;
+}
+
 static int rec_LB(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_io(block, op, false, true);
+	return rec_load(block, op, pc, jit_code_ldxi_c);
 }
 
 static int rec_LBU(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_io(block, op, false, true);
+	return rec_load(block, op, pc, jit_code_ldxi_uc);
 }
 
 static int rec_LH(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_io(block, op, false, true);
+	return rec_load(block, op, pc, jit_code_ldxi_s);
 }
 
 static int rec_LHU(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_io(block, op, false, true);
+	return rec_load(block, op, pc, jit_code_ldxi_us);
 }
 
 static int rec_LWL(const struct block *block, struct opcode *op, u32 pc)
@@ -772,7 +823,7 @@ static int rec_LWR(const struct block *block, struct opcode *op, u32 pc)
 static int rec_LW(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_io(block, op, false, true);
+	return rec_load(block, op, pc, jit_code_ldxi_i);
 }
 
 static int rec_LWC2(const struct block *block, struct opcode *op, u32 pc)
