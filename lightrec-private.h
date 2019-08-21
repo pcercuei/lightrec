@@ -22,6 +22,8 @@
 
 #define ARRAY_SIZE(x) (sizeof(x) ? sizeof(x) / sizeof((x)[0]) : 0)
 
+#define BIT(x) (1 << (x))
+
 #ifdef __GNUC__
 #	define likely(x)       __builtin_expect(!!(x),1)
 #	define unlikely(x)     __builtin_expect(!!(x),0)
@@ -81,6 +83,9 @@ struct lightrec_state {
 	unsigned int nb_maps;
 	const struct lightrec_mem_map *maps;
 	struct lightrec_mem_map_priv *mem_map;
+	bool direct_io;
+	uintptr_t direct_io_ram;
+	uintptr_t direct_io_bios;
 };
 
 void lightrec_rw(struct lightrec_state *state);

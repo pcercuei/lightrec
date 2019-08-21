@@ -736,44 +736,79 @@ static int rec_SWC2(const struct block *block, struct opcode *op, u32 pc)
 static int rec_load(const struct block *block, struct opcode *op,
 		    u32 pc, jit_code_t code)
 {
-	struct regcache *reg_cache = block->state->reg_cache;
+	struct lightrec_state *state = block->state;
+	struct regcache *reg_cache = state->reg_cache;
 	jit_state_t *_jit = block->_jit;
-	jit_node_t *to_slow_path, *to_end;
+	jit_node_t *to_slow_path, *to_not_ram, *to_end, *to_end2;
 	u8 tmp2, tmp, rs, rt;
 
 	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rs);
 	rt = lightrec_alloc_reg_out(reg_cache, _jit, op->i.rt);
 	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
 
-	if (op->i.rs != 29) {
+	if (!state->direct_io || op->i.rs != 29) {
 		tmp2 = rs != rt ? rt : lightrec_alloc_reg_temp(reg_cache, _jit);
 
 		jit_movi(tmp, (uintptr_t)op);
 		jit_ldxi_i(tmp2, tmp, offsetof(struct opcode, flags));
 		jit_andi(tmp2, tmp2, LIGHTREC_DIRECT_IO);
-		to_slow_path = jit_beqi(tmp2, 0);
 	}
 
-	jit_andi(rt, rs, 0x1fffffff);
-	jit_movi(tmp, 0x80000000);
-	jit_orr(rt, rt, tmp);
-	jit_new_node_www(code, rt, rt, (s16)op->i.imm);
+	if (state->direct_io) {
+		if (op->i.rs != 29)
+			to_slow_path = jit_beqi(tmp2, 0);
 
-	if (op->i.rs != 29) {
-		to_end = jit_jmpi();
+		jit_movi(tmp, BIT(28));
+		jit_andr(tmp, rs, tmp);
+		to_not_ram = jit_bnei(tmp, 0);
 
+		/* Convert to KUNSEG and avoid RAM mirrors */
+		jit_andi(rt, rs, 0x1fffff);
+
+		if (state->direct_io_ram) {
+			jit_movi(tmp, state->direct_io_ram);
+			jit_addr(rt, rt, tmp);
+		}
+
+		jit_new_node_www(code, rt, rt, (s16)op->i.imm);
+
+		to_end2 = jit_jmpi();
+
+		jit_patch(to_not_ram);
+
+		/* Convert to KUNSEG */
+		jit_andi(rt, rs, 0x1fc7ffff);
+
+		if (state->direct_io_bios) {
+			jit_movi(tmp, state->direct_io_bios);
+			jit_addr(rt, rt, tmp);
+		}
+
+		jit_new_node_www(code, rt, rt, (s16)op->i.imm);
+
+		if (op->i.rs != 29)
+			to_end = jit_jmpi();
+	}
+
+	if (state->direct_io && op->i.rs != 29)
 		jit_patch(to_slow_path);
+
+	if (!state->direct_io || op->i.rs != 29) {
 		jit_stxi(offsetof(struct lightrec_state, op_data.op),
 			 LIGHTREC_REG_STATE, tmp);
 		jit_stxi_i(offsetof(struct lightrec_state, op_data.addr),
 			   LIGHTREC_REG_STATE, rs);
-		jit_movi(tmp, (uintptr_t)block->state->rw_wrapper->function);
+		jit_movi(tmp, (uintptr_t)state->rw_wrapper->function);
 		jit_callr(tmp);
 
 		jit_ldxi_i(rt, LIGHTREC_REG_STATE,
 			   offsetof(struct lightrec_state, op_data.data));
+	}
 
-		jit_patch(to_end);
+	if (state->direct_io) {
+		if (op->i.rs != 29)
+			jit_patch(to_end);
+		jit_patch(to_end2);
 	}
 
 	lightrec_free_reg(reg_cache, rs);

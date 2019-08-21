@@ -103,11 +103,19 @@ static u32 lightrec_do_rw(struct lightrec_state *state,
 		if (unlikely(ops))
 			return lightrec_rw_ops(state, op, ops, addr, data);
 
-		if (!map->mirror_of && (addr - (kaddr - pc) == (uintptr_t)map->address))
-			op->flags |= LIGHTREC_DIRECT_IO;
-
 		while (map->mirror_of)
 			map = map->mirror_of;
+
+		if (state->direct_io && !(op->flags & LIGHTREC_DIRECT_IO)) {
+			switch (i) {
+			case PSX_MAP_KERNEL_USER_RAM:
+			case PSX_MAP_BIOS:
+			case PSX_MAP_SCRATCH_PAD:
+				op->flags |= LIGHTREC_DIRECT_IO;
+			default: /* fall-through */
+				break;
+			}
+		}
 
 		new_addr = (uintptr_t) map->address + (kaddr - pc);
 
@@ -565,6 +573,26 @@ void lightrec_free_block(struct block *block)
 	free(block);
 }
 
+static const uintptr_t supported_io_bases[] = {
+	0x0,
+	0x10000000,
+	0x80000000,
+};
+
+static bool lightrec_can_directio(const struct lightrec_mem_map *map,
+				  uintptr_t *base)
+{
+	unsigned int i;
+
+	for (i = 0; i < ARRAY_SIZE(supported_io_bases); i++)
+		if (map->address == (void *)(supported_io_bases[i] + map->pc)) {
+			*base = supported_io_bases[i];
+			return true;
+		}
+
+	return false;
+}
+
 struct lightrec_state * lightrec_init(char *argv0,
 		const struct lightrec_mem_map *map, size_t nb,
 		const struct lightrec_cop_ops *cop_ops)
@@ -614,6 +642,16 @@ struct lightrec_state * lightrec_init(char *argv0,
 	state->rw_wrapper = generate_wrapper(state, lightrec_rw);
 	state->mfc_wrapper = generate_wrapper(state, lightrec_mfc);
 	state->mtc_wrapper = generate_wrapper(state, lightrec_mtc);
+
+	state->direct_io = lightrec_can_directio(&state->maps[PSX_MAP_BIOS],
+						 &state->direct_io_bios) &&
+		lightrec_can_directio(&state->maps[PSX_MAP_KERNEL_USER_RAM],
+				      &state->direct_io_ram);
+
+	if (state->direct_io)
+		INFO("Direct-IO enabled.\n");
+	else
+		INFO("Direct-IO not enabled.\n");
 
 	return state;
 
