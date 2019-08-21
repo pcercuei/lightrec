@@ -47,6 +47,15 @@ struct lightrec_mem_map;
 /* Flags for lightrec_mem_map */
 #define MAP_IS_RWX	(1 << 0)
 
+enum psx_map {
+	PSX_MAP_KERNEL_USER_RAM,
+	PSX_MAP_BIOS,
+	PSX_MAP_SCRATCH_PAD,
+	PSX_MAP_PARALLEL_PORT,
+	PSX_MAP_HW_REGISTERS,
+	PSX_MAP_CACHE_CONTROL,
+};
+
 struct lightrec_mem_map_ops {
 	void (*sb)(struct lightrec_state *, const struct opcode *, u32, u8);
 	void (*sh)(struct lightrec_state *, const struct opcode *, u32, u16);
