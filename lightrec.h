@@ -101,6 +101,8 @@ u32 lightrec_current_cycle_count(const struct lightrec_state *state,
 		const struct opcode *op);
 void lightrec_reset_cycle_count(struct lightrec_state *state, u32 cycles);
 
+u32 lightrec_run_interpreter(struct lightrec_state *state, u32 pc);
+
 #ifdef __cplusplus
 };
 #endif

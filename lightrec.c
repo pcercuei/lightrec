@@ -16,6 +16,7 @@
 #include "debug.h"
 #include "disassembler.h"
 #include "emitter.h"
+#include "interpreter.h"
 #include "lightrec.h"
 #include "regcache.h"
 #include "optimizer.h"
@@ -553,6 +554,22 @@ u32 lightrec_execute(struct lightrec_state *state, u32 pc, u32 target_cycle)
 u32 lightrec_execute_one(struct lightrec_state *state, u32 pc)
 {
 	return lightrec_execute(state, pc, state->current_cycle);
+}
+
+u32 lightrec_run_interpreter(struct lightrec_state *state, u32 pc)
+{
+	struct block *block = get_block(state, pc);
+	if (!block) {
+		state->exit_flags = LIGHTREC_EXIT_SEGFAULT;
+		return 0;
+	}
+
+	state->exit_flags = LIGHTREC_EXIT_NORMAL;
+	state->current = block;
+
+	lightrec_emulate_block(block);
+
+	return state->next_pc;
 }
 
 void lightrec_free_block(struct block *block)
