@@ -727,6 +727,7 @@ static int rec_SWR(const struct block *block, struct opcode *op, u32 pc)
 
 static int rec_SWC2(const struct block *block, struct opcode *op, u32 pc)
 {
+	_jit_name(block->_jit, __func__);
 	return rec_io(block, op, false, false);
 }
 
@@ -774,6 +775,7 @@ static int rec_LW(const struct block *block, struct opcode *op, u32 pc)
 
 static int rec_LWC2(const struct block *block, struct opcode *op, u32 pc)
 {
+	_jit_name(block->_jit, __func__);
 	return rec_io(block, op, false, false);
 }
 
