@@ -406,9 +406,6 @@ static struct block * generate_wrapper_block(struct lightrec_state *state)
 	/* If we get NULL, jump to end */
 	to_end2 = jit_beqi(JIT_R0, 0);
 
-	offset = offsetof(struct lightrec_state, current);
-	jit_stxi(offset, LIGHTREC_REG_STATE, JIT_R0);
-
 	/* Load the next block function in JIT_R0 and loop */
 	jit_ldxi(JIT_R0, JIT_R0, offsetof(struct block, function));
 	jit_patch_at(jit_jmpi(), loop);
@@ -546,7 +543,6 @@ u32 lightrec_execute(struct lightrec_state *state, u32 pc, u32 target_cycle)
 	}
 
 	state->exit_flags = LIGHTREC_EXIT_NORMAL;
-	state->current = block;
 
 	/* Handle the cycle counter overflowing */
 	if (unlikely(target_cycle < state->current_cycle))
@@ -572,7 +568,6 @@ u32 lightrec_run_interpreter(struct lightrec_state *state, u32 pc)
 	}
 
 	state->exit_flags = LIGHTREC_EXIT_NORMAL;
-	state->current = block;
 
 	lightrec_emulate_block(block);
 
@@ -716,15 +711,9 @@ void lightrec_restore_registers(struct lightrec_state *state, u32 regs[34])
 	memcpy(state->native_reg_cache, regs, sizeof(state->native_reg_cache));
 }
 
-u32 lightrec_current_cycle_count(const struct lightrec_state *state,
-		const struct opcode *op)
+u32 lightrec_current_cycle_count(const struct lightrec_state *state)
 {
-	u32 cycles = state->current_cycle;
-
-	if (op)
-		cycles += lightrec_cycles_of_block(state->current, op);
-
-	return cycles;
+	return state->current_cycle;
 }
 
 void lightrec_reset_cycle_count(struct lightrec_state *state, u32 cycles)

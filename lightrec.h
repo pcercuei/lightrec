@@ -103,8 +103,7 @@ u32 lightrec_exit_flags(struct lightrec_state *state);
 void lightrec_dump_registers(struct lightrec_state *state, u32 regs[34]);
 void lightrec_restore_registers(struct lightrec_state *state, u32 regs[34]);
 
-u32 lightrec_current_cycle_count(const struct lightrec_state *state,
-		const struct opcode *op);
+u32 lightrec_current_cycle_count(const struct lightrec_state *state);
 void lightrec_reset_cycle_count(struct lightrec_state *state, u32 cycles);
 
 u32 lightrec_run_interpreter(struct lightrec_state *state, u32 pc);
