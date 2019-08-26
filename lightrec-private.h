@@ -77,7 +77,7 @@ struct lightrec_state {
 	struct blockcache *block_cache;
 	struct regcache *reg_cache;
 	void (*eob_wrapper_func)(void);
-	const struct lightrec_cop_ops *cop_ops;
+	struct lightrec_ops ops;
 	unsigned int nb_maps;
 	const struct lightrec_mem_map *maps;
 	struct lightrec_mem_map_priv *mem_map;

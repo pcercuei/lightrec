@@ -141,8 +141,8 @@ static u32 lightrec_do_rw(struct lightrec_state *state,
 			lightrec_invalidate_map(state, map, kaddr, 4);
 			return 0;
 		case OP_SWC2:
-			*(u32 *) new_addr = state->cop_ops->mfc(
-					state, 2, op->i.rt);
+			*(u32 *) new_addr = state->ops.cop2_ops.mfc(state,
+								    op->i.rt);
 			lightrec_invalidate_map(state, map, kaddr, 4);
 			return 0;
 		case OP_LB:
@@ -166,8 +166,8 @@ static u32 lightrec_do_rw(struct lightrec_state *state,
 
 			return (data & mask) | (mem_data >> (shift * 8));
 		case OP_LWC2:
-			state->cop_ops->mtc(state, 2,
-					op->i.rt, *(u32 *) new_addr);
+			state->ops.cop2_ops.mtc(state, op->i.rt,
+						*(u32 *) new_addr);
 			return 0;
 		case OP_LW:
 		default:
@@ -189,17 +189,22 @@ void lightrec_rw(struct lightrec_state *state)
 
 u32 lightrec_mfc(struct lightrec_state *state, const struct opcode *op)
 {
-	unsigned int cop = (op->i.op == OP_CP0) ? 0 : 2;
-	bool is_cfc = (cop == 0 && op->r.rs == OP_CP0_CFC0) ||
-		      (cop == 2 && op->r.rs == OP_CP2_BASIC_CFC2);
-	u32 (*func)(struct lightrec_state *, int, u8);
+	bool is_cfc = (op->i.op == OP_CP0 && op->r.rs == OP_CP0_CFC0) ||
+		      (op->i.op == OP_CP2 && op->r.rs == OP_CP2_BASIC_CFC2);
+	u32 (*func)(struct lightrec_state *, u8);
+	const struct lightrec_cop_ops *ops;
+
+	if (op->i.op == OP_CP0)
+		ops = &state->ops.cop0_ops;
+	else
+		ops = &state->ops.cop2_ops;
 
 	if (is_cfc)
-		func = state->cop_ops->cfc;
+		func = ops->cfc;
 	else
-		func = state->cop_ops->mfc;
+		func = ops->mfc;
 
-	return (*func)(state, cop, op->r.rd);
+	return (*func)(state, op->r.rd);
 }
 
 static void lightrec_mfc_cb(struct lightrec_state *state)
@@ -210,17 +215,22 @@ static void lightrec_mfc_cb(struct lightrec_state *state)
 void lightrec_mtc(struct lightrec_state *state,
 		  const struct opcode *op, u32 data)
 {
-	unsigned int cop = (op->i.op == OP_CP0) ? 0 : 2;
-	bool is_ctc = (cop == 0 && op->r.rs == OP_CP0_CTC0) ||
-		      (cop == 2 && op->r.rs == OP_CP2_BASIC_CTC2);
-	void (*func)(struct lightrec_state *, int, u8, u32);
+	bool is_ctc = (op->i.op == OP_CP0 && op->r.rs == OP_CP0_CTC0) ||
+		      (op->i.op == OP_CP2 && op->r.rs == OP_CP2_BASIC_CTC2);
+	void (*func)(struct lightrec_state *, u8, u32);
+	const struct lightrec_cop_ops *ops;
+
+	if (op->i.op == OP_CP0)
+		ops = &state->ops.cop0_ops;
+	else
+		ops = &state->ops.cop2_ops;
 
 	if (is_ctc)
-		func = state->cop_ops->ctc;
+		func = ops->ctc;
 	else
-		func = state->cop_ops->mtc;
+		func = ops->mtc;
 
-	(*func)(state, cop, op->r.rd, data);
+	(*func)(state, op->r.rd, data);
 }
 
 static void lightrec_mtc_cb(struct lightrec_state *state)
@@ -577,15 +587,19 @@ void lightrec_free_block(struct block *block)
 }
 
 struct lightrec_state * lightrec_init(char *argv0,
-		const struct lightrec_mem_map *map, size_t nb,
-		const struct lightrec_cop_ops *cop_ops)
+				      const struct lightrec_mem_map *map,
+				      size_t nb,
+				      const struct lightrec_ops *ops)
 {
 	struct lightrec_state *state;
 	unsigned int i;
 
 	/* Sanity-check ops */
-	if (!cop_ops || !cop_ops->mfc || !cop_ops->cfc ||
-	    !cop_ops->mtc || !cop_ops->ctc || !cop_ops->op) {
+	if (!ops ||
+	    !ops->cop0_ops.mfc || !ops->cop0_ops.cfc || !ops->cop0_ops.mtc ||
+	    !ops->cop0_ops.ctc || !ops->cop0_ops.op ||
+	    !ops->cop2_ops.mfc || !ops->cop2_ops.cfc || !ops->cop2_ops.mtc ||
+	    !ops->cop2_ops.ctc || !ops->cop2_ops.op) {
 		ERROR("Missing callbacks in lightrec_ops structure\n");
 		return NULL;
 	}
@@ -627,7 +641,8 @@ struct lightrec_state * lightrec_init(char *argv0,
 			goto err_free_invalidation_tables;
 	}
 
-	state->cop_ops = cop_ops;
+	memcpy(&state->ops, ops, sizeof(*ops));
+
 	state->wrapper = generate_wrapper_block(state);
 	state->rw_wrapper = generate_wrapper(state, lightrec_rw);
 	state->mfc_wrapper = generate_wrapper(state, lightrec_mfc_cb);

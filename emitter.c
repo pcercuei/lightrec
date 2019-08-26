@@ -917,13 +917,13 @@ static void rec_cp0_RFE_C(struct lightrec_state *state)
 	u32 status;
 
 	/* Read CP0 Status register (r12) */
-	status = state->cop_ops->mfc(state, 0, 12);
+	status = state->ops.cop0_ops.mfc(state, 12);
 
 	/* Switch the bits */
 	status = ((status & 0x3c) >> 2) | (status & ~0xf);
 
 	/* Write it back */
-	state->cop_ops->ctc(state, 0, 12, status);
+	state->ops.cop0_ops.ctc(state, 12, status);
 }
 
 static int rec_cp0_RFE(const struct block *block, struct opcode *op, u32 pc)
@@ -948,7 +948,13 @@ static int rec_CP(const struct block *block, struct opcode *op, u32 pc)
 {
 	struct lightrec_state *state = block->state;
 	struct regcache *reg_cache = state->reg_cache;
+	void (*func)(struct lightrec_state *, u32);
 	jit_state_t *_jit = block->_jit;
+
+	if ((op->opcode >> 25) & 1)
+		func = state->ops.cop2_ops.op;
+	else
+		func = state->ops.cop0_ops.op;
 
 	jit_name(__func__);
 
@@ -960,9 +966,8 @@ static int rec_CP(const struct block *block, struct opcode *op, u32 pc)
 	jit_note(__FILE__, __LINE__);
 	jit_prepare();
 	jit_pushargr(LIGHTREC_REG_STATE);
-	jit_pushargi((op->j.imm >> 25) + 1);
-	jit_pushargi(op->j.imm & ~(1 << 25));
-	jit_finishi(state->cop_ops->op);
+	jit_pushargi(op->opcode);
+	jit_finishi(func);
 	return 0;
 }
 

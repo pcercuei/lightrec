@@ -238,13 +238,13 @@ static void int_cp0_RFE(struct interpreter *inter)
 	u32 status;
 
 	/* Read CP0 Status register (r12) */
-	status = state->cop_ops->mfc(state, 0, 12);
+	status = state->ops.cop0_ops.mfc(state, 12);
 
 	/* Switch the bits */
 	status = ((status & 0x3c) >> 2) | (status & ~0xf);
 
 	/* Write it back */
-	state->cop_ops->ctc(state, 0, 12, status);
+	state->ops.cop0_ops.ctc(state, 12, status);
 
 	JUMP_NEXT(inter);
 }
@@ -252,11 +252,15 @@ static void int_cp0_RFE(struct interpreter *inter)
 static void int_CP(struct interpreter *inter)
 {
 	struct lightrec_state *state = inter->state;
-	struct opcode *op = inter->op;
+	const struct lightrec_cop_ops *ops;
+	const struct opcode *op = inter->op;
 
-	state->cop_ops->op(state,
-			   ((op->j.imm >> 25) & 1) * 2,
-			   (op->j.imm) & ~(1 << 25));
+	if ((op->j.imm >> 25) & 1)
+		ops = &state->ops.cop2_ops;
+	else
+		ops = &state->ops.cop0_ops;
+
+	(*ops->op)(state, (op->j.imm) & ~(1 << 25));
 
 	JUMP_NEXT(inter);
 }

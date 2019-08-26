@@ -75,16 +75,22 @@ struct lightrec_mem_map {
 };
 
 struct lightrec_cop_ops {
-	u32 (*mfc)(struct lightrec_state *state, int cp, u8 reg);
-	u32 (*cfc)(struct lightrec_state *state, int cp, u8 reg);
-	void (*mtc)(struct lightrec_state *state, int cp, u8 reg, u32 value);
-	void (*ctc)(struct lightrec_state *state, int cp, u8 reg, u32 value);
-	void (*op)(struct lightrec_state *state, int cp, u32 func);
+	u32 (*mfc)(struct lightrec_state *state, u8 reg);
+	u32 (*cfc)(struct lightrec_state *state, u8 reg);
+	void (*mtc)(struct lightrec_state *state, u8 reg, u32 value);
+	void (*ctc)(struct lightrec_state *state, u8 reg, u32 value);
+	void (*op)(struct lightrec_state *state, u32 opcode);
+};
+
+struct lightrec_ops {
+	struct lightrec_cop_ops cop0_ops;
+	struct lightrec_cop_ops cop2_ops;
 };
 
 struct lightrec_state * lightrec_init(char *argv0,
-		const struct lightrec_mem_map *map, size_t nb,
-		const struct lightrec_cop_ops *cop_ops);
+				      const struct lightrec_mem_map *map,
+				      size_t nb,
+				      const struct lightrec_ops *ops);
 void lightrec_destroy(struct lightrec_state *state);
 
 u32 lightrec_execute(struct lightrec_state *state, u32 pc, u32 target_cycle);
