@@ -744,19 +744,23 @@ static int rec_load_direct(const struct block *block, struct opcode *op,
 	rt = lightrec_alloc_reg_out(reg_cache, _jit, op->i.rt);
 	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
 
-	jit_andi(tmp, rs, BIT(28));
-
 	if (state->offset_ram == state->offset_bios &&
 	    state->offset_ram == state->offset_scratch) {
-		jit_rshi_u(tmp, tmp, 28 - 22);
-		jit_ori(tmp, tmp, 0x1f9fffff);
-		jit_andr(rt, rs, tmp);
+		if (!state->mirrors_mapped) {
+			jit_andi(tmp, rs, BIT(28));
+			jit_rshi_u(tmp, tmp, 28 - 22);
+			jit_ori(tmp, tmp, 0x1f9fffff);
+			jit_andr(rt, rs, tmp);
+		} else {
+			jit_andi(rt, rs, 0x1fffffff);
+		}
 
 		if (state->offset_ram) {
 			jit_movi(tmp, state->offset_ram);
 			jit_addr(rt, rt, tmp);
 		}
 	} else {
+		jit_andi(tmp, rs, BIT(28));
 		to_not_ram = jit_bnei(tmp, 0);
 
 		/* Convert to KUNSEG and avoid RAM mirrors */

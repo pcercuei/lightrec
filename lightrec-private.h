@@ -17,6 +17,8 @@
 
 #include "lightrec.h"
 
+#include <stdbool.h>
+
 #define __weak __attribute__((weak))
 #define __packed __attribute__((packed))
 
@@ -82,6 +84,7 @@ struct lightrec_state {
 	const struct lightrec_mem_map *maps;
 	struct lightrec_mem_map_priv *mem_map;
 	uintptr_t offset_ram, offset_bios, offset_scratch;
+	bool mirrors_mapped;
 };
 
 u32 lightrec_rw(struct lightrec_state *state,

@@ -54,6 +54,9 @@ enum psx_map {
 	PSX_MAP_PARALLEL_PORT,
 	PSX_MAP_HW_REGISTERS,
 	PSX_MAP_CACHE_CONTROL,
+	PSX_MAP_MIRROR1,
+	PSX_MAP_MIRROR2,
+	PSX_MAP_MIRROR3,
 };
 
 struct lightrec_mem_map_ops {

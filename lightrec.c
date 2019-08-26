@@ -685,6 +685,11 @@ struct lightrec_state * lightrec_init(char *argv0,
 	map = &state->maps[PSX_MAP_KERNEL_USER_RAM];
 	state->offset_ram = (uintptr_t)map->address - map->pc;
 
+	if (state->maps[PSX_MAP_MIRROR1].address == map->address + 0x200000 &&
+	    state->maps[PSX_MAP_MIRROR2].address == map->address + 0x400000 &&
+	    state->maps[PSX_MAP_MIRROR3].address == map->address + 0x600000)
+		state->mirrors_mapped = true;
+
 	return state;
 
 err_free_invalidation_tables:
