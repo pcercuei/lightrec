@@ -197,10 +197,8 @@ void lightrec_rw(struct lightrec_state *state)
 				      opdata->addr, opdata->data);
 }
 
-static void lightrec_mfc(struct lightrec_state *state)
+u32 lightrec_mfc(struct lightrec_state *state, const struct opcode *op)
 {
-	struct lightrec_op_data *opdata = &state->op_data;
-	const struct opcode *op = opdata->op;
 	unsigned int cop = (op->i.op == OP_CP0) ? 0 : 2;
 	bool is_cfc = (cop == 0 && op->r.rs == OP_CP0_CFC0) ||
 		      (cop == 2 && op->r.rs == OP_CP2_BASIC_CFC2);
@@ -211,13 +209,17 @@ static void lightrec_mfc(struct lightrec_state *state)
 	else
 		func = state->cop_ops->mfc;
 
-	opdata->data = (*func)(state, cop, op->r.rd);
+	return (*func)(state, cop, op->r.rd);
 }
 
-static void lightrec_mtc(struct lightrec_state *state)
+static void lightrec_mfc_cb(struct lightrec_state *state)
 {
-	struct lightrec_op_data *opdata = &state->op_data;
-	const struct opcode *op = opdata->op;
+	state->op_data.data = lightrec_mfc(state, state->op_data.op);
+}
+
+void lightrec_mtc(struct lightrec_state *state,
+		  const struct opcode *op, u32 data)
+{
 	unsigned int cop = (op->i.op == OP_CP0) ? 0 : 2;
 	bool is_ctc = (cop == 0 && op->r.rs == OP_CP0_CTC0) ||
 		      (cop == 2 && op->r.rs == OP_CP2_BASIC_CTC2);
@@ -228,7 +230,12 @@ static void lightrec_mtc(struct lightrec_state *state)
 	else
 		func = state->cop_ops->mtc;
 
-	(*func)(state, cop, op->r.rd, opdata->data);
+	(*func)(state, cop, op->r.rd, data);
+}
+
+static void lightrec_mtc_cb(struct lightrec_state *state)
+{
+	lightrec_mtc(state, state->op_data.op, state->op_data.data);
 }
 
 static const struct lightrec_mem_map * find_map(
@@ -626,8 +633,8 @@ struct lightrec_state * lightrec_init(char *argv0,
 	state->cop_ops = cop_ops;
 	state->wrapper = generate_wrapper_block(state);
 	state->rw_wrapper = generate_wrapper(state, lightrec_rw);
-	state->mfc_wrapper = generate_wrapper(state, lightrec_mfc);
-	state->mtc_wrapper = generate_wrapper(state, lightrec_mtc);
+	state->mfc_wrapper = generate_wrapper(state, lightrec_mfc_cb);
+	state->mtc_wrapper = generate_wrapper(state, lightrec_mtc_cb);
 
 	return state;
 

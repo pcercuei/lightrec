@@ -211,20 +211,13 @@ static void int_BGTZ(struct interpreter *inter)
 static void int_cfc(struct interpreter *inter)
 {
 	struct lightrec_state *state = inter->state;
-	struct opcode_r *op = &inter->op->r;
-	unsigned int cop = (inter->op->i.op == OP_CP0) ? 0 : 2;
-	bool is_cfc = (cop == 0 && op->rs == OP_CP0_CFC0) ||
-		      (cop == 2 && op->rs == OP_CP2_BASIC_CFC2);
-	u32 rt = state->native_reg_cache[op->rt];
+	const struct opcode *op = inter->op;
 	u32 val;
 
-	if (is_cfc)
-		val = state->cop_ops->cfc(state, cop, op->rd);
-	else
-		val = state->cop_ops->mfc(state, cop, op->rd);
+	val = lightrec_mfc(state, op);
 
-	if (likely(op->rt))
-		state->native_reg_cache[op->rt] = val;
+	if (likely(op->r.rt))
+		state->native_reg_cache[op->r.rt] = val;
 
 	JUMP_NEXT(inter);
 }
@@ -232,16 +225,9 @@ static void int_cfc(struct interpreter *inter)
 static void int_ctc(struct interpreter *inter)
 {
 	struct lightrec_state *state = inter->state;
-	struct opcode_r *op = &inter->op->r;
-	unsigned int cop = (inter->op->i.op == OP_CP0) ? 0 : 2;
-	bool is_ctc = (cop == 0 && op->rs == OP_CP0_CTC0) ||
-		      (cop == 2 && op->rs == OP_CP2_BASIC_CTC2);
-	u32 rt = state->native_reg_cache[op->rt];
+	const struct opcode *op = inter->op;
 
-	if (is_ctc)
-		state->cop_ops->ctc(state, cop, op->rd, rt);
-	else
-		state->cop_ops->mtc(state, cop, op->rd, rt);
+	lightrec_mtc(state, op, state->native_reg_cache[op->r.rt]);
 
 	JUMP_NEXT(inter);
 }

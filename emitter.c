@@ -808,7 +808,7 @@ static int rec_special_BREAK(const struct block *block,
 	return rec_break_syscall(block, pc, LIGHTREC_EXIT_BREAK);
 }
 
-static int lightrec_mfc(const struct block *block, struct opcode *op)
+static int rec_mfc(const struct block *block, struct opcode *op)
 {
 	u8 rt, tmp;
 	struct lightrec_state *state = block->state;
@@ -840,7 +840,7 @@ static int lightrec_mfc(const struct block *block, struct opcode *op)
 	return 0;
 }
 
-static int lightrec_mtc(const struct block *block, struct opcode *op)
+static int rec_mtc(const struct block *block, struct opcode *op)
 {
 	struct lightrec_state *state = block->state;
 	struct regcache *reg_cache = state->reg_cache;
@@ -875,53 +875,53 @@ static int lightrec_mtc(const struct block *block, struct opcode *op)
 static int rec_cp0_MFC0(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return lightrec_mfc(block, op);
+	return rec_mfc(block, op);
 }
 
 static int rec_cp0_CFC0(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return lightrec_mfc(block, op);
+	return rec_mfc(block, op);
 }
 
 static int rec_cp0_MTC0(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return lightrec_mtc(block, op);
+	return rec_mtc(block, op);
 }
 
 static int rec_cp0_CTC0(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return lightrec_mtc(block, op);
+	return rec_mtc(block, op);
 }
 
 static int rec_cp2_basic_MFC2(const struct block *block,
 		struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return lightrec_mfc(block, op);
+	return rec_mfc(block, op);
 }
 
 static int rec_cp2_basic_CFC2(const struct block *block,
 		struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return lightrec_mfc(block, op);
+	return rec_mfc(block, op);
 }
 
 static int rec_cp2_basic_MTC2(const struct block *block,
 		struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return lightrec_mtc(block, op);
+	return rec_mtc(block, op);
 }
 
 static int rec_cp2_basic_CTC2(const struct block *block,
 		struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return lightrec_mtc(block, op);
+	return rec_mtc(block, op);
 }
 
 static void rec_cp0_RFE_C(struct lightrec_state *state)

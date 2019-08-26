@@ -105,4 +105,8 @@ static inline u32 kunseg(u32 addr)
 		return addr;
 }
 
+void lightrec_mtc(struct lightrec_state *state,
+		  const struct opcode *op, u32 data);
+u32 lightrec_mfc(struct lightrec_state *state, const struct opcode *op);
+
 #endif /* __LIGHTREC_PRIVATE_H__ */
