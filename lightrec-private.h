@@ -85,7 +85,6 @@ struct lightrec_state {
 u32 lightrec_rw(struct lightrec_state *state,
 		const struct opcode *op, u32 addr, u32 data);
 
-struct block * lightrec_recompile_block(struct lightrec_state *state, u32 pc);
 void lightrec_free_block(struct block *block);
 
 static inline struct lightrec_mem_map_priv * get_map_priv(

@@ -21,6 +21,7 @@
 #include "regcache.h"
 #include "optimizer.h"
 
+#include <errno.h>
 #include <lightning.h>
 #include <limits.h>
 #include <stddef.h>
@@ -28,6 +29,11 @@
 
 #define GENMASK(h, l) \
 	(((~0UL) << (l)) & (~0UL >> (__WORDSIZE - 1 - (h))))
+
+static int lightrec_compile_block(struct lightrec_state *state,
+				  struct block *block);
+static struct block * lightrec_precompile_block(struct lightrec_state *state,
+						u32 pc);
 
 static void __segfault_cb(struct lightrec_state *state, u32 addr)
 {
@@ -266,9 +272,10 @@ static struct block * get_block(struct lightrec_state *state, u32 pc)
 	}
 
 	if (!block) {
-		block = lightrec_recompile_block(state, pc);
+		block = lightrec_precompile_block(state, pc);
 		if (!block) {
 			ERROR("Unable to recompile block at PC 0x%x\n", pc);
+			state->exit_flags = LIGHTREC_EXIT_SEGFAULT;
 			return NULL;
 		}
 
@@ -280,7 +287,25 @@ static struct block * get_block(struct lightrec_state *state, u32 pc)
 
 static struct block * get_next_block(struct lightrec_state *state)
 {
-	return get_block(state, state->next_pc);
+	for (;;) {
+		struct block *block = get_block(state, state->next_pc);
+
+		if (unlikely(!block))
+			return NULL;
+
+		if (likely(block->function))
+			return block;
+
+		/* Block wasn't compiled yet - run the interpreter */
+		lightrec_emulate_block(block);
+
+		/* Then compile it using the profiled data */
+		lightrec_compile_block(state, block);
+
+		if (state->exit_flags != LIGHTREC_EXIT_NORMAL ||
+		    state->current_cycle >= state->target_cycle)
+			return NULL;
+	}
 }
 
 static struct block * generate_wrapper(struct lightrec_state *state,
@@ -413,10 +438,6 @@ static struct block * generate_wrapper_block(struct lightrec_state *state)
 	/* When exiting, the recompiled code will jump to that address */
 	jit_note(__FILE__, __LINE__);
 	jit_patch(to_end2);
-	jit_movi(JIT_R0, LIGHTREC_EXIT_SEGFAULT);
-	jit_stxi_i(offsetof(struct lightrec_state, exit_flags),
-			LIGHTREC_REG_STATE, JIT_R0);
-
 	jit_patch(to_end);
 	jit_epilog();
 
@@ -443,12 +464,11 @@ err_no_mem:
 	return NULL;
 }
 
-struct block * lightrec_recompile_block(struct lightrec_state *state, u32 pc)
+static struct block * lightrec_precompile_block(struct lightrec_state *state,
+						u32 pc)
 {
-	struct opcode *elm, *list;
+	struct opcode *list;
 	struct block *block;
-	jit_state_t *_jit;
-	bool skip_next = false;
 	const u32 *code;
 	u32 addr, kunseg_pc = kunseg(pc);
 	const struct lightrec_mem_map *map = lightrec_get_map(state, kunseg_pc);
@@ -464,23 +484,22 @@ struct block * lightrec_recompile_block(struct lightrec_state *state, u32 pc)
 	code = map->address + addr;
 
 	block = malloc(sizeof(*block));
-	if (!block)
-		goto err_no_mem;
+	if (!block) {
+		ERROR("Unable to recompile block: Out of memory\n");
+		return NULL;
+	}
 
 	list = lightrec_disassemble(code, &block->length);
-	if (!list)
-		goto err_free_block;
-
-	_jit = jit_new_state();
-	if (!_jit)
-		goto err_free_list;
-
-	lightrec_regcache_reset(state->reg_cache);
+	if (!list) {
+		free(block);
+		return NULL;
+	}
 
 	block->pc = pc;
 	block->kunseg_pc = map->pc + addr;
 	block->state = state;
-	block->_jit = _jit;
+	block->_jit = NULL;
+	block->function = NULL;
 	block->opcode_list = list;
 	block->cycles = 0;
 	block->code = code;
@@ -490,12 +509,35 @@ struct block * lightrec_recompile_block(struct lightrec_state *state, u32 pc)
 
 	lightrec_optimize(list);
 
+#if (LOG_LEVEL >= DEBUG_L)
+	DEBUG("Disassembled block at PC: 0x%x\n", block->pc);
+	lightrec_print_disassembly(block);
+#endif
+
+	return block;
+}
+
+static int lightrec_compile_block(struct lightrec_state *state,
+				  struct block *block)
+{
+	struct opcode *elm;
+	jit_state_t *_jit;
+	bool skip_next = false;
+	u32 pc = block->pc;
+	int ret;
+
+	_jit = jit_new_state();
+	if (!_jit)
+		return -ENOMEM;
+
+	block->_jit = _jit;
+
+	lightrec_regcache_reset(state->reg_cache);
+
 	jit_prolog();
 	jit_tramp(256);
 
-	for (elm = list; elm; elm = SLIST_NEXT(elm, next)) {
-		int ret;
-
+	for (elm = block->opcode_list; elm; elm = SLIST_NEXT(elm, next)) {
 		block->cycles += lightrec_cycles_of_opcode(elm);
 
 		if (skip_next) {
@@ -515,32 +557,18 @@ struct block * lightrec_recompile_block(struct lightrec_state *state, u32 pc)
 	block->function = jit_emit();
 
 #if (LOG_LEVEL >= DEBUG_L)
-	DEBUG("Recompiling block at PC: 0x%x\n", block->pc);
-	lightrec_print_disassembly(block);
-	DEBUG("Lightrec generated:\n");
+	DEBUG("Compiling block at PC: 0x%x\n", block->pc);
 	jit_disassemble();
 #endif
 	jit_clear_state();
-	return block;
 
-err_free_list:
-	lightrec_free_opcode_list(list);
-err_free_block:
-	free(block);
-err_no_mem:
-	ERROR("Unable to recompile block: Out of memory\n");
-	return NULL;
+	return 0;
 }
 
 u32 lightrec_execute(struct lightrec_state *state, u32 pc, u32 target_cycle)
 {
 	void (*func)(void *) = (void (*)(void *)) state->wrapper->function;
-	struct block *block = get_block(state, pc);
-
-	if (unlikely(!block)) {
-		state->exit_flags = LIGHTREC_EXIT_SEGFAULT;
-		return pc;
-	}
+	struct block *block;
 
 	state->exit_flags = LIGHTREC_EXIT_NORMAL;
 
@@ -548,9 +576,13 @@ u32 lightrec_execute(struct lightrec_state *state, u32 pc, u32 target_cycle)
 	if (unlikely(target_cycle < state->current_cycle))
 		target_cycle = UINT_MAX;
 
+	state->next_pc = pc;
 	state->target_cycle = target_cycle;
 
-	func((void *) block->function);
+	block = get_next_block(state);
+	if (block)
+		(*func)((void *) block->function);
+
 	return state->next_pc;
 }
 
@@ -562,10 +594,8 @@ u32 lightrec_execute_one(struct lightrec_state *state, u32 pc)
 u32 lightrec_run_interpreter(struct lightrec_state *state, u32 pc)
 {
 	struct block *block = get_block(state, pc);
-	if (!block) {
-		state->exit_flags = LIGHTREC_EXIT_SEGFAULT;
+	if (!block)
 		return 0;
-	}
 
 	state->exit_flags = LIGHTREC_EXIT_NORMAL;
 
@@ -577,7 +607,8 @@ u32 lightrec_run_interpreter(struct lightrec_state *state, u32 pc)
 void lightrec_free_block(struct block *block)
 {
 	lightrec_free_opcode_list(block->opcode_list);
-	_jit_destroy_state(block->_jit);
+	if (block->_jit)
+		_jit_destroy_state(block->_jit);
 	free(block);
 }
 
