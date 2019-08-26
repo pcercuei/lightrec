@@ -812,14 +812,8 @@ static int rec_mfc(const struct block *block, struct opcode *op)
 {
 	u8 rt, tmp;
 	struct lightrec_state *state = block->state;
-	const struct lightrec_cop_ops *ops = state->cop_ops;
 	struct regcache *reg_cache = state->reg_cache;
 	jit_state_t *_jit = block->_jit;
-
-	if (!ops || !ops->cfc || !ops->mfc) {
-		WARNING("Missing coprocessor callbacks\n");
-		return 0;
-	}
 
 	jit_note(__FILE__, __LINE__);
 
@@ -844,14 +838,8 @@ static int rec_mtc(const struct block *block, struct opcode *op)
 {
 	struct lightrec_state *state = block->state;
 	struct regcache *reg_cache = state->reg_cache;
-	const struct lightrec_cop_ops *ops = state->cop_ops;
 	jit_state_t *_jit = block->_jit;
 	u8 rt, tmp;
-
-	if (!ops || !ops->ctc || !ops->mtc) {
-		WARNING("Missing coprocessor callbacks\n");
-		return 0;
-	}
 
 	jit_note(__FILE__, __LINE__);
 
@@ -928,11 +916,6 @@ static void rec_cp0_RFE_C(struct lightrec_state *state)
 {
 	u32 status;
 
-	if (!state->cop_ops || !state->cop_ops->mfc || !state->cop_ops->ctc) {
-		WARNING("Missing coprocessor callbacks\n");
-		return;
-	}
-
 	/* Read CP0 Status register (r12) */
 	status = state->cop_ops->mfc(state, 0, 12);
 
@@ -966,11 +949,6 @@ static int rec_CP(const struct block *block, struct opcode *op, u32 pc)
 	struct lightrec_state *state = block->state;
 	struct regcache *reg_cache = state->reg_cache;
 	jit_state_t *_jit = block->_jit;
-
-	if (!state->cop_ops || !state->cop_ops->op) {
-		WARNING("Missing coprocessor callbacks\n");
-		return 0;
-	}
 
 	jit_name(__func__);
 

@@ -141,11 +141,6 @@ static u32 lightrec_do_rw(struct lightrec_state *state,
 			lightrec_invalidate_map(state, map, kaddr, 4);
 			return 0;
 		case OP_SWC2:
-			if (!state->cop_ops || !state->cop_ops->mfc) {
-				WARNING("Missing MFC callback!\n");
-				return 0;
-			}
-
 			*(u32 *) new_addr = state->cop_ops->mfc(
 					state, 2, op->i.rt);
 			lightrec_invalidate_map(state, map, kaddr, 4);
@@ -171,11 +166,6 @@ static u32 lightrec_do_rw(struct lightrec_state *state,
 
 			return (data & mask) | (mem_data >> (shift * 8));
 		case OP_LWC2:
-			if (!state->cop_ops || !state->cop_ops->mtc) {
-				WARNING("Missing MFC callback!\n");
-				return 0;
-			}
-
 			state->cop_ops->mtc(state, 2,
 					op->i.rt, *(u32 *) new_addr);
 			return 0;
@@ -592,6 +582,13 @@ struct lightrec_state * lightrec_init(char *argv0,
 {
 	struct lightrec_state *state;
 	unsigned int i;
+
+	/* Sanity-check ops */
+	if (!cop_ops || !cop_ops->mfc || !cop_ops->cfc ||
+	    !cop_ops->mtc || !cop_ops->ctc || !cop_ops->op) {
+		ERROR("Missing callbacks in lightrec_ops structure\n");
+		return NULL;
+	}
 
 	init_jit(argv0);
 
