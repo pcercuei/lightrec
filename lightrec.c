@@ -83,108 +83,123 @@ static void lightrec_invalidate_map(struct lightrec_state *state,
 		priv->invalidation_table[offset++] = state->current_cycle;
 }
 
-static u32 lightrec_do_rw(struct lightrec_state *state,
-			  const struct opcode *op, u32 addr, u32 data)
+static const struct lightrec_mem_map *
+lightrec_get_map(struct lightrec_state *state, u32 kaddr)
 {
+	unsigned int i;
+
+	for (i = 0; i < state->nb_maps; i++) {
+		const struct lightrec_mem_map *map = &state->maps[i];
+
+		if (kaddr >= map->pc && kaddr < map->pc + map->length)
+			return map;
+	}
+
+	return NULL;
+}
+
+u32 lightrec_rw(struct lightrec_state *state,
+		const struct opcode *op, u32 addr, u32 data)
+{
+	const struct lightrec_mem_map *map;
+	const struct lightrec_mem_map_ops *ops;
+	u32 shift, mem_data, mask, pc;
+	uintptr_t new_addr;
 	unsigned int i;
 	u32 kaddr;
 
 	addr += (s16) op->i.imm;
 	kaddr = kunseg(addr);
 
-	for (i = 0; i < state->nb_maps; i++) {
-		const struct lightrec_mem_map *map = &state->maps[i];
-		const struct lightrec_mem_map_ops *ops = map->ops;
-		u32 shift, mem_data, mask, pc = map->pc;
-		uintptr_t new_addr;
-
-		if (kaddr < pc || kaddr >= pc + map->length)
-			continue;
-
-		if (unlikely(ops))
-			return lightrec_rw_ops(state, op, ops, addr, data);
-
-		while (map->mirror_of)
-			map = map->mirror_of;
-
-		new_addr = (uintptr_t) map->address + (kaddr - pc);
-
-		switch (op->i.op) {
-		case OP_SB:
-			*(u8 *) new_addr = (u8) data;
-			lightrec_invalidate_map(state, map, kaddr, 1);
-			return 0;
-		case OP_SH:
-			*(u16 *) new_addr = (u16) data;
-			lightrec_invalidate_map(state, map, kaddr, 2);
-			return 0;
-		case OP_SWL:
-			shift = kaddr & 3;
-			mem_data = *(u32 *)(new_addr & ~3);
-			mask = GENMASK(31, (shift + 1) * 8);
-
-			*(u32 *)(new_addr & ~3) = (data >> ((3 - shift) * 8))
-				| (mem_data & mask);
-			lightrec_invalidate_map(state, map, kaddr & ~0x3, 4);
-			return 0;
-		case OP_SWR:
-			shift = kaddr & 3;
-			mem_data = *(u32 *)(new_addr & ~3);
-			mask = (1 << (shift * 8)) - 1;
-
-			*(u32 *)(new_addr & ~3) = (data << (shift * 8))
-				| (mem_data & mask);
-			lightrec_invalidate_map(state, map, kaddr & ~0x3, 4);
-			return 0;
-		case OP_SW:
-			*(u32 *) new_addr = data;
-			lightrec_invalidate_map(state, map, kaddr, 4);
-			return 0;
-		case OP_SWC2:
-			*(u32 *) new_addr = state->ops.cop2_ops.mfc(state,
-								    op->i.rt);
-			lightrec_invalidate_map(state, map, kaddr, 4);
-			return 0;
-		case OP_LB:
-			return (s32) *(s8 *) new_addr;
-		case OP_LBU:
-			return *(u8 *) new_addr;
-		case OP_LH:
-			return (s32) *(s16 *) new_addr;
-		case OP_LHU:
-			return *(u16 *) new_addr;
-		case OP_LWL:
-			shift = kaddr & 3;
-			mem_data = *(u32 *)(new_addr & ~3);
-			mask = (1 << (24 - shift * 8)) - 1;
-
-			return (data & mask) | (mem_data << (24 - shift * 8));
-		case OP_LWR:
-			shift = kaddr & 3;
-			mem_data = *(u32 *)(new_addr & ~3);
-			mask = GENMASK(31, 32 - shift * 8);
-
-			return (data & mask) | (mem_data >> (shift * 8));
-		case OP_LWC2:
-			state->ops.cop2_ops.mtc(state, op->i.rt,
-						*(u32 *) new_addr);
-			return 0;
-		case OP_LW:
-		default:
-			return *(u32 *) new_addr;
-		}
+	map = lightrec_get_map(state, kaddr);
+	if (!map) {
+		__segfault_cb(state, addr);
+		return 0;
 	}
 
-	__segfault_cb(state, addr);
-	return 0;
+	ops = map->ops;
+	pc = map->pc;
+
+	if (unlikely(map->ops))
+		return lightrec_rw_ops(state, op, map->ops, addr, data);
+
+	while (map->mirror_of)
+		map = map->mirror_of;
+
+	new_addr = (uintptr_t) map->address + (kaddr - pc);
+
+	switch (op->i.op) {
+	case OP_SB:
+		*(u8 *) new_addr = (u8) data;
+		lightrec_invalidate_map(state, map, kaddr, 1);
+		return 0;
+	case OP_SH:
+		*(u16 *) new_addr = (u16) data;
+		lightrec_invalidate_map(state, map, kaddr, 2);
+		return 0;
+	case OP_SWL:
+		shift = kaddr & 3;
+		mem_data = *(u32 *)(new_addr & ~3);
+		mask = GENMASK(31, (shift + 1) * 8);
+
+		*(u32 *)(new_addr & ~3) = (data >> ((3 - shift) * 8))
+			| (mem_data & mask);
+		lightrec_invalidate_map(state, map, kaddr & ~0x3, 4);
+		return 0;
+	case OP_SWR:
+		shift = kaddr & 3;
+		mem_data = *(u32 *)(new_addr & ~3);
+		mask = (1 << (shift * 8)) - 1;
+
+		*(u32 *)(new_addr & ~3) = (data << (shift * 8))
+			| (mem_data & mask);
+		lightrec_invalidate_map(state, map, kaddr & ~0x3, 4);
+		return 0;
+	case OP_SW:
+		*(u32 *) new_addr = data;
+		lightrec_invalidate_map(state, map, kaddr, 4);
+		return 0;
+	case OP_SWC2:
+		*(u32 *) new_addr = state->ops.cop2_ops.mfc(state,
+							    op->i.rt);
+		lightrec_invalidate_map(state, map, kaddr, 4);
+		return 0;
+	case OP_LB:
+		return (s32) *(s8 *) new_addr;
+	case OP_LBU:
+		return *(u8 *) new_addr;
+	case OP_LH:
+		return (s32) *(s16 *) new_addr;
+	case OP_LHU:
+		return *(u16 *) new_addr;
+	case OP_LWL:
+		shift = kaddr & 3;
+		mem_data = *(u32 *)(new_addr & ~3);
+		mask = (1 << (24 - shift * 8)) - 1;
+
+		return (data & mask) | (mem_data << (24 - shift * 8));
+	case OP_LWR:
+		shift = kaddr & 3;
+		mem_data = *(u32 *)(new_addr & ~3);
+		mask = GENMASK(31, 32 - shift * 8);
+
+		return (data & mask) | (mem_data >> (shift * 8));
+	case OP_LWC2:
+		state->ops.cop2_ops.mtc(state, op->i.rt,
+					*(u32 *) new_addr);
+		return 0;
+	case OP_LW:
+	default:
+		return *(u32 *) new_addr;
+	}
 }
 
-void lightrec_rw(struct lightrec_state *state)
+static void lightrec_rw_cb(struct lightrec_state *state)
 {
 	struct lightrec_op_data *opdata = &state->op_data;
 
-	opdata->data = lightrec_do_rw(state, opdata->op,
-				      opdata->addr, opdata->data);
+	opdata->data = lightrec_rw(state, opdata->op,
+				   opdata->addr, opdata->data);
 }
 
 u32 lightrec_mfc(struct lightrec_state *state, const struct opcode *op)
@@ -236,21 +251,6 @@ void lightrec_mtc(struct lightrec_state *state,
 static void lightrec_mtc_cb(struct lightrec_state *state)
 {
 	lightrec_mtc(state, state->op_data.op, state->op_data.data);
-}
-
-static const struct lightrec_mem_map * find_map(
-		struct lightrec_state *state, u32 pc)
-{
-	unsigned int i;
-
-	for (i = 0; i < state->nb_maps; i++) {
-		const struct lightrec_mem_map *map = &state->maps[i];
-
-		if (pc >= map->pc && pc < map->pc + map->length)
-			return map;
-	}
-
-	return NULL;
 }
 
 static struct block * get_block(struct lightrec_state *state, u32 pc)
@@ -454,7 +454,7 @@ struct block * lightrec_recompile_block(struct lightrec_state *state, u32 pc)
 	bool skip_next = false;
 	const u32 *code;
 	u32 addr, kunseg_pc = kunseg(pc);
-	const struct lightrec_mem_map *map = find_map(state, kunseg_pc);
+	const struct lightrec_mem_map *map = lightrec_get_map(state, kunseg_pc);
 
 	if (!map)
 		return NULL;
@@ -644,7 +644,7 @@ struct lightrec_state * lightrec_init(char *argv0,
 	memcpy(&state->ops, ops, sizeof(*ops));
 
 	state->wrapper = generate_wrapper_block(state);
-	state->rw_wrapper = generate_wrapper(state, lightrec_rw);
+	state->rw_wrapper = generate_wrapper(state, lightrec_rw_cb);
 	state->mfc_wrapper = generate_wrapper(state, lightrec_mfc_cb);
 	state->mtc_wrapper = generate_wrapper(state, lightrec_mtc_cb);
 
@@ -686,7 +686,7 @@ void lightrec_destroy(struct lightrec_state *state)
 void lightrec_invalidate(struct lightrec_state *state, u32 addr, u32 len)
 {
 	u32 kaddr = kunseg(addr);
-	const struct lightrec_mem_map *map = find_map(state, kaddr);
+	const struct lightrec_mem_map *map = lightrec_get_map(state, kaddr);
 
 	if (map) {
 		while (map->mirror_of)

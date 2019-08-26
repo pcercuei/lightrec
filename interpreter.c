@@ -343,17 +343,14 @@ static void int_LUI(struct interpreter *inter)
 static void int_io(struct interpreter *inter, bool is_load)
 {
 	struct opcode_i *op = &inter->op->i;
-	struct lightrec_op_data *opdata = &inter->state->op_data;
 	u32 *reg_cache = inter->state->native_reg_cache;
+	u32 val;
 
-	opdata->op = inter->op;
-	opdata->addr = reg_cache[op->rs];
-	opdata->data = reg_cache[op->rt];
-
-	lightrec_rw(inter->state);
+	val = lightrec_rw(inter->state, inter->op,
+			  reg_cache[op->rs], reg_cache[op->rt]);
 
 	if (is_load && op->rt)
-		reg_cache[op->rt] = opdata->data;
+		reg_cache[op->rt] = val;
 
 	JUMP_NEXT(inter);
 }
