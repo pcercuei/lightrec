@@ -38,6 +38,7 @@ struct jit_state;
 typedef struct jit_state jit_state_t;
 
 struct blockcache;
+struct recompiler;
 struct regcache;
 struct opcode;
 
@@ -78,6 +79,7 @@ struct lightrec_state {
 	struct block *wrapper, *rw_wrapper, *mfc_wrapper, *mtc_wrapper;
 	struct blockcache *block_cache;
 	struct regcache *reg_cache;
+	struct recompiler *rec;
 	void (*eob_wrapper_func)(void);
 	struct lightrec_ops ops;
 	unsigned int nb_maps;
@@ -112,5 +114,7 @@ static inline u32 kunseg(u32 addr)
 void lightrec_mtc(struct lightrec_state *state,
 		  const struct opcode *op, u32 data);
 u32 lightrec_mfc(struct lightrec_state *state, const struct opcode *op);
+
+int lightrec_compile_block(struct block *block);
 
 #endif /* __LIGHTREC_PRIVATE_H__ */

@@ -13,11 +13,13 @@
  */
 
 #include "blockcache.h"
+#include "config.h"
 #include "debug.h"
 #include "disassembler.h"
 #include "emitter.h"
 #include "interpreter.h"
 #include "lightrec.h"
+#include "recompiler.h"
 #include "regcache.h"
 #include "optimizer.h"
 
@@ -30,8 +32,6 @@
 #define GENMASK(h, l) \
 	(((~0UL) << (l)) & (~0UL >> (__WORDSIZE - 1 - (h))))
 
-static int lightrec_compile_block(struct lightrec_state *state,
-				  struct block *block);
 static struct block * lightrec_precompile_block(struct lightrec_state *state,
 						u32 pc);
 
@@ -268,6 +268,12 @@ static struct block * get_block(struct lightrec_state *state, u32 pc)
 	if (block && lightrec_block_is_outdated(block)) {
 		DEBUG("Block at PC 0x%08x is outdated!\n", block->pc);
 
+#ifdef ENABLE_THREADED_COMPILER
+		/* Make sure the recompiler isn't processing the block we'll
+		 * destroy */
+		lightrec_recompiler_remove(state->rec, block);
+#endif
+
 		lightrec_unregister_block(state->block_cache, block);
 		lightrec_free_block(block);
 		block = NULL;
@@ -302,7 +308,11 @@ static struct block * get_next_block(struct lightrec_state *state)
 		lightrec_emulate_block(block);
 
 		/* Then compile it using the profiled data */
-		lightrec_compile_block(state, block);
+#ifdef ENABLE_THREADED_COMPILER
+		lightrec_recompiler_add(state->rec, block);
+#else
+		lightrec_compile_block(block);
+#endif
 
 		if (state->exit_flags != LIGHTREC_EXIT_NORMAL ||
 		    state->current_cycle >= state->target_cycle)
@@ -519,8 +529,7 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 	return block;
 }
 
-static int lightrec_compile_block(struct lightrec_state *state,
-				  struct block *block)
+int lightrec_compile_block(struct block *block)
 {
 	struct opcode *elm;
 	jit_state_t *_jit;
@@ -534,7 +543,7 @@ static int lightrec_compile_block(struct lightrec_state *state,
 
 	block->_jit = _jit;
 
-	lightrec_regcache_reset(state->reg_cache);
+	lightrec_regcache_reset(block->state->reg_cache);
 
 	jit_prolog();
 	jit_tramp(256);
@@ -646,9 +655,15 @@ struct lightrec_state * lightrec_init(char *argv0,
 	if (!state->reg_cache)
 		goto err_free_block_cache;
 
+#ifdef ENABLE_THREADED_COMPILER
+	state->rec = lightrec_recompiler_init();
+	if (!state->rec)
+		goto err_free_reg_cache;
+#endif
+
 	state->mem_map = calloc(nb, sizeof(*state->mem_map));
 	if (!state->mem_map)
-		goto err_free_reg_cache;
+		goto err_free_recompiler;
 
 	state->nb_maps = nb;
 	state->maps = map;
@@ -696,6 +711,10 @@ err_free_invalidation_tables:
 	for (i = 0; i < nb; i++)
 		free(state->mem_map[i].invalidation_table);
 	free(state->mem_map);
+err_free_recompiler:
+#ifdef ENABLE_THREADED_COMPILER
+	lightrec_free_recompiler(state->rec);
+#endif
 err_free_reg_cache:
 	lightrec_free_regcache(state->reg_cache);
 err_free_block_cache:
@@ -710,6 +729,10 @@ err_finish_jit:
 void lightrec_destroy(struct lightrec_state *state)
 {
 	unsigned int i;
+
+#ifdef ENABLE_THREADED_COMPILER
+	lightrec_free_recompiler(state->rec);
+#endif
 
 	lightrec_free_regcache(state->reg_cache);
 	lightrec_free_block_cache(state->block_cache);

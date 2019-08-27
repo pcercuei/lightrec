@@ -12,10 +12,15 @@
  * Lesser General Public License for more details.
  */
 
-#ifndef __LIGHTREC_CONFIG_H__
-#define __LIGHTREC_CONFIG_H__
+#ifndef __LIGHTREC_RECOMPILER_H__
+#define __LIGHTREC_RECOMPILER_H__
 
-#cmakedefine ENABLE_THREADED_COMPILER
+struct block;
+struct recompiler;
 
-#endif /* __LIGHTREC_CONFIG_H__ */
+struct recompiler *lightrec_recompiler_init(void);
+void lightrec_free_recompiler(struct recompiler *rec);
+int lightrec_recompiler_add(struct recompiler *rec, struct block *block);
+void lightrec_recompiler_remove(struct recompiler *rec, struct block *block);
 
+#endif /* __LIGHTREC_RECOMPILER_H__ */

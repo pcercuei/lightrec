@@ -33,6 +33,11 @@ list(APPEND LIGHTREC_HEADERS
 	regcache.h
 )
 
+option(ENABLE_THREADED_COMPILER "Enable threaded compiler" ON)
+if (ENABLE_THREADED_COMPILER)
+	list(APPEND LIGHTREC_SOURCES recompiler.c)
+endif (ENABLE_THREADED_COMPILER)
+
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 configure_file(config.h.cmakein config.h @ONLY)
 
@@ -41,7 +46,7 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 	VERSION ${PROJECT_VERSION}
 	SOVERSION ${PROJECT_VERSION_MAJOR}
 	PUBLIC_HEADER lightrec.h
-	C_STANDARD 99
+	C_STANDARD 11
 	C_STANDARD_REQUIRED ON
 	C_EXTENSIONS OFF
 )
