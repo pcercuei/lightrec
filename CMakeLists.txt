@@ -11,8 +11,27 @@ endif()
 string(TOUPPER ${LOG_LEVEL} LIGHTREC_LOG_LEVEL)
 add_definitions(-DLOG_LEVEL=${LIGHTREC_LOG_LEVEL}_L)
 
-file(GLOB LIGHTREC_SOURCES *.c)
-file(GLOB LIGHTREC_HEADERS *.h)
+list(APPEND LIGHTREC_SOURCES
+	blockcache.c
+	disassembler.c
+	emitter.c
+	interpreter.c
+	lightrec.c
+	optimizer.c
+	regcache.c
+)
+list(APPEND LIGHTREC_HEADERS
+	blockcache.h
+	debug.h
+	disassembler.h
+	emitter.h
+	interpreter.h
+	lightrec-private.h
+	lightrec.h
+	optimizer.h
+	recompiler.h
+	regcache.h
+)
 
 add_library(${PROJECT_NAME} ${LIGHTREC_SOURCES} ${LIGHTREC_HEADERS})
 set_target_properties(${PROJECT_NAME} PROPERTIES
