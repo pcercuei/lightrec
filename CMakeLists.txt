@@ -33,6 +33,9 @@ list(APPEND LIGHTREC_HEADERS
 	regcache.h
 )
 
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
+configure_file(config.h.cmakein config.h @ONLY)
+
 add_library(${PROJECT_NAME} ${LIGHTREC_SOURCES} ${LIGHTREC_HEADERS})
 set_target_properties(${PROJECT_NAME} PROPERTIES
 	VERSION ${PROJECT_VERSION}
