@@ -665,13 +665,13 @@ static int rec_io(const struct block *block, struct opcode *op,
 	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rs);
 	jit_stxi_i(offsetof(struct lightrec_state, op_data.addr),
 		   LIGHTREC_REG_STATE, rs);
-	lightrec_unload_reg(reg_cache, _jit, rs);
+	lightrec_free_reg(reg_cache, rs);
 
 	if (load_rt) {
 		rt = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rt);
 		jit_stxi_i(offsetof(struct lightrec_state, op_data.data),
 			   LIGHTREC_REG_STATE, rt);
-		lightrec_unload_reg(reg_cache, _jit, rt);
+		lightrec_free_reg(reg_cache, rt);
 	}
 
 	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
