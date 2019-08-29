@@ -1073,7 +1073,7 @@ static int rec_meta_unload(const struct block *block, struct opcode *op, u32 pc)
 	jit_state_t *_jit = block->_jit;
 	u8 reg = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rs);
 
-	DEBUG("Unloading reg %u\n", op->i.rs);
+	DEBUG("Unloading reg %s\n", lightrec_reg_name(op->i.rs));
 	lightrec_unload_reg(reg_cache, _jit, reg);
 	return 0;
 }

@@ -27,6 +27,24 @@ struct regcache {
 	struct native_register lightrec_regs[NUM_REGS + NUM_TEMPS];
 };
 
+static const char * mips_regs[] = {
+	"zero",
+	"at",
+	"v0", "v1",
+	"a0", "a1", "a2", "a3",
+	"t0", "t1", "t2", "t3", "t4", "t5", "t6", "t7",
+	"s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7",
+	"t8", "t9",
+	"k0", "k1",
+	"gp", "sp", "fp", "ra",
+	"lo", "hi",
+};
+
+const char * lightrec_reg_name(u8 reg)
+{
+	return mips_regs[reg];
+}
+
 static inline u8 lightrec_reg_number(const struct regcache *cache,
 		const struct native_register *nreg)
 {

@@ -57,4 +57,6 @@ void lightrec_regcache_leave_branch(struct regcache *cache,
 struct regcache * lightrec_regcache_init(void);
 void lightrec_free_regcache(struct regcache *cache);
 
+const char * lightrec_reg_name(u8 reg);
+
 #endif /* __REGCACHE_H__ */
