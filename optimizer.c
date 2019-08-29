@@ -681,10 +681,6 @@ static int lightrec_early_unload(struct block *block)
 		int ret;
 
 		for (op = list; op->next; last = op, op = op->next, id++) {
-			if (has_delay_slot(op->c) ||
-			    (last && has_delay_slot(last->c)))
-				continue;
-
 			if (opcode_reads_register(op->c, i)) {
 				last_r = op;
 				last_r_id = id;
@@ -697,12 +693,20 @@ static int lightrec_early_unload(struct block *block)
 		}
 
 		if (last_w_id > last_r_id) {
+			if (has_delay_slot(last_w->c) &&
+			    !(last_w->flags & LIGHTREC_NO_DS))
+				last_w = last_w->next;
+
 			if (last_w->next) {
 				ret = lightrec_add_unload(last_w, i);
 				if (ret)
 					return ret;
 			}
 		} else if (last_r) {
+			if (has_delay_slot(last_r->c) &&
+			    !(last_r->flags & LIGHTREC_NO_DS))
+				last_r = last_r->next;
+
 			if (last_r->next) {
 				ret = lightrec_add_unload(last_r, i);
 				if (ret)
