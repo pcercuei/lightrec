@@ -696,14 +696,12 @@ static int lightrec_early_unload(struct block *block)
 			}
 		}
 
-		if (last_r) {
-			ret = lightrec_add_unload(last_r, i);
+		if (last_w_id > last_r_id) {
+			ret = lightrec_add_unload(last_w, i);
 			if (ret)
 				return ret;
-		}
-
-		if (last_w && (!last_r || last_w_id > last_r_id)) {
-			ret = lightrec_add_unload(last_w, i);
+		} else if (last_r) {
+			ret = lightrec_add_unload(last_r, i);
 			if (ret)
 				return ret;
 		}
