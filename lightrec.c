@@ -275,6 +275,20 @@ static void lightrec_rfe_cb(struct lightrec_state *state)
 	state->ops.cop0_ops.ctc(state, 12, status);
 }
 
+static void lightrec_cp_cb(struct lightrec_state *state)
+{
+	void (*func)(struct lightrec_state *, u32);
+	struct lightrec_op_data *opdata = &state->op_data;
+	struct opcode *op = opdata->op;
+
+	if ((op->opcode >> 25) & 1)
+		func = state->ops.cop2_ops.op;
+	else
+		func = state->ops.cop0_ops.op;
+
+	(*func)(state, op->opcode);
+}
+
 static struct block * get_block(struct lightrec_state *state, u32 pc)
 {
 	struct block *block = lightrec_find_block(state->block_cache, pc);
@@ -705,6 +719,7 @@ struct lightrec_state * lightrec_init(char *argv0,
 	state->mfc_wrapper = generate_wrapper(state, lightrec_mfc_cb);
 	state->mtc_wrapper = generate_wrapper(state, lightrec_mtc_cb);
 	state->rfe_wrapper = generate_wrapper(state, lightrec_rfe_cb);
+	state->cp_wrapper = generate_wrapper(state, lightrec_cp_cb);
 
 	map = &state->maps[PSX_MAP_BIOS];
 	state->offset_bios = (uintptr_t)map->address - map->pc;
@@ -756,6 +771,7 @@ void lightrec_destroy(struct lightrec_state *state)
 	lightrec_free_block(state->mfc_wrapper);
 	lightrec_free_block(state->mtc_wrapper);
 	lightrec_free_block(state->rfe_wrapper);
+	lightrec_free_block(state->cp_wrapper);
 	finish_jit();
 
 	for (i = 0; i < state->nb_maps; i++)

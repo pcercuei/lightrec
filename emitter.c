@@ -1027,27 +1027,21 @@ static int rec_cp0_RFE(const struct block *block, struct opcode *op, u32 pc)
 static int rec_CP(const struct block *block, struct opcode *op, u32 pc)
 {
 	struct lightrec_state *state = block->state;
-	struct regcache *reg_cache = state->reg_cache;
-	void (*func)(struct lightrec_state *, u32);
 	jit_state_t *_jit = block->_jit;
-
-	if ((op->opcode >> 25) & 1)
-		func = state->ops.cop2_ops.op;
-	else
-		func = state->ops.cop0_ops.op;
+	u8 tmp;
 
 	jit_name(__func__);
-
-	lightrec_storeback_regs(reg_cache, _jit);
-
-	/* The call to C trashes the registers, we have to reset the cache */
-	lightrec_regcache_reset(reg_cache);
-
 	jit_note(__FILE__, __LINE__);
-	jit_prepare();
-	jit_pushargr(LIGHTREC_REG_STATE);
-	jit_pushargi(op->opcode);
-	jit_finishi(func);
+
+	tmp = lightrec_alloc_reg_temp(state->reg_cache, _jit);
+	jit_movi(tmp, (uintptr_t)op);
+	jit_stxi(offsetof(struct lightrec_state, op_data.op),
+		 LIGHTREC_REG_STATE, tmp);
+
+	jit_movi(tmp, (uintptr_t)state->cp_wrapper->function);
+	jit_callr(tmp);
+	lightrec_free_reg(state->reg_cache, tmp);
+
 	return 0;
 }
 

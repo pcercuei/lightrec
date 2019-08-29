@@ -77,7 +77,7 @@ struct lightrec_state {
 	u32 exit_flags;
 	struct lightrec_op_data op_data;
 	struct block *wrapper, *rw_wrapper, *mfc_wrapper, *mtc_wrapper,
-		     *rfe_wrapper;
+		     *rfe_wrapper, *cp_wrapper;
 	struct blockcache *block_cache;
 	struct regcache *reg_cache;
 	struct recompiler *rec;
