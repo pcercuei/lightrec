@@ -1007,35 +1007,20 @@ static int rec_cp2_basic_CTC2(const struct block *block,
 	return rec_mtc(block, op);
 }
 
-static void rec_cp0_RFE_C(struct lightrec_state *state)
-{
-	u32 status;
-
-	/* Read CP0 Status register (r12) */
-	status = state->ops.cop0_ops.mfc(state, 12);
-
-	/* Switch the bits */
-	status = ((status & 0x3c) >> 2) | (status & ~0xf);
-
-	/* Write it back */
-	state->ops.cop0_ops.ctc(state, 12, status);
-}
-
 static int rec_cp0_RFE(const struct block *block, struct opcode *op, u32 pc)
 {
+	struct lightrec_state *state = block->state;
 	jit_state_t *_jit = block->_jit;
+	u8 tmp;
 
 	jit_name(__func__);
-
-	lightrec_storeback_regs(block->state->reg_cache, _jit);
-
-	/* The call to C trashes the registers, we have to reset the cache */
-	lightrec_regcache_reset(block->state->reg_cache);
-
 	jit_note(__FILE__, __LINE__);
-	jit_prepare();
-	jit_pushargr(LIGHTREC_REG_STATE);
-	jit_finishi(rec_cp0_RFE_C);
+
+	tmp = lightrec_alloc_reg_temp(state->reg_cache, _jit);
+	jit_movi(tmp, (uintptr_t)state->rfe_wrapper->function);
+	jit_callr(tmp);
+	lightrec_free_reg(state->reg_cache, tmp);
+
 	return 0;
 }
 
