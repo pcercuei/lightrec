@@ -75,19 +75,6 @@ static u32 lightrec_rw_ops(struct lightrec_state *state,
 static void lightrec_invalidate_map(struct lightrec_state *state,
 		const struct lightrec_mem_map *map, u32 addr, u32 len)
 {
-	struct lightrec_mem_map_priv *priv;
-	u32 offset, count;
-
-	if (!(map->flags & MAP_IS_RWX))
-		return;
-
-	priv = get_map_priv(state, map);
-	offset = (addr - map->pc) >> priv->page_shift;
-	count = (len + (1 << priv->page_shift) - 1) >> priv->page_shift;
-
-	while (count--)
-		priv->invalidation_table[offset++] = state->current_cycle;
-
 	if (map == &state->maps[PSX_MAP_KERNEL_USER_RAM]) {
 		/* Invalidate function pointers in the code LUT */
 		for (; len > 4; len -= 4, addr += 4)
@@ -349,6 +336,13 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 		/* Then compile it using the profiled data */
 #ifdef ENABLE_THREADED_COMPILER
 		lightrec_recompiler_add(state->rec, block);
+
+		/* Use state->get_next_block in the code LUT, which basically
+		 * calls back get_next_block_func(), until the compiler
+		 * overrides this. This is required, as a NULL value in the code
+		 * LUT means an outdated block. */
+		if (block->map == &state->maps[PSX_MAP_KERNEL_USER_RAM])
+			state->code_lut[block->kunseg_pc >> 2] = state->get_next_block;
 #else
 		lightrec_compile_block(block);
 #endif
@@ -422,7 +416,7 @@ static struct block * generate_wrapper_block(struct lightrec_state *state)
 {
 	struct block *block;
 	jit_state_t *_jit;
-	jit_node_t *to_end, *to_end2, *to_c, *loop, *addr2;
+	jit_node_t *to_end, *to_end2, *to_c, *loop, *addr, *addr2;
 	unsigned int i;
 	u32 offset, ram_len;
 
@@ -493,6 +487,11 @@ static struct block * generate_wrapper_block(struct lightrec_state *state)
 	/* Slow path: call C function get_next_block_func() */
 	jit_patch(to_c);
 
+	/* The code LUT will be set to this address when the block at the target
+	 * PC has been preprocessed but not yet compiled by the threaded
+	 * recompiler */
+	addr = jit_indirect();
+
 	/* Get the next block */
 	jit_prepare();
 	jit_pushargr(LIGHTREC_REG_STATE);
@@ -522,6 +521,7 @@ static struct block * generate_wrapper_block(struct lightrec_state *state)
 	block->opcode_list = NULL;
 
 	state->eob_wrapper_func = jit_address(addr2);
+	state->get_next_block = jit_address(addr);
 
 #if (LOG_LEVEL >= DEBUG_L)
 	DEBUG("Wrapper block:\n");
@@ -579,7 +579,6 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 	block->cycles = 0;
 	block->code = code;
 	block->map = map;
-	block->hash = calculate_block_hash(block);
 	block->next.sle_next = NULL;
 
 	lightrec_optimize(list);
@@ -725,34 +724,14 @@ struct lightrec_state * lightrec_init(char *argv0,
 		goto err_free_reg_cache;
 #endif
 
-	state->mem_map = calloc(nb, sizeof(*state->mem_map));
-	if (!state->mem_map)
-		goto err_free_recompiler;
-
 	state->nb_maps = nb;
 	state->maps = map;
-
-	for (i = 0; i < nb; i++) {
-		struct lightrec_mem_map_priv *map_priv = &state->mem_map[i];
-
-		if (!(map[i].flags & MAP_IS_RWX))
-			continue;
-
-		/* TODO: calculate the best page shift */
-		map_priv->page_shift = 9;
-
-		map_priv->invalidation_table = calloc(
-				(map[i].length >> map_priv->page_shift) + 1,
-				sizeof(u32));
-		if (!map_priv->invalidation_table)
-			goto err_free_invalidation_tables;
-	}
 
 	memcpy(&state->ops, ops, sizeof(*ops));
 
 	state->code_lut = calloc(map->length >> 2, sizeof(*state->code_lut));
 	if (!state->code_lut)
-		goto err_free_invalidation_tables;
+		goto err_free_recompiler;
 
 	state->wrapper = generate_wrapper_block(state);
 	if (!state->wrapper)
@@ -807,10 +786,6 @@ err_free_wrapper:
 	lightrec_free_block(state->wrapper);
 err_free_code_lut:
 	free(state->code_lut);
-err_free_invalidation_tables:
-	for (i = 0; i < nb; i++)
-		free(state->mem_map[i].invalidation_table);
-	free(state->mem_map);
 err_free_recompiler:
 #ifdef ENABLE_THREADED_COMPILER
 	lightrec_free_recompiler(state->rec);
@@ -844,9 +819,6 @@ void lightrec_destroy(struct lightrec_state *state)
 	lightrec_free_block(state->cp_wrapper);
 	finish_jit();
 
-	for (i = 0; i < state->nb_maps; i++)
-		free(state->mem_map[i].invalidation_table);
-	free(state->mem_map);
 	free(state);
 }
 

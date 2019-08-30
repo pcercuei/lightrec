@@ -42,11 +42,6 @@ struct recompiler;
 struct regcache;
 struct opcode;
 
-struct lightrec_mem_map_priv {
-	u32 *invalidation_table;
-	unsigned int page_shift;
-};
-
 struct block {
 	jit_state_t *_jit;
 	struct lightrec_state *state;
@@ -54,7 +49,6 @@ struct block {
 	void (*function)(void);
 	const u32 *code;
 	u32 pc, kunseg_pc;
-	u32 hash;
 	unsigned int cycles;
 	unsigned int length;
 	const struct lightrec_mem_map *map;
@@ -82,10 +76,10 @@ struct lightrec_state {
 	struct regcache *reg_cache;
 	struct recompiler *rec;
 	void (*eob_wrapper_func)(void);
+	void (*get_next_block)(void);
 	struct lightrec_ops ops;
 	unsigned int nb_maps;
 	const struct lightrec_mem_map *maps;
-	struct lightrec_mem_map_priv *mem_map;
 	uintptr_t offset_ram, offset_bios, offset_scratch;
 	bool mirrors_mapped;
 	void **code_lut;
@@ -95,13 +89,6 @@ u32 lightrec_rw(struct lightrec_state *state,
 		struct opcode *op, u32 addr, u32 data);
 
 void lightrec_free_block(struct block *block);
-
-static inline struct lightrec_mem_map_priv * get_map_priv(
-		struct lightrec_state *state,
-		const struct lightrec_mem_map *map)
-{
-	return &state->mem_map[(map - state->maps) / sizeof(*state->maps)];
-}
 
 static inline u32 kunseg(u32 addr)
 {

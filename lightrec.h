@@ -44,9 +44,6 @@ struct lightrec_mem_map;
 #define LIGHTREC_EXIT_CHECK_INTERRUPT	(1 << 2)
 #define LIGHTREC_EXIT_SEGFAULT	(1 << 3)
 
-/* Flags for lightrec_mem_map */
-#define MAP_IS_RWX	(1 << 0)
-
 enum psx_map {
 	PSX_MAP_KERNEL_USER_RAM,
 	PSX_MAP_BIOS,
@@ -71,7 +68,6 @@ struct lightrec_mem_map_ops {
 struct lightrec_mem_map {
 	u32 pc;
 	u32 length;
-	u32 flags;
 	void *address;
 	const struct lightrec_mem_map_ops *ops;
 	const struct lightrec_mem_map *mirror_of;

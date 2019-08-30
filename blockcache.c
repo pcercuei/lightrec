@@ -103,26 +103,8 @@ struct blockcache * lightrec_blockcache_init(void)
 	return calloc(1, sizeof(struct blockcache));
 }
 
-u32 calculate_block_hash(const struct block *block)
-{
-	u32 offset, count, hash = 0;
-
-	if (block->map->flags & MAP_IS_RWX) {
-		const struct lightrec_mem_map_priv *map =
-			get_map_priv(block->state, block->map);
-
-		offset = (block->kunseg_pc - block->map->pc) >> map->page_shift;
-		count = (block->length + (1 << map->page_shift) - 1)
-			>> map->page_shift;
-
-		while (count--)
-			hash += map->invalidation_table[offset++];
-	}
-
-	return hash;
-}
-
 bool lightrec_block_is_outdated(struct block *block)
 {
-	return block->hash != calculate_block_hash(block);
+	return (block->map == &block->state->maps[PSX_MAP_KERNEL_USER_RAM]) &&
+		!block->state->code_lut[block->kunseg_pc >> 2];
 }
