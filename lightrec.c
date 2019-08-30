@@ -715,11 +715,29 @@ struct lightrec_state * lightrec_init(char *argv0,
 	memcpy(&state->ops, ops, sizeof(*ops));
 
 	state->wrapper = generate_wrapper_block(state);
+	if (!state->wrapper)
+		goto err_free_invalidation_tables;
+
 	state->rw_wrapper = generate_wrapper(state, lightrec_rw_cb);
+	if (!state->rw_wrapper)
+		goto err_free_wrapper;
+
 	state->mfc_wrapper = generate_wrapper(state, lightrec_mfc_cb);
+	if (!state->mfc_wrapper)
+		goto err_free_rw_wrapper;
+
 	state->mtc_wrapper = generate_wrapper(state, lightrec_mtc_cb);
+	if (!state->mtc_wrapper)
+		goto err_free_mfc_wrapper;
+
 	state->rfe_wrapper = generate_wrapper(state, lightrec_rfe_cb);
+	if (!state->rfe_wrapper)
+		goto err_free_mtc_wrapper;
+
 	state->cp_wrapper = generate_wrapper(state, lightrec_cp_cb);
+	if (!state->cp_wrapper)
+		goto err_free_rfe_wrapper;
+
 
 	map = &state->maps[PSX_MAP_BIOS];
 	state->offset_bios = (uintptr_t)map->address - map->pc;
@@ -737,6 +755,16 @@ struct lightrec_state * lightrec_init(char *argv0,
 
 	return state;
 
+err_free_rfe_wrapper:
+	lightrec_free_block(state->rfe_wrapper);
+err_free_mtc_wrapper:
+	lightrec_free_block(state->mtc_wrapper);
+err_free_mfc_wrapper:
+	lightrec_free_block(state->mfc_wrapper);
+err_free_rw_wrapper:
+	lightrec_free_block(state->rw_wrapper);
+err_free_wrapper:
+	lightrec_free_block(state->wrapper);
 err_free_invalidation_tables:
 	for (i = 0; i < nb; i++)
 		free(state->mem_map[i].invalidation_table);
