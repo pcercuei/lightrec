@@ -134,7 +134,8 @@ u32 lightrec_rw(struct lightrec_state *state,
 
 	op->flags |= LIGHTREC_DIRECT_IO;
 
-	new_addr = (uintptr_t) map->address + (kaddr - pc);
+	kaddr -= pc;
+	new_addr = (uintptr_t) map->address + kaddr;
 
 	switch (op->i.op) {
 	case OP_SB:
