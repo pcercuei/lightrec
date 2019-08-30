@@ -735,6 +735,9 @@ static int rec_load_direct(const struct block *block, struct opcode *op,
 	jit_node_t *to_not_ram, *to_not_bios, *to_end, *to_end2;
 	u8 tmp, rs, rt;
 
+	if (!op->i.rt)
+		return 0;
+
 	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rs);
 	rt = lightrec_alloc_reg_out(reg_cache, _jit, op->i.rt);
 	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
