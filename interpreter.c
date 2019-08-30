@@ -95,7 +95,7 @@ static void int_jump(struct interpreter *inter, bool link)
 	if (link)
 		state->native_reg_cache[31] = inter->pc + 8;
 
-	state->next_pc = (inter->pc & 0xf0000000) | (inter->op->j.imm << 2);
+	inter->pc = (inter->pc & 0xf0000000) | (inter->op->j.imm << 2);
 }
 
 static void int_J(struct interpreter *inter)
@@ -117,7 +117,7 @@ static void int_jumpr(struct interpreter *inter, u8 link_reg)
 	if (link_reg)
 		state->native_reg_cache[link_reg] = inter->pc + 8;
 
-	state->next_pc = state->native_reg_cache[inter->op->r.rs];
+	inter->pc = state->native_reg_cache[inter->op->r.rs];
 }
 
 static void int_special_JR(struct interpreter *inter)
@@ -143,7 +143,7 @@ static void int_beq(struct interpreter *inter, bool bne)
 	int_delay_slot(inter);
 
 	if (branch)
-		state->next_pc = inter->pc + 4 + ((s16)inter->op->i.imm << 2);
+		inter->pc += 4 + ((s16)inter->op->i.imm << 2);
 	else
 		JUMP_AFTER_BRANCH(inter);
 }
@@ -173,7 +173,7 @@ static void int_bgez(struct interpreter *inter, bool link, bool lt, bool regimm)
 	int_delay_slot(inter);
 
 	if (branch)
-		state->next_pc = inter->pc + 4 + ((s16)inter->op->i.imm << 2);
+		inter->pc += 4 + ((s16)inter->op->i.imm << 2);
 	else
 		JUMP_AFTER_BRANCH(inter);
 }
@@ -443,8 +443,6 @@ static void int_syscall_break(struct interpreter *inter)
 		inter->state->exit_flags |= LIGHTREC_EXIT_BREAK;
 	else
 		inter->state->exit_flags |= LIGHTREC_EXIT_SYSCALL;
-
-	inter->state->next_pc = inter->pc;
 }
 
 static void int_special_MFHI(struct interpreter *inter)
@@ -798,7 +796,7 @@ static void lightrec_int_op(struct interpreter *inter)
 	EXECUTE(int_standard[inter->op->i.op], inter);
 }
 
-void lightrec_emulate_block(struct block *block)
+u32 lightrec_emulate_block(struct block *block)
 {
 	struct interpreter inter;
 
@@ -815,4 +813,6 @@ void lightrec_emulate_block(struct block *block)
 	inter.cycles += lightrec_cycles_of_opcode(inter.op);
 
 	block->state->current_cycle += inter.cycles;
+
+	return inter.pc;
 }

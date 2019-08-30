@@ -333,7 +333,7 @@ static void * get_next_block_func(struct lightrec_state *state)
 			return block->function;
 
 		/* Block wasn't compiled yet - run the interpreter */
-		lightrec_emulate_block(block);
+		state->pc = lightrec_emulate_block(block);
 
 		/* Then compile it using the profiled data */
 #ifdef ENABLE_THREADED_COMPILER
@@ -633,9 +633,7 @@ u32 lightrec_run_interpreter(struct lightrec_state *state, u32 pc)
 
 	state->exit_flags = LIGHTREC_EXIT_NORMAL;
 
-	lightrec_emulate_block(block);
-
-	return state->next_pc;
+	return lightrec_emulate_block(block);
 }
 
 void lightrec_free_block(struct block *block)

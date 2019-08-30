@@ -15,8 +15,10 @@
 #ifndef __LIGHTREC_INTERPRETER_H__
 #define __LIGHTREC_INTERPRETER_H__
 
+#include "lightrec.h"
+
 struct block;
 
-void lightrec_emulate_block(struct block *block);
+u32 lightrec_emulate_block(struct block *block);
 
 #endif /* __LIGHTREC_INTERPRETER_H__ */
