@@ -321,7 +321,7 @@ static struct block * get_block(struct lightrec_state *state, u32 pc)
 	return block;
 }
 
-static struct block * get_next_block(struct lightrec_state *state)
+static void * get_next_block_func(struct lightrec_state *state)
 {
 	for (;;) {
 		struct block *block = get_block(state, state->next_pc);
@@ -330,7 +330,7 @@ static struct block * get_next_block(struct lightrec_state *state)
 			return NULL;
 
 		if (likely(block->function))
-			return block;
+			return block->function;
 
 		/* Block wasn't compiled yet - run the interpreter */
 		lightrec_emulate_block(block);
@@ -409,7 +409,7 @@ static struct block * generate_wrapper_block(struct lightrec_state *state)
 {
 	struct block *block;
 	jit_state_t *_jit;
-	jit_node_t *to_end, *to_end2, *loop, *addr2;
+	jit_node_t *to_end, *loop, *addr2;
 	unsigned int i;
 	u32 offset;
 
@@ -465,19 +465,14 @@ static struct block * generate_wrapper_block(struct lightrec_state *state)
 	/* Get the next block */
 	jit_prepare();
 	jit_pushargr(LIGHTREC_REG_STATE);
-	jit_finishi(&get_next_block);
+	jit_finishi(&get_next_block_func);
 	jit_retval(JIT_R0);
 
-	/* If we get NULL, jump to end */
-	to_end2 = jit_beqi(JIT_R0, 0);
-
-	/* Load the next block function in JIT_R0 and loop */
-	jit_ldxi(JIT_R0, JIT_R0, offsetof(struct block, function));
-	jit_patch_at(jit_jmpi(), loop);
+	/* If we get non-NULL, loop */
+	jit_patch_at(jit_bnei(JIT_R0, 0), loop);
 
 	/* When exiting, the recompiled code will jump to that address */
 	jit_note(__FILE__, __LINE__);
-	jit_patch(to_end2);
 	jit_patch(to_end);
 	jit_epilog();
 
@@ -607,7 +602,7 @@ int lightrec_compile_block(struct block *block)
 u32 lightrec_execute(struct lightrec_state *state, u32 pc, u32 target_cycle)
 {
 	void (*func)(void *) = (void (*)(void *)) state->wrapper->function;
-	struct block *block;
+	void *block_trace;
 
 	state->exit_flags = LIGHTREC_EXIT_NORMAL;
 
@@ -618,9 +613,9 @@ u32 lightrec_execute(struct lightrec_state *state, u32 pc, u32 target_cycle)
 	state->next_pc = pc;
 	state->target_cycle = target_cycle;
 
-	block = get_next_block(state);
-	if (block)
-		(*func)((void *) block->function);
+	block_trace = get_next_block_func(state);
+	if (block_trace)
+		(*func)(block_trace);
 
 	return state->next_pc;
 }
