@@ -87,6 +87,14 @@ static void lightrec_invalidate_map(struct lightrec_state *state,
 
 	while (count--)
 		priv->invalidation_table[offset++] = state->current_cycle;
+
+	if (map == &state->maps[PSX_MAP_KERNEL_USER_RAM]) {
+		/* Invalidate function pointers in the code LUT */
+		for (; len > 4; len -= 4, addr += 4)
+			state->code_lut[addr >> 2] = NULL;
+
+		state->code_lut[addr >> 2] = NULL;
+	}
 }
 
 static const struct lightrec_mem_map *
@@ -302,6 +310,8 @@ static struct block * get_block(struct lightrec_state *state, u32 pc)
 		 * destroy */
 		lightrec_recompiler_remove(state->rec, block);
 #endif
+		lightrec_invalidate_map(state, block->map,
+					block->kunseg_pc, block->length);
 
 		lightrec_unregister_block(state->block_cache, block);
 		lightrec_free_block(block);
@@ -412,9 +422,9 @@ static struct block * generate_wrapper_block(struct lightrec_state *state)
 {
 	struct block *block;
 	jit_state_t *_jit;
-	jit_node_t *to_end, *to_end2, *loop, *addr2;
+	jit_node_t *to_end, *to_end2, *to_c, *loop, *addr2;
 	unsigned int i;
-	u32 offset;
+	u32 offset, ram_len;
 
 	block = malloc(sizeof(*block));
 	if (!block)
@@ -464,6 +474,24 @@ static struct block * generate_wrapper_block(struct lightrec_state *state)
 	jit_ltr_u(JIT_R0, JIT_R0, JIT_R1);
 	jit_orr(JIT_R0, JIT_R0, JIT_R2);
 	to_end = jit_bnei(JIT_R0, 0);
+
+	/* Convert next PC to KUNSEG and avoid mirrors */
+	ram_len = state->maps[PSX_MAP_KERNEL_USER_RAM].length;
+	jit_andi(JIT_R0, JIT_V0, 0x10000000 | (ram_len - 1));
+	to_c = jit_bgei(JIT_R0, ram_len);
+
+	/* Fast path: code is running from RAM, use the code LUT */
+	jit_movi(JIT_R1, (uintptr_t)state->code_lut);
+#if __WORDSIZE == 64
+	jit_lshi(JIT_R0, JIT_R0, 1);
+#endif
+	jit_ldxr(JIT_R0, JIT_R0, JIT_R1);
+
+	/* If we get non-NULL, loop */
+	jit_patch_at(jit_bnei(JIT_R0, 0), loop);
+
+	/* Slow path: call C function get_next_block_func() */
+	jit_patch(to_c);
 
 	/* Get the next block */
 	jit_prepare();
@@ -602,6 +630,10 @@ int lightrec_compile_block(struct block *block)
 
 	block->function = jit_emit();
 
+	/* Add compiled function to the LUT */
+	if (block->map == &block->state->maps[PSX_MAP_KERNEL_USER_RAM])
+		block->state->code_lut[block->kunseg_pc >> 2] = block->function;
+
 #if (LOG_LEVEL >= DEBUG_L)
 	DEBUG("Compiling block at PC: 0x%x\n", block->pc);
 	jit_disassemble();
@@ -718,9 +750,13 @@ struct lightrec_state * lightrec_init(char *argv0,
 
 	memcpy(&state->ops, ops, sizeof(*ops));
 
+	state->code_lut = calloc(map->length >> 2, sizeof(*state->code_lut));
+	if (!state->code_lut)
+		goto err_free_invalidation_tables;
+
 	state->wrapper = generate_wrapper_block(state);
 	if (!state->wrapper)
-		goto err_free_invalidation_tables;
+		goto err_free_code_lut;
 
 	state->rw_wrapper = generate_wrapper(state, lightrec_rw_cb);
 	if (!state->rw_wrapper)
@@ -769,6 +805,8 @@ err_free_rw_wrapper:
 	lightrec_free_block(state->rw_wrapper);
 err_free_wrapper:
 	lightrec_free_block(state->wrapper);
+err_free_code_lut:
+	free(state->code_lut);
 err_free_invalidation_tables:
 	for (i = 0; i < nb; i++)
 		free(state->mem_map[i].invalidation_table);

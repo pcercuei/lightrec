@@ -88,6 +88,7 @@ struct lightrec_state {
 	struct lightrec_mem_map_priv *mem_map;
 	uintptr_t offset_ram, offset_bios, offset_scratch;
 	bool mirrors_mapped;
+	void **code_lut;
 };
 
 u32 lightrec_rw(struct lightrec_state *state,
