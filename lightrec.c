@@ -321,10 +321,10 @@ static struct block * get_block(struct lightrec_state *state, u32 pc)
 	return block;
 }
 
-static void * get_next_block_func(struct lightrec_state *state)
+static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 {
 	for (;;) {
-		struct block *block = get_block(state, state->next_pc);
+		struct block *block = get_block(state, pc);
 
 		if (unlikely(!block))
 			return NULL;
@@ -333,7 +333,7 @@ static void * get_next_block_func(struct lightrec_state *state)
 			return block->function;
 
 		/* Block wasn't compiled yet - run the interpreter */
-		state->pc = lightrec_emulate_block(block);
+		pc = lightrec_emulate_block(block);
 
 		/* Then compile it using the profiled data */
 #ifdef ENABLE_THREADED_COMPILER
@@ -343,8 +343,10 @@ static void * get_next_block_func(struct lightrec_state *state)
 #endif
 
 		if (state->exit_flags != LIGHTREC_EXIT_NORMAL ||
-		    state->current_cycle >= state->target_cycle)
+		    state->current_cycle >= state->target_cycle) {
+			state->next_pc = pc;
 			return NULL;
+		}
 	}
 }
 
@@ -409,7 +411,7 @@ static struct block * generate_wrapper_block(struct lightrec_state *state)
 {
 	struct block *block;
 	jit_state_t *_jit;
-	jit_node_t *to_end, *loop, *addr2;
+	jit_node_t *to_end, *to_end2, *loop, *addr2;
 	unsigned int i;
 	u32 offset;
 
@@ -465,15 +467,24 @@ static struct block * generate_wrapper_block(struct lightrec_state *state)
 	/* Get the next block */
 	jit_prepare();
 	jit_pushargr(LIGHTREC_REG_STATE);
+	jit_pushargr(JIT_V0);
 	jit_finishi(&get_next_block_func);
 	jit_retval(JIT_R0);
 
 	/* If we get non-NULL, loop */
 	jit_patch_at(jit_bnei(JIT_R0, 0), loop);
 
+	to_end2 = jit_jmpi();
+
 	/* When exiting, the recompiled code will jump to that address */
 	jit_note(__FILE__, __LINE__);
 	jit_patch(to_end);
+
+	/* Store back the next_pc to the lightrec_state structure */
+	offset = offsetof(struct lightrec_state, next_pc);
+	jit_stxi_i(offset, LIGHTREC_REG_STATE, JIT_V0);
+
+	jit_patch(to_end2);
 	jit_epilog();
 
 	block->state = state;
@@ -610,10 +621,9 @@ u32 lightrec_execute(struct lightrec_state *state, u32 pc, u32 target_cycle)
 	if (unlikely(target_cycle < state->current_cycle))
 		target_cycle = UINT_MAX;
 
-	state->next_pc = pc;
 	state->target_cycle = target_cycle;
 
-	block_trace = get_next_block_func(state);
+	block_trace = get_next_block_func(state, pc);
 	if (block_trace)
 		(*func)(block_trace);
 
