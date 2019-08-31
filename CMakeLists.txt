@@ -33,9 +33,15 @@ list(APPEND LIGHTREC_HEADERS
 	regcache.h
 )
 
+option(ENABLE_FIRST_PASS "Run the interpreter as first-pass optimization" ON)
+
 option(ENABLE_THREADED_COMPILER "Enable threaded compiler" ON)
 if (ENABLE_THREADED_COMPILER)
 	list(APPEND LIGHTREC_SOURCES recompiler.c)
+
+	if (NOT ENABLE_FIRST_PASS)
+		message(SEND_ERROR "Threaded compiler requires first-pass optimization")
+	endif (NOT ENABLE_FIRST_PASS)
 endif (ENABLE_THREADED_COMPILER)
 
 include_directories(${CMAKE_CURRENT_BINARY_DIR})

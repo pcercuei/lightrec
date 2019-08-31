@@ -330,8 +330,10 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 		if (likely(block->function))
 			return block->function;
 
+#ifdef ENABLE_FIRST_PASS
 		/* Block wasn't compiled yet - run the interpreter */
 		pc = lightrec_emulate_block(block);
+#endif
 
 		/* Then compile it using the profiled data */
 #ifdef ENABLE_THREADED_COMPILER

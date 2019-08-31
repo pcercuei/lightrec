@@ -16,6 +16,7 @@
 #define __LIGHTREC_CONFIG_H__
 
 #cmakedefine ENABLE_THREADED_COMPILER
+#cmakedefine ENABLE_FIRST_PASS
 
 #endif /* __LIGHTREC_CONFIG_H__ */
 
