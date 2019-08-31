@@ -73,15 +73,10 @@ static u32 lightrec_rw_ops(struct lightrec_state *state,
 }
 
 static void lightrec_invalidate_map(struct lightrec_state *state,
-		const struct lightrec_mem_map *map, u32 addr, u32 len)
+		const struct lightrec_mem_map *map, u32 addr)
 {
-	if (map == &state->maps[PSX_MAP_KERNEL_USER_RAM]) {
-		/* Invalidate function pointers in the code LUT */
-		for (; len > 4; len -= 4, addr += 4)
-			state->code_lut[addr >> 2] = NULL;
-
+	if (map == &state->maps[PSX_MAP_KERNEL_USER_RAM])
 		state->code_lut[addr >> 2] = NULL;
-	}
 }
 
 static const struct lightrec_mem_map *
@@ -135,11 +130,11 @@ u32 lightrec_rw(struct lightrec_state *state,
 	switch (op->i.op) {
 	case OP_SB:
 		*(u8 *) new_addr = (u8) data;
-		lightrec_invalidate_map(state, map, kaddr, 1);
+		lightrec_invalidate_map(state, map, kaddr);
 		return 0;
 	case OP_SH:
 		*(u16 *) new_addr = (u16) data;
-		lightrec_invalidate_map(state, map, kaddr, 2);
+		lightrec_invalidate_map(state, map, kaddr);
 		return 0;
 	case OP_SWL:
 		shift = kaddr & 3;
@@ -148,7 +143,7 @@ u32 lightrec_rw(struct lightrec_state *state,
 
 		*(u32 *)(new_addr & ~3) = (data >> ((3 - shift) * 8))
 			| (mem_data & mask);
-		lightrec_invalidate_map(state, map, kaddr & ~0x3, 4);
+		lightrec_invalidate_map(state, map, kaddr & ~0x3);
 		return 0;
 	case OP_SWR:
 		shift = kaddr & 3;
@@ -157,16 +152,16 @@ u32 lightrec_rw(struct lightrec_state *state,
 
 		*(u32 *)(new_addr & ~3) = (data << (shift * 8))
 			| (mem_data & mask);
-		lightrec_invalidate_map(state, map, kaddr & ~0x3, 4);
+		lightrec_invalidate_map(state, map, kaddr & ~0x3);
 		return 0;
 	case OP_SW:
 		*(u32 *) new_addr = data;
-		lightrec_invalidate_map(state, map, kaddr, 4);
+		lightrec_invalidate_map(state, map, kaddr);
 		return 0;
 	case OP_SWC2:
 		*(u32 *) new_addr = state->ops.cop2_ops.mfc(state,
 							    op->i.rt);
-		lightrec_invalidate_map(state, map, kaddr, 4);
+		lightrec_invalidate_map(state, map, kaddr);
 		return 0;
 	case OP_LB:
 		return (s32) *(s8 *) new_addr;
@@ -824,14 +819,20 @@ void lightrec_destroy(struct lightrec_state *state)
 
 void lightrec_invalidate(struct lightrec_state *state, u32 addr, u32 len)
 {
-	u32 kaddr = kunseg(addr);
+	u32 kaddr = kunseg(addr & ~0x3);
 	const struct lightrec_mem_map *map = lightrec_get_map(state, kaddr);
 
 	if (map) {
 		while (map->mirror_of)
 			map = map->mirror_of;
 
-		lightrec_invalidate_map(state, map, kaddr, len);
+		if (map != &state->maps[PSX_MAP_KERNEL_USER_RAM])
+			return;
+
+		for (; len > 4; len -= 4, kaddr += 4)
+			lightrec_invalidate_map(state, map, kaddr);
+
+		lightrec_invalidate_map(state, map, kaddr);
 	}
 }
 
