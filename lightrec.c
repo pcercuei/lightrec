@@ -297,8 +297,6 @@ static struct block * get_block(struct lightrec_state *state, u32 pc)
 		 * destroy */
 		lightrec_recompiler_remove(state->rec, block);
 #endif
-		lightrec_invalidate_map(state, block->map,
-					block->kunseg_pc, block->length);
 
 		lightrec_unregister_block(state->block_cache, block);
 		lightrec_free_block(block);
