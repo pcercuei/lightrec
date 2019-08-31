@@ -680,6 +680,8 @@ static int rec_io(const struct block *block, struct opcode *op,
 	jit_callr(tmp);
 	lightrec_free_reg(reg_cache, tmp);
 
+	lightrec_regcache_mark_live(reg_cache, _jit);
+
 	if (read_rt && likely(op->i.rt)) {
 		rt = lightrec_alloc_reg_out(reg_cache, _jit, op->i.rt);
 		jit_ldxi_i(rt, LIGHTREC_REG_STATE,
@@ -919,6 +921,8 @@ static int rec_mfc(const struct block *block, struct opcode *op)
 	jit_callr(tmp);
 	lightrec_free_reg(reg_cache, tmp);
 
+	lightrec_regcache_mark_live(reg_cache, _jit);
+
 	rt = lightrec_alloc_reg_out(reg_cache, _jit, op->r.rt);
 	jit_ldxi_i(rt, LIGHTREC_REG_STATE,
 		   offsetof(struct lightrec_state, op_data.data));
@@ -949,6 +953,8 @@ static int rec_mtc(const struct block *block, struct opcode *op)
 	jit_movi(tmp, (uintptr_t)block->state->mtc_wrapper->function);
 	jit_callr(tmp);
 	lightrec_free_reg(reg_cache, tmp);
+
+	lightrec_regcache_mark_live(reg_cache, _jit);
 
 	return 0;
 }
@@ -1019,6 +1025,8 @@ static int rec_cp0_RFE(const struct block *block, struct opcode *op, u32 pc)
 	jit_callr(tmp);
 	lightrec_free_reg(state->reg_cache, tmp);
 
+	lightrec_regcache_mark_live(state->reg_cache, _jit);
+
 	return 0;
 }
 
@@ -1039,6 +1047,8 @@ static int rec_CP(const struct block *block, struct opcode *op, u32 pc)
 	jit_movi(tmp, (uintptr_t)state->cp_wrapper->function);
 	jit_callr(tmp);
 	lightrec_free_reg(state->reg_cache, tmp);
+
+	lightrec_regcache_mark_live(state->reg_cache, _jit);
 
 	return 0;
 }

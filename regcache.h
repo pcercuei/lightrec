@@ -59,4 +59,6 @@ void lightrec_free_regcache(struct regcache *cache);
 
 const char * lightrec_reg_name(u8 reg);
 
+void lightrec_regcache_mark_live(struct regcache *cache, jit_state_t *_jit);
+
 #endif /* __REGCACHE_H__ */

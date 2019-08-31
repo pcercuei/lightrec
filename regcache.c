@@ -332,3 +332,16 @@ void lightrec_free_regcache(struct regcache *cache)
 {
 	free(cache);
 }
+
+void lightrec_regcache_mark_live(struct regcache *cache, jit_state_t *_jit)
+{
+	struct native_register *nreg;
+	unsigned int i;
+
+	for (i = 0; i < NUM_TEMPS; i++) {
+		nreg = &cache->lightrec_regs[NUM_REGS + i];
+
+		if (nreg->used || nreg->loaded || nreg->dirty)
+			jit_live(JIT_R(i));
+	}
+}
