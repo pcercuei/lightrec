@@ -692,22 +692,93 @@ static int rec_io(const struct block *block, struct opcode *op,
 	return 0;
 }
 
+static int rec_store_direct(const struct block *block, struct opcode *op,
+			    u32 pc, jit_code_t code)
+{
+	struct lightrec_state *state = block->state;
+	struct regcache *reg_cache = state->reg_cache;
+	jit_state_t *_jit = block->_jit;
+	jit_node_t *to_not_ram, *to_end;
+	u8 tmp, tmp2, tmp3, rs, rt;
+
+	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rs);
+	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
+	tmp2 = lightrec_alloc_reg_temp(reg_cache, _jit);
+	tmp3 = lightrec_alloc_reg_temp(reg_cache, _jit);
+
+	/* Convert to KUNSEG and avoid RAM mirrors */
+	jit_andi(tmp2, rs, 0x1f9fffff);
+	jit_addi(tmp2, tmp2, (s16)op->i.imm);
+	to_not_ram = jit_bgei(tmp2, 0x1fffff);
+
+	/* Compute the offset to the code LUT */
+	jit_movi(tmp, (uintptr_t)state->code_lut);
+#if __WORDSIZE == 64
+	jit_lshi(tmp3, tmp2, 1);
+	jit_addr(tmp, tmp, tmp3);
+#else
+	jit_addr(tmp, tmp, tmp2);
+#endif
+
+	/* Write NULL to the code LUT to invalidate any block that's there */
+	jit_movi(tmp3, 0);
+	jit_str(tmp, tmp3);
+
+	if (state->offset_ram != state->offset_scratch) {
+		if (state->offset_ram)
+			jit_movi(tmp, state->offset_ram);
+
+		to_end = jit_jmpi();
+	}
+
+	jit_patch(to_not_ram);
+
+	if (state->offset_scratch)
+		jit_movi(tmp, state->offset_scratch);
+
+	if (state->offset_ram != state->offset_scratch)
+		jit_patch(to_end);
+
+	jit_addr(tmp2, tmp2, tmp);
+
+	lightrec_free_reg(reg_cache, rs);
+	lightrec_free_reg(reg_cache, tmp);
+	lightrec_free_reg(reg_cache, tmp3);
+
+	rt = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rt);
+	jit_new_node_ww(code, tmp2, rt);
+
+	lightrec_free_reg(reg_cache, rt);
+	lightrec_free_reg(reg_cache, tmp2);
+
+	return 0;
+}
+
+static int rec_store(const struct block *block, struct opcode *op,
+		     u32 pc, jit_code_t code)
+{
+	if (op->flags & LIGHTREC_DIRECT_IO)
+		return rec_store_direct(block, op, pc, code);
+	else
+		return rec_io(block, op, true, false);
+}
+
 static int rec_SB(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_io(block, op, true, false);
+	return rec_store(block, op, pc, jit_code_str_c);
 }
 
 static int rec_SH(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_io(block, op, true, false);
+	return rec_store(block, op, pc, jit_code_str_s);
 }
 
 static int rec_SW(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_io(block, op, true, false);
+	return rec_store(block, op, pc, jit_code_str_i);
 }
 
 static int rec_SWL(const struct block *block, struct opcode *op, u32 pc)
