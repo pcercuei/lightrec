@@ -287,11 +287,10 @@ struct block * lightrec_get_block(struct lightrec_state *state, u32 pc)
 	if (block && lightrec_block_is_outdated(block)) {
 		DEBUG("Block at PC 0x%08x is outdated!\n", block->pc);
 
-#ifdef ENABLE_THREADED_COMPILER
 		/* Make sure the recompiler isn't processing the block we'll
 		 * destroy */
-		lightrec_recompiler_remove(state->rec, block);
-#endif
+		if (ENABLE_THREADED_COMPILER)
+			lightrec_recompiler_remove(state->rec, block);
 
 		lightrec_unregister_block(state->block_cache, block);
 		lightrec_free_block(block);
@@ -323,17 +322,15 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 		if (likely(block->function))
 			return block->function;
 
-#ifdef ENABLE_FIRST_PASS
 		/* Block wasn't compiled yet - run the interpreter */
-		pc = lightrec_emulate_block(block);
-#endif
+		if (ENABLE_FIRST_PASS)
+			pc = lightrec_emulate_block(block);
 
 		/* Then compile it using the profiled data */
-#ifdef ENABLE_THREADED_COMPILER
-		lightrec_recompiler_add(state->rec, block);
-#else
-		lightrec_compile_block(block);
-#endif
+		if (ENABLE_THREADED_COMPILER)
+			lightrec_recompiler_add(state->rec, block);
+		else
+			lightrec_compile_block(block);
 
 		if (state->exit_flags != LIGHTREC_EXIT_NORMAL ||
 		    state->current_cycle >= state->target_cycle) {
@@ -706,11 +703,11 @@ struct lightrec_state * lightrec_init(char *argv0,
 	if (!state->reg_cache)
 		goto err_free_block_cache;
 
-#ifdef ENABLE_THREADED_COMPILER
-	state->rec = lightrec_recompiler_init();
-	if (!state->rec)
-		goto err_free_reg_cache;
-#endif
+	if (ENABLE_THREADED_COMPILER) {
+		state->rec = lightrec_recompiler_init();
+		if (!state->rec)
+			goto err_free_reg_cache;
+	}
 
 	state->nb_maps = nb;
 	state->maps = map;
@@ -775,9 +772,8 @@ err_free_wrapper:
 err_free_code_lut:
 	free(state->code_lut);
 err_free_recompiler:
-#ifdef ENABLE_THREADED_COMPILER
-	lightrec_free_recompiler(state->rec);
-#endif
+	if (ENABLE_THREADED_COMPILER)
+		lightrec_free_recompiler(state->rec);
 err_free_reg_cache:
 	lightrec_free_regcache(state->reg_cache);
 err_free_block_cache:
@@ -793,9 +789,8 @@ void lightrec_destroy(struct lightrec_state *state)
 {
 	unsigned int i;
 
-#ifdef ENABLE_THREADED_COMPILER
-	lightrec_free_recompiler(state->rec);
-#endif
+	if (ENABLE_THREADED_COMPILER)
+		lightrec_free_recompiler(state->rec);
 
 	lightrec_free_regcache(state->reg_cache);
 	lightrec_free_block_cache(state->block_cache);
