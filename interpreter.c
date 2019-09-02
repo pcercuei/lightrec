@@ -119,6 +119,8 @@ static bool handle_mfc_in_delay_slot(struct interpreter *inter, u32 pc)
 		return false;
 	}
 
+	inter->block->flags |= BLOCK_NEVER_COMPILE;
+
 	block = lightrec_get_block(inter->state, pc);
 
 	inter2.block = block;

@@ -33,6 +33,9 @@
 #	define unlikely(x)     (x)
 #endif
 
+/* Flags for (struct block *)->flags */
+#define BLOCK_NEVER_COMPILE	BIT(0)
+
 /* Definition of jit_state_t (avoids inclusion of <lightning.h>) */
 struct jit_state;
 typedef struct jit_state jit_state_t;
@@ -55,6 +58,7 @@ struct block {
 	struct {
 		struct block *sle_next;
 	} next;
+	uintptr_t flags;
 };
 
 struct lightrec_op_data {
