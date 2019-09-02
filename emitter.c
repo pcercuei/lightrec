@@ -133,6 +133,12 @@ static int rec_b(const struct block *block, struct opcode *op, u32 pc,
 		   rt = bz ? 0 : lightrec_alloc_reg_in(
 				   reg_cache, _jit, op->i.rt);
 
+#if __WORDSIZE == 64
+		jit_extr_i(rs, rs);
+		if (rt)
+			jit_extr_i(rt, rt);
+#endif
+
 		/* Generate the branch opcode */
 		addr = jit_new_node_pww(code, NULL, rs, rt);
 
@@ -224,10 +230,15 @@ static int rec_alu_imm(const struct block *block, struct opcode *op,
 	   rt = lightrec_alloc_reg_out(reg_cache, _jit, op->i.rt);
 
 	jit_note(__FILE__, __LINE__);
-	if (sign_extend)
+
+	if (sign_extend) {
+#if __WORDSIZE == 64
+		jit_extr_i(rt, rt);
+#endif
 		jit_new_node_www(code, rt, rs, (s32)(s16) op->i.imm);
-	else
+	} else {
 		jit_new_node_www(code, rt, rs, (u32)(u16) op->i.imm);
+	}
 
 	lightrec_free_reg(reg_cache, rs);
 	lightrec_free_reg(reg_cache, rt);
@@ -245,6 +256,10 @@ static int rec_alu_special(const struct block *block, struct opcode *op,
 
 	jit_note(__FILE__, __LINE__);
 	if (!is_reg_shift) {
+#if __WORDSIZE == 64
+		jit_extr_i(rs, rs);
+		jit_extr_i(rt, rt);
+#endif
 		jit_new_node_www(code, rd, rs, rt);
 	} else {
 		u8 temp = lightrec_alloc_reg_temp(reg_cache, _jit);
@@ -252,19 +267,12 @@ static int rec_alu_special(const struct block *block, struct opcode *op,
 		jit_andi(temp, rs, 0x1f);
 
 #if __WORDSIZE == 64
-		if (code == jit_code_rshr) {
-			jit_extr_i(rd, rt);
-			jit_new_node_www(code, rd, rd, temp);
-		} else if (code == jit_code_rshr_u) {
-			jit_extr_ui(rd, rt);
-			jit_new_node_www(code, rd, rd, temp);
-		} else {
-			jit_new_node_www(code, rd, rt, temp);
-			jit_extr_i(rd, rd);
-		}
-#else
-		jit_new_node_www(code, rd, rt, temp);
+		if (code == jit_code_rshr)
+			jit_extr_i(rt, rt);
+		else if (code == jit_code_rshr_u)
+			jit_extr_ui(rt, rt);
 #endif
+		jit_new_node_www(code, rd, rt, temp);
 
 		lightrec_free_reg(reg_cache, temp);
 	}
@@ -441,19 +449,12 @@ static int rec_alu_shift(const struct block *block,
 
 	jit_note(__FILE__, __LINE__);
 #if __WORDSIZE == 64
-	if (code == jit_code_lshi) {
-		jit_new_node_www(code, rd, rt, op->r.imm);
-		jit_extr_i(rd, rd);
-	} else if (code == jit_code_rshi_u) {
-		jit_extr_ui(rd, rt);
-		jit_new_node_www(code, rd, rd, op->r.imm);
-	} else {
-		jit_extr_i(rd, rt);
-		jit_new_node_www(code, rd, rd, op->r.imm);
-	}
-#else
-	jit_new_node_www(code, rd, rt, op->r.imm);
+	if (code == jit_code_rshi_u)
+		jit_extr_ui(rt, rt);
+	else if (code == jit_code_rshi)
+		jit_extr_i(rt, rt);
 #endif
+	jit_new_node_www(code, rd, rt, op->r.imm);
 
 	lightrec_free_reg(reg_cache, rt);
 	lightrec_free_reg(reg_cache, rd);
