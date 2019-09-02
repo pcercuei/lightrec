@@ -52,13 +52,23 @@ struct block * lightrec_find_block(struct blockcache *cache, u32 pc)
 
 void lightrec_register_block(struct blockcache *cache, struct block *block)
 {
+	struct lightrec_state *state = block->state;
 	u32 pc = block->kunseg_pc;
-	struct block *old = cache->lut[(pc >> 2) & (LUT_SIZE - 1)];
+	struct block *old;
+
+	old = cache->lut[(pc >> 2) & (LUT_SIZE - 1)];
 	if (old)
 		SLIST_NEXT(block, next) = old;
 
 	cache->lut[(pc >> 2) & (LUT_SIZE - 1)] = block;
 	cache->tiny_lut[(pc >> 2) & (TINY_LUT_SIZE - 1)] = block;
+
+	/* Use state->get_next_block in the code LUT, which basically
+	 * calls back get_next_block_func(), until the compiler
+	 * overrides this. This is required, as a NULL value in the code
+	 * LUT means an outdated block. */
+	if (block->map == &state->maps[PSX_MAP_KERNEL_USER_RAM])
+		state->code_lut[block->kunseg_pc >> 2] = state->get_next_block;
 }
 
 void lightrec_unregister_block(struct blockcache *cache, struct block *block)

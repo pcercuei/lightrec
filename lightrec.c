@@ -331,13 +331,6 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 		/* Then compile it using the profiled data */
 #ifdef ENABLE_THREADED_COMPILER
 		lightrec_recompiler_add(state->rec, block);
-
-		/* Use state->get_next_block in the code LUT, which basically
-		 * calls back get_next_block_func(), until the compiler
-		 * overrides this. This is required, as a NULL value in the code
-		 * LUT means an outdated block. */
-		if (block->map == &state->maps[PSX_MAP_KERNEL_USER_RAM])
-			state->code_lut[block->kunseg_pc >> 2] = state->get_next_block;
 #else
 		lightrec_compile_block(block);
 #endif
