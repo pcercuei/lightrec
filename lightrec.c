@@ -280,7 +280,7 @@ static void lightrec_cp_cb(struct lightrec_state *state)
 	(*func)(state, op->opcode);
 }
 
-static struct block * get_block(struct lightrec_state *state, u32 pc)
+struct block * lightrec_get_block(struct lightrec_state *state, u32 pc)
 {
 	struct block *block = lightrec_find_block(state->block_cache, pc);
 
@@ -315,7 +315,7 @@ static struct block * get_block(struct lightrec_state *state, u32 pc)
 static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 {
 	for (;;) {
-		struct block *block = get_block(state, pc);
+		struct block *block = lightrec_get_block(state, pc);
 
 		if (unlikely(!block))
 			return NULL;
@@ -657,7 +657,7 @@ u32 lightrec_execute_one(struct lightrec_state *state, u32 pc)
 
 u32 lightrec_run_interpreter(struct lightrec_state *state, u32 pc)
 {
-	struct block *block = get_block(state, pc);
+	struct block *block = lightrec_get_block(state, pc);
 	if (!block)
 		return 0;
 

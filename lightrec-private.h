@@ -104,6 +104,7 @@ void lightrec_mtc(struct lightrec_state *state,
 		  const struct opcode *op, u32 data);
 u32 lightrec_mfc(struct lightrec_state *state, const struct opcode *op);
 
+struct block * lightrec_get_block(struct lightrec_state *state, u32 pc);
 int lightrec_compile_block(struct block *block);
 
 #endif /* __LIGHTREC_PRIVATE_H__ */

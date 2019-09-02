@@ -79,6 +79,59 @@ static void int_delay_slot(struct interpreter *inter)
 	inter->cycles += lightrec_cycles_of_opcode(inter2.op);
 }
 
+static bool handle_mfc_in_delay_slot(struct interpreter *inter, u32 pc)
+{
+	struct opcode *op = SLIST_NEXT(inter->op, next);
+	struct interpreter inter2 = {
+		.state = inter->state,
+		.block = inter->block,
+		.cycles = inter->cycles,
+		.delay_slot = true,
+	};
+	struct block *block;
+
+	switch (op->i.op) {
+	case OP_LWC2:
+		break;
+	case OP_CP0:
+		switch (op->r.rs) {
+		case OP_CP0_MFC0:
+		case OP_CP0_CFC0:
+			break;
+		default:
+			return false;
+		}
+
+		break;
+	case OP_CP2:
+		if (op->r.op == OP_CP2_BASIC) {
+			switch (op->r.rs) {
+			case OP_CP2_BASIC_MFC2:
+			case OP_CP2_BASIC_CFC2:
+				break;
+			default:
+				return false;
+			}
+		}
+
+		break;
+	default:
+		return false;
+	}
+
+	block = lightrec_get_block(inter->state, pc);
+
+	inter2.block = block;
+	inter2.op = block->opcode_list;
+	inter2.pc = pc;
+
+	(*int_standard[inter2.op->i.op])(&inter2);
+
+	inter->cycles += lightrec_cycles_of_opcode(inter2.op);
+
+	return true;
+}
+
 static void int_unimplemented(struct interpreter *inter)
 {
 	WARNING("Unimplemented opcode 0x%08x\n", inter->op->opcode);
@@ -161,6 +214,7 @@ static void int_BNE(struct interpreter *inter)
 static void int_bgez(struct interpreter *inter, bool link, bool lt, bool regimm)
 {
 	struct lightrec_state *state = inter->state;
+	u32 next_pc = inter->pc + 4 + ((s16)inter->op->i.imm << 2);
 	bool branch;
 	s32 rs;
 
@@ -170,10 +224,17 @@ static void int_bgez(struct interpreter *inter, bool link, bool lt, bool regimm)
 	rs = (s32)inter->state->native_reg_cache[inter->op->i.rs];
 	branch = (regimm && !rs || rs > 0) ^ lt;
 
+	if (handle_mfc_in_delay_slot(inter, next_pc)) {
+		/* There was a MFC0, CFC0, MFC2, CFC2 or LWC2 in the delay slot.
+		 * The interpreter already executed the first opcode of the next
+		 * block, so we jump to the second opcode. */
+		next_pc += 4;
+	}
+
 	int_delay_slot(inter);
 
 	if (branch)
-		inter->pc += 4 + ((s16)inter->op->i.imm << 2);
+		inter->pc = next_pc;
 	else
 		JUMP_AFTER_BRANCH(inter);
 }
