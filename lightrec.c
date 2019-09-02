@@ -383,6 +383,7 @@ static struct block * generate_wrapper(struct lightrec_state *state,
 	block->_jit = _jit;
 	block->function = jit_emit();
 	block->opcode_list = NULL;
+	block->flags = 0;
 
 #if (LOG_LEVEL >= DEBUG_L)
 	DEBUG("RW block:\n");
@@ -506,6 +507,7 @@ static struct block * generate_wrapper_block(struct lightrec_state *state)
 	block->_jit = _jit;
 	block->function = jit_emit();
 	block->opcode_list = NULL;
+	block->flags = 0;
 
 	state->eob_wrapper_func = jit_address(addr2);
 	state->get_next_block = jit_address(addr);
@@ -567,6 +569,7 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 	block->code = code;
 	block->map = map;
 	block->next.sle_next = NULL;
+	block->flags = 0;
 
 	lightrec_optimize(list);
 
