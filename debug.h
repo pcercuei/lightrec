@@ -16,6 +16,7 @@
 #define DEBUG_H
 
 #include <stdio.h>
+#include <unistd.h>
 
 #define NOLOG_L 0
 #define ERROR_L 1
@@ -43,8 +44,13 @@
 
 #if (LOG_LEVEL >= DEBUG_L)
 # ifdef COLOR_DEBUG
-#  define DEBUG(str, ...) \
-    fprintf(stdout, COLOR_DEBUG "DEBUG: " str COLOR_END, ##__VA_ARGS__)
+#  define DEBUG(str, ...) do {						\
+	if (isatty(STDOUT_FILENO))					\
+		fprintf(stdout, COLOR_DEBUG "DEBUG: " str COLOR_END,	\
+			##__VA_ARGS__);					\
+	else								\
+		fprintf(stdout, "DEBUG: " str, ##__VA_ARGS__);		\
+	} while (0)
 # else
 #  define DEBUG(...) \
     fprintf(stdout, "DEBUG: " __VA_ARGS__)
@@ -67,8 +73,13 @@
 
 #if (LOG_LEVEL >= WARNING_L)
 # ifdef COLOR_WARNING
-#  define WARNING(str, ...) \
-    fprintf(stderr, COLOR_WARNING "WARNING: " str COLOR_END, ##__VA_ARGS__)
+#  define WARNING(str, ...) do {					\
+	if (isatty(STDERR_FILENO))					\
+		fprintf(stderr, COLOR_WARNING "WARNING: " str COLOR_END,\
+			##__VA_ARGS__);					\
+	else								\
+		fprintf(stderr, "WARNING: " str, ##__VA_ARGS__);	\
+	} while (0)
 # else
 #  define WARNING(...) \
     fprintf(stderr, "WARNING: " __VA_ARGS__)
@@ -79,8 +90,13 @@
 
 #if (LOG_LEVEL >= ERROR_L)
 # ifdef COLOR_ERROR
-#  define ERROR(str, ...) \
-    fprintf(stderr, COLOR_ERROR "ERROR: " str COLOR_END, ##__VA_ARGS__)
+#  define ERROR(str, ...) do {						\
+	if (isatty(STDERR_FILENO))					\
+		fprintf(stderr, COLOR_ERROR "ERROR: " str COLOR_END,	\
+			##__VA_ARGS__);					\
+	else								\
+		fprintf(stderr, "ERROR: " str, ##__VA_ARGS__);		\
+	} while (0)
 # else
 #  define ERROR(...) \
     fprintf(stderr, "ERROR: " __VA_ARGS__)
