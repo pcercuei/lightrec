@@ -356,7 +356,7 @@ static void int_SLTIU(struct interpreter *inter)
 	struct opcode_i *op = &inter->op->i;
 
 	if (likely(op->rt))
-		reg_cache[op->rt] = reg_cache[op->rs] < op->imm;
+		reg_cache[op->rt] = reg_cache[op->rs] < (u32)(s32)(s16)op->imm;
 
 	JUMP_NEXT(inter);
 }
