@@ -79,7 +79,8 @@ static void int_delay_slot(struct interpreter *inter)
 	inter->cycles += lightrec_cycles_of_opcode(inter2.op);
 }
 
-static bool handle_mfc_in_delay_slot(struct interpreter *inter, u32 pc)
+static bool handle_mfc_in_delay_slot(struct interpreter *inter,
+				     u32 pc, bool branch)
 {
 	struct opcode *op = SLIST_NEXT(inter->op, next);
 	struct interpreter inter2 = {
@@ -122,6 +123,9 @@ static bool handle_mfc_in_delay_slot(struct interpreter *inter, u32 pc)
 	}
 
 	inter->block->flags |= BLOCK_NEVER_COMPILE;
+
+	if (!branch)
+		return false;
 
 	block = lightrec_get_block(inter->state, pc);
 
@@ -228,7 +232,7 @@ static void int_bgez(struct interpreter *inter, bool link, bool lt, bool regimm)
 	rs = (s32)inter->state->native_reg_cache[inter->op->i.rs];
 	branch = (regimm && !rs || rs > 0) ^ lt;
 
-	if (handle_mfc_in_delay_slot(inter, next_pc)) {
+	if (handle_mfc_in_delay_slot(inter, next_pc, branch)) {
 		/* There was a MFC0, CFC0, MFC2, CFC2 or LWC2 in the delay slot.
 		 * The interpreter already executed the first opcode of the next
 		 * block, so we jump to the second opcode. */
