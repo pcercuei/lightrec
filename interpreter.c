@@ -64,29 +64,12 @@ struct interpreter {
 	EXECUTE(int_standard[inter->op->i.op], inter);			\
 } while (0)
 
-static void int_delay_slot(struct interpreter *inter)
-{
-	struct interpreter inter2 = {
-		.state = inter->state,
-		.block = inter->block,
-		.op = SLIST_NEXT(inter->op, next),
-		.pc = inter->pc + 4,
-		.cycles = inter->cycles,
-		.delay_slot = true,
-	};
-
-	(*int_standard[inter2.op->i.op])(&inter2);
-
-	inter->cycles += lightrec_cycles_of_opcode(inter2.op);
-}
-
 static bool handle_mfc_in_delay_slot(struct interpreter *inter,
 				     u32 pc, bool branch)
 {
 	struct opcode *op = SLIST_NEXT(inter->op, next);
 	struct interpreter inter2 = {
 		.state = inter->state,
-		.block = inter->block,
 		.cycles = inter->cycles,
 		.delay_slot = true,
 	};
@@ -145,6 +128,31 @@ static bool handle_mfc_in_delay_slot(struct interpreter *inter,
 	return true;
 }
 
+static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
+{
+	struct interpreter inter2 = {
+		.state = inter->state,
+		.block = inter->block,
+		.op = SLIST_NEXT(inter->op, next),
+		.pc = inter->pc + 4,
+		.cycles = inter->cycles,
+		.delay_slot = true,
+	};
+
+	if (handle_mfc_in_delay_slot(inter, pc, branch)) {
+		/* There was a MFC0, CFC0, MFC2, CFC2 or LWC2 in the delay slot.
+		 * The interpreter already executed the first opcode of the next
+		 * block, so we jump to the second opcode. */
+		pc += 4;
+	}
+
+	(*int_standard[inter2.op->i.op])(&inter2);
+
+	inter->cycles += lightrec_cycles_of_opcode(inter2.op);
+
+	return pc;
+}
+
 static void int_unimplemented(struct interpreter *inter)
 {
 	WARNING("Unimplemented opcode 0x%08x\n", inter->op->opcode);
@@ -155,13 +163,14 @@ static void int_unimplemented(struct interpreter *inter)
 static void int_jump(struct interpreter *inter, bool link)
 {
 	struct lightrec_state *state = inter->state;
+	u32 pc = (inter->pc & 0xf0000000) | (inter->op->j.imm << 2);
 
-	int_delay_slot(inter);
+	pc = int_delay_slot(inter, pc, true);
 
 	if (link)
 		state->native_reg_cache[31] = inter->pc + 8;
 
-	inter->pc = (inter->pc & 0xf0000000) | (inter->op->j.imm << 2);
+	inter->pc = pc;
 }
 
 static void int_J(struct interpreter *inter)
@@ -177,13 +186,14 @@ static void int_JAL(struct interpreter *inter)
 static void int_jumpr(struct interpreter *inter, u8 link_reg)
 {
 	struct lightrec_state *state = inter->state;
+	u32 next_pc = state->native_reg_cache[inter->op->r.rs];
 
-	int_delay_slot(inter);
+	next_pc = int_delay_slot(inter, next_pc, true);
 
 	if (link_reg)
 		state->native_reg_cache[link_reg] = inter->pc + 8;
 
-	inter->pc = state->native_reg_cache[inter->op->r.rs];
+	inter->pc = next_pc;
 }
 
 static void int_special_JR(struct interpreter *inter)
@@ -199,17 +209,17 @@ static void int_special_JALR(struct interpreter *inter)
 static void int_beq(struct interpreter *inter, bool bne)
 {
 	struct lightrec_state *state = inter->state;
-	u32 rs, rt;
+	u32 rs, rt, next_pc = inter->pc + 4 + ((s16)inter->op->i.imm << 2);
 	bool branch;
 
 	rs = inter->state->native_reg_cache[inter->op->i.rs];
 	rt = inter->state->native_reg_cache[inter->op->i.rt];
 	branch = (rs == rt) ^ bne;
 
-	int_delay_slot(inter);
+	next_pc = int_delay_slot(inter, next_pc, branch);
 
 	if (branch)
-		inter->pc += 4 + ((s16)inter->op->i.imm << 2);
+		inter->pc = next_pc;
 	else
 		JUMP_AFTER_BRANCH(inter);
 }
@@ -237,14 +247,7 @@ static void int_bgez(struct interpreter *inter, bool link, bool lt, bool regimm)
 	rs = (s32)inter->state->native_reg_cache[inter->op->i.rs];
 	branch = (regimm && !rs || rs > 0) ^ lt;
 
-	if (handle_mfc_in_delay_slot(inter, next_pc, branch)) {
-		/* There was a MFC0, CFC0, MFC2, CFC2 or LWC2 in the delay slot.
-		 * The interpreter already executed the first opcode of the next
-		 * block, so we jump to the second opcode. */
-		next_pc += 4;
-	}
-
-	int_delay_slot(inter);
+	next_pc = int_delay_slot(inter, next_pc, branch);
 
 	if (branch)
 		inter->pc = next_pc;
