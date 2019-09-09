@@ -17,6 +17,9 @@
 
 struct opcode;
 
+_Bool opcode_reads_register(const struct opcode *op, u8 reg);
+_Bool opcode_writes_register(const struct opcode *op, u8 reg);
+
 int lightrec_optimize(struct opcode *list);
 
 #endif /* __OPTIMIZER_H__ */

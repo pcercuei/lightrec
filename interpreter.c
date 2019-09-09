@@ -15,6 +15,7 @@
 #include "disassembler.h"
 #include "interpreter.h"
 #include "lightrec-private.h"
+#include "optimizer.h"
 #include "regcache.h"
 
 struct interpreter;
@@ -128,6 +129,10 @@ static bool handle_mfc_in_delay_slot(struct interpreter *inter,
 		return false;
 
 	block = lightrec_get_block(inter->state, pc);
+
+	if (!opcode_reads_register(block->opcode_list, op->r.rt) &&
+	    !opcode_writes_register(block->opcode_list, op->r.rt))
+		return false;
 
 	inter2.block = block;
 	inter2.op = block->opcode_list;

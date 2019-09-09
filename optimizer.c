@@ -26,7 +26,7 @@ struct optimizer_list {
 	unsigned int nb_optimizers;
 };
 
-static bool opcode_reads_register(struct opcode *op, u8 reg)
+bool opcode_reads_register(const struct opcode *op, u8 reg)
 {
 	switch (op->i.op) {
 	case OP_SPECIAL:
@@ -89,7 +89,7 @@ static bool opcode_reads_register(struct opcode *op, u8 reg)
 	}
 }
 
-static bool opcode_writes_register(struct opcode *op, u8 reg)
+bool opcode_writes_register(const struct opcode *op, u8 reg)
 {
 	switch (op->i.op) {
 	case OP_SPECIAL:
