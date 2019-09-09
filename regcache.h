@@ -17,8 +17,6 @@
 
 #include "lightrec-private.h"
 
-#include <stdbool.h>
-
 #define NUM_REGS (JIT_V_NUM - 1)
 #define NUM_TEMPS (JIT_R_NUM)
 #define LIGHTREC_REG_STATE (JIT_V(JIT_V_NUM - 1))
@@ -27,7 +25,7 @@
 #define REG_HI 33
 
 struct register_value {
-	bool known;
+	_Bool known;
 	u32 value;
 };
 

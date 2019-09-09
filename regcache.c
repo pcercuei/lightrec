@@ -16,6 +16,7 @@
 #include "regcache.h"
 
 #include <lightning.h>
+#include <stdbool.h>
 #include <stddef.h>
 
 struct native_register {

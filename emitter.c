@@ -19,6 +19,7 @@
 #include "regcache.h"
 
 #include <lightning.h>
+#include <stdbool.h>
 #include <stddef.h>
 
 typedef int (*lightrec_rec_func_t)(const struct block *, struct opcode *, u32);

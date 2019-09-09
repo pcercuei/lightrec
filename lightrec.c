@@ -26,6 +26,7 @@
 #include <errno.h>
 #include <lightning.h>
 #include <limits.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <string.h>
 

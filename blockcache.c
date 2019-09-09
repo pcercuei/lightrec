@@ -16,6 +16,7 @@
 #include "debug.h"
 #include "lightrec-private.h"
 
+#include <stdbool.h>
 #include <stdlib.h>
 #include <sys/queue.h>
 

@@ -18,6 +18,8 @@
 #include "optimizer.h"
 #include "regcache.h"
 
+#include <stdbool.h>
+
 struct interpreter;
 
 static void int_CP0(struct interpreter *inter);
