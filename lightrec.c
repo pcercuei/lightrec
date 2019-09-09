@@ -719,7 +719,8 @@ struct lightrec_state * lightrec_init(char *argv0,
 
 	memcpy(&state->ops, ops, sizeof(*ops));
 
-	state->code_lut = calloc(map->length >> 2, sizeof(*state->code_lut));
+	state->code_lut = calloc(map[PSX_MAP_KERNEL_USER_RAM].length >> 2,
+				 sizeof(*state->code_lut));
 	if (!state->code_lut)
 		goto err_free_recompiler;
 
