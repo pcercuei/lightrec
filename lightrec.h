@@ -94,6 +94,7 @@ void lightrec_destroy(struct lightrec_state *state);
 u32 lightrec_execute(struct lightrec_state *state, u32 pc, u32 target_cycle);
 u32 lightrec_execute_one(struct lightrec_state *state, u32 pc);
 void lightrec_invalidate(struct lightrec_state *state, u32 addr, u32 len);
+void lightrec_invalidate_all(struct lightrec_state *state);
 
 void lightrec_set_exit_flags(struct lightrec_state *state, u32 flags);
 u32 lightrec_exit_flags(struct lightrec_state *state);
