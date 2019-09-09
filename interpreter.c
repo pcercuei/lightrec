@@ -97,8 +97,9 @@ static bool handle_mfc_in_delay_slot(struct interpreter *inter, u32 pc)
 		switch (op->r.rs) {
 		case OP_CP0_MFC0:
 		case OP_CP0_CFC0:
-			break;
-		default:
+			if (op->r.rt)
+				break;
+		default: /* fall-through */
 			return false;
 		}
 
@@ -108,8 +109,9 @@ static bool handle_mfc_in_delay_slot(struct interpreter *inter, u32 pc)
 			switch (op->r.rs) {
 			case OP_CP2_BASIC_MFC2:
 			case OP_CP2_BASIC_CFC2:
-				break;
-			default:
+				if (op->r.rt)
+					break;
+			default: /* fall-through */
 				return false;
 			}
 		}
