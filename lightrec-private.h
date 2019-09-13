@@ -31,6 +31,18 @@
 #	define unlikely(x)     (x)
 #endif
 
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+#	define LE32TOH(x)	__builtin_bswap32(x)
+#	define HTOLE32(x)	__builtin_bswap32(x)
+#	define LE16TOH(x)	__builtin_bswap16(x)
+#	define HTOLE16(x)	__builtin_bswap16(x)
+#else
+#	define LE32TOH(x)	(x)
+#	define HTOLE32(x)	(x)
+#	define LE16TOH(x)	(x)
+#	define HTOLE16(x)	(x)
+#endif
+
 /* Flags for (struct block *)->flags */
 #define BLOCK_NEVER_COMPILE	BIT(0)
 

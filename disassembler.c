@@ -76,7 +76,7 @@ struct opcode * lightrec_disassemble(const u32 *src, unsigned int *len)
 		}
 
 		/* TODO: Take care of endianness */
-		curr->opcode = *src++;
+		curr->opcode = LE32TOH(*src++);
 
 		/* NOTE: The block disassembly ends after the opcode that
 		 * follows an unconditional jump (delay slot) */

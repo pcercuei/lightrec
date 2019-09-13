@@ -134,34 +134,34 @@ u32 lightrec_rw(struct lightrec_state *state,
 		lightrec_invalidate_map(state, map, kaddr);
 		return 0;
 	case OP_SH:
-		*(u16 *) new_addr = (u16) data;
+		*(u16 *) new_addr = HTOLE16((u16) data);
 		lightrec_invalidate_map(state, map, kaddr);
 		return 0;
 	case OP_SWL:
 		shift = kaddr & 3;
-		mem_data = *(u32 *)(new_addr & ~3);
+		mem_data = LE32TOH(*(u32 *)(new_addr & ~3));
 		mask = GENMASK(31, (shift + 1) * 8);
 
-		*(u32 *)(new_addr & ~3) = (data >> ((3 - shift) * 8))
-			| (mem_data & mask);
+		*(u32 *)(new_addr & ~3) = HTOLE32((data >> ((3 - shift) * 8))
+						  | (mem_data & mask));
 		lightrec_invalidate_map(state, map, kaddr & ~0x3);
 		return 0;
 	case OP_SWR:
 		shift = kaddr & 3;
-		mem_data = *(u32 *)(new_addr & ~3);
+		mem_data = LE32TOH(*(u32 *)(new_addr & ~3));
 		mask = (1 << (shift * 8)) - 1;
 
-		*(u32 *)(new_addr & ~3) = (data << (shift * 8))
-			| (mem_data & mask);
+		*(u32 *)(new_addr & ~3) = HTOLE32((data << (shift * 8))
+						  | (mem_data & mask));
 		lightrec_invalidate_map(state, map, kaddr & ~0x3);
 		return 0;
 	case OP_SW:
-		*(u32 *) new_addr = data;
+		*(u32 *) new_addr = HTOLE32(data);
 		lightrec_invalidate_map(state, map, kaddr);
 		return 0;
 	case OP_SWC2:
-		*(u32 *) new_addr = state->ops.cop2_ops.mfc(state,
-							    op->i.rt);
+		*(u32 *) new_addr = HTOLE32(state->ops.cop2_ops.mfc(state,
+							        op->i.rt));
 		lightrec_invalidate_map(state, map, kaddr);
 		return 0;
 	case OP_LB:
@@ -169,28 +169,28 @@ u32 lightrec_rw(struct lightrec_state *state,
 	case OP_LBU:
 		return *(u8 *) new_addr;
 	case OP_LH:
-		return (s32) *(s16 *) new_addr;
+		return (s32)(s16) LE16TOH(*(u16 *) new_addr);
 	case OP_LHU:
-		return *(u16 *) new_addr;
+		return LE16TOH(*(u16 *) new_addr);
 	case OP_LWL:
 		shift = kaddr & 3;
-		mem_data = *(u32 *)(new_addr & ~3);
+		mem_data = LE32TOH(*(u32 *)(new_addr & ~3));
 		mask = (1 << (24 - shift * 8)) - 1;
 
 		return (data & mask) | (mem_data << (24 - shift * 8));
 	case OP_LWR:
 		shift = kaddr & 3;
-		mem_data = *(u32 *)(new_addr & ~3);
+		mem_data = LE32TOH(*(u32 *)(new_addr & ~3));
 		mask = GENMASK(31, 32 - shift * 8);
 
 		return (data & mask) | (mem_data >> (shift * 8));
 	case OP_LWC2:
 		state->ops.cop2_ops.mtc(state, op->i.rt,
-					*(u32 *) new_addr);
+					LE32TOH(*(u32 *) new_addr));
 		return 0;
 	case OP_LW:
 	default:
-		return *(u32 *) new_addr;
+		return LE32TOH(*(u32 *) new_addr);
 	}
 }
 

@@ -119,24 +119,45 @@ enum cp2_basic_opcodes {
 };
 
 struct opcode_r {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+	u32 zero :6;
+	u32 rs   :5;
+	u32 rt   :5;
+	u32 rd   :5;
+	u32 imm  :5;
+	u32 op   :6;
+#else
 	u32 op   :6;
 	u32 imm  :5;
 	u32 rd   :5;
 	u32 rt   :5;
 	u32 rs   :5;
 	u32 zero :6;
+#endif
 } __packed;
 
 struct opcode_i {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+	u32 op  :6;
+	u32 rs  :5;
+	u32 rt  :5;
+	u32 imm :16;
+#else
 	u32 imm :16;
 	u32 rt  :5;
 	u32 rs  :5;
 	u32 op  :6;
+#endif
 } __packed;
 
 struct opcode_j {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+	u32 op  :6;
+	u32 imm :26;
+#else
 	u32 imm :26;
 	u32 op  :6;
+#endif
 } __packed;
 
 struct opcode {
