@@ -44,8 +44,9 @@ static int lightrec_emit_end_of_block(const struct block *block, u32 pc,
 		struct opcode *delay_slot)
 {
 	struct regcache *reg_cache = block->state->reg_cache;
-	u32 offset, cycles = block->cycles;
+	u32 cycles = block->cycles;
 	jit_state_t *_jit = block->_jit;
+	u8 jmp_reg;
 
 	jit_note(__FILE__, __LINE__);
 
@@ -69,13 +70,22 @@ static int lightrec_emit_end_of_block(const struct block *block, u32 pc,
 			lightrec_rec_opcode(block, delay_slot, pc + 4);
 	}
 
+	/* Store back one register that we will use as temporary */
+	jmp_reg = reg_new_pc == JIT_R1 ? JIT_R2 : JIT_R1;
+	lightrec_clean_reg(reg_cache, _jit, jmp_reg);
+
+	/* Load the eob_wrapper_func pointer as early as possible to avoid
+	 * memory stalls */
+	jit_ldxi(jmp_reg, LIGHTREC_REG_STATE,
+		 offsetof(struct lightrec_state, eob_wrapper_func));
+
+	/* Store back remaining registers */
 	lightrec_storeback_regs(reg_cache, _jit);
 
 	jit_movr(JIT_V0, reg_new_pc);
 	jit_movi(JIT_R0, cycles);
 
-	jit_movi(JIT_R1, (uintptr_t) block->state->eob_wrapper_func);
-	jit_jmpr(JIT_R1);
+	jit_jmpr(jmp_reg);
 
 	return SKIP_DELAY_SLOT;
 }
