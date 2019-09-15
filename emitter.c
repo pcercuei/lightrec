@@ -709,8 +709,8 @@ static int rec_store_direct(const struct block *block, struct opcode *op,
 	tmp3 = lightrec_alloc_reg_temp(reg_cache, _jit);
 
 	/* Convert to KUNSEG and avoid RAM mirrors */
-	jit_andi(tmp2, rs, 0x1f9fffff);
-	jit_addi(tmp2, tmp2, (s16)op->i.imm);
+	jit_addi(tmp2, rs, (s16)op->i.imm);
+	jit_andi(tmp2, tmp2, 0x1f9fffff);
 	to_not_ram = jit_bgei(tmp2, 0x1fffff);
 
 	/* Compute the offset to the code LUT */
