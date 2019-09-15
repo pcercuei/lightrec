@@ -714,17 +714,16 @@ static int rec_store_direct(const struct block *block, struct opcode *op,
 	to_not_ram = jit_bgei(tmp2, 0x1fffff);
 
 	/* Compute the offset to the code LUT */
-	jit_movi(tmp, (uintptr_t)state->code_lut);
 #if __WORDSIZE == 64
-	jit_lshi(tmp3, tmp2, 1);
-	jit_addr(tmp, tmp, tmp3);
+	jit_lshi(tmp, tmp2, 1);
+	jit_addr(tmp, LIGHTREC_REG_STATE, tmp);
 #else
-	jit_addr(tmp, tmp, tmp2);
+	jit_addr(tmp, LIGHTREC_REG_STATE, tmp2);
 #endif
 
 	/* Write NULL to the code LUT to invalidate any block that's there */
 	jit_movi(tmp3, 0);
-	jit_str(tmp, tmp3);
+	jit_stxi(offsetof(struct lightrec_state, code_lut), tmp, tmp3);
 
 	if (state->offset_ram != state->offset_scratch) {
 		if (state->offset_ram)
