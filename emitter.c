@@ -829,10 +829,8 @@ static int rec_load_direct(const struct block *block, struct opcode *op,
 			jit_andi(rt, rs, 0x1fffffff);
 		}
 
-		if (state->offset_ram) {
+		if (state->offset_ram)
 			jit_movi(tmp, state->offset_ram);
-			jit_addr(rt, rt, tmp);
-		}
 	} else {
 		jit_andi(tmp, rs, BIT(28));
 		to_not_ram = jit_bnei(tmp, 0);
@@ -840,10 +838,8 @@ static int rec_load_direct(const struct block *block, struct opcode *op,
 		/* Convert to KUNSEG and avoid RAM mirrors */
 		jit_andi(rt, rs, 0x1fffff);
 
-		if (state->offset_ram) {
+		if (state->offset_ram)
 			jit_movi(tmp, state->offset_ram);
-			jit_addr(rt, rt, tmp);
-		}
 
 		to_end = jit_jmpi();
 
@@ -858,10 +854,7 @@ static int rec_load_direct(const struct block *block, struct opcode *op,
 		/* Convert to KUNSEG */
 		jit_andi(rt, rs, 0x1fc7ffff);
 
-		if (state->offset_bios) {
-			jit_movi(tmp, state->offset_bios);
-			jit_addr(rt, rt, tmp);
-		}
+		jit_movi(tmp, state->offset_bios);
 
 		if (state->offset_bios != state->offset_scratch) {
 			to_end2 = jit_jmpi();
@@ -871,16 +864,17 @@ static int rec_load_direct(const struct block *block, struct opcode *op,
 			/* Convert to KUNSEG */
 			jit_andi(rt, rs, 0x1f800fff);
 
-			if (state->offset_scratch) {
+			if (state->offset_scratch)
 				jit_movi(tmp, state->offset_scratch);
-				jit_addr(rt, rt, tmp);
-			}
 
 			jit_patch(to_end2);
 		}
 
 		jit_patch(to_end);
 	}
+
+	if (state->offset_ram || state->offset_bios || state->offset_scratch)
+		jit_addr(rt, rt, tmp);
 
 	jit_new_node_www(code, rt, rt, (s16)op->i.imm);
 
