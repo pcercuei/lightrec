@@ -741,7 +741,8 @@ static int rec_store_direct(const struct block *block, struct opcode *op,
 	if (state->offset_ram != state->offset_scratch)
 		jit_patch(to_end);
 
-	jit_addr(tmp2, tmp2, tmp3);
+	if (state->offset_ram || state->offset_scratch)
+		jit_addr(tmp2, tmp2, tmp3);
 
 	lightrec_free_reg(reg_cache, rs);
 	lightrec_free_reg(reg_cache, tmp);
