@@ -16,6 +16,7 @@
 #include "lightrec-private.h"
 
 #include <errno.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <sys/queue.h>
 #include <threads.h>
