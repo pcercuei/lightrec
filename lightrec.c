@@ -866,3 +866,8 @@ void lightrec_reset_cycle_count(struct lightrec_state *state, u32 cycles)
 {
 	state->current_cycle = cycles;
 }
+
+void lightrec_set_target_cycle_count(struct lightrec_state *state, u32 cycles)
+{
+	state->target_cycle = cycles;
+}
