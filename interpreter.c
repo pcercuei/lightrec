@@ -774,7 +774,6 @@ static const lightrec_int_func_t int_standard[64] = {
 	[OP_SWR]		= int_store,
 	[OP_LWC2]		= int_LWC2,
 	[OP_SWC2]		= int_store,
-	[OP_HLE]		= int_unimplemented, /* TODO */
 
 	[OP_META_REG_UNLOAD]	= int_META_UNLOAD,
 };

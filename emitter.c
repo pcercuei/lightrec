@@ -1171,7 +1171,6 @@ static const lightrec_rec_func_t rec_standard[64] = {
 	[OP_SWR]		= rec_SWR,
 	[OP_LWC2]		= rec_LWC2,
 	[OP_SWC2]		= rec_SWC2,
-	[OP_HLE]		= emit_call_to_interpreter, /* TODO */
 
 	[OP_META_REG_UNLOAD]	= rec_meta_unload,
 };

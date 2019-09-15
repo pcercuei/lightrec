@@ -56,7 +56,6 @@ enum standard_opcodes {
 	OP_SWR			= 0x2e,
 	OP_LWC2			= 0x32,
 	OP_SWC2			= 0x3a,
-	OP_HLE			= 0x3b,
 
 	OP_META_REG_UNLOAD	= 0x11,
 };
