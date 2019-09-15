@@ -683,7 +683,7 @@ struct lightrec_state * lightrec_init(char *argv0,
 				      const struct lightrec_ops *ops)
 {
 	struct lightrec_state *state;
-	unsigned int i;
+	unsigned int i, lut_size;
 
 	/* Sanity-check ops */
 	if (!ops ||
@@ -697,7 +697,9 @@ struct lightrec_state * lightrec_init(char *argv0,
 
 	init_jit(argv0);
 
-	state = calloc(1, sizeof(*state));
+	lut_size = map[PSX_MAP_KERNEL_USER_RAM].length >> 2;
+
+	state = calloc(1, sizeof(*state) + sizeof(*state->code_lut) * lut_size);
 	if (!state)
 		goto err_finish_jit;
 
@@ -720,14 +722,9 @@ struct lightrec_state * lightrec_init(char *argv0,
 
 	memcpy(&state->ops, ops, sizeof(*ops));
 
-	state->code_lut = calloc(map[PSX_MAP_KERNEL_USER_RAM].length >> 2,
-				 sizeof(*state->code_lut));
-	if (!state->code_lut)
-		goto err_free_recompiler;
-
 	state->wrapper = generate_wrapper_block(state);
 	if (!state->wrapper)
-		goto err_free_code_lut;
+		goto err_free_recompiler;
 
 	state->rw_wrapper = generate_wrapper(state, lightrec_rw_cb);
 	if (!state->rw_wrapper)
@@ -776,8 +773,6 @@ err_free_rw_wrapper:
 	lightrec_free_block(state->rw_wrapper);
 err_free_wrapper:
 	lightrec_free_block(state->wrapper);
-err_free_code_lut:
-	free(state->code_lut);
 err_free_recompiler:
 	if (ENABLE_THREADED_COMPILER)
 		lightrec_free_recompiler(state->rec);
