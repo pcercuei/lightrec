@@ -31,11 +31,11 @@ static int rec_CP0(const struct block *block, struct opcode *op, u32 pc);
 static int rec_CP2(const struct block *block, struct opcode *op, u32 pc);
 
 
-static int emit_call_to_interpreter(const struct block *block,
-		struct opcode *op, u32 pc)
+static int unknown_opcode(const struct block *block,
+			  const struct opcode *op, u32 pc)
 {
-	/* TODO: Generate something... */
-	WARNING("Opcode not compiled: 0x%08x\n", op->opcode);
+	WARNING("Unknown opcode: 0x%08x at PC 0x%08x\n", op->opcode, pc);
+
 	return 0;
 }
 
@@ -1234,7 +1234,7 @@ static int rec_SPECIAL(const struct block *block, struct opcode *op, u32 pc)
 	if (likely(f))
 		return (*f)(block, op, pc);
 	else
-		return emit_call_to_interpreter(block, op, pc);
+		return unknown_opcode(block, op, pc);
 }
 
 static int rec_REGIMM(const struct block *block, struct opcode *op, u32 pc)
@@ -1243,7 +1243,7 @@ static int rec_REGIMM(const struct block *block, struct opcode *op, u32 pc)
 	if (likely(f))
 		return (*f)(block, op, pc);
 	else
-		return emit_call_to_interpreter(block, op, pc);
+		return unknown_opcode(block, op, pc);
 }
 
 static int rec_CP0(const struct block *block, struct opcode *op, u32 pc)
@@ -1272,5 +1272,5 @@ int lightrec_rec_opcode(const struct block *block, struct opcode *op, u32 pc)
 	if (likely(f))
 		return (*f)(block, op, pc);
 	else
-		return emit_call_to_interpreter(block, op, pc);
+		return unknown_opcode(block, op, pc);
 }
