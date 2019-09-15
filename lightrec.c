@@ -464,11 +464,11 @@ static struct block * generate_wrapper_block(struct lightrec_state *state)
 	to_c = jit_bgei(JIT_R0, ram_len);
 
 	/* Fast path: code is running from RAM, use the code LUT */
-	jit_movi(JIT_R1, (uintptr_t)state->code_lut);
 #if __WORDSIZE == 64
 	jit_lshi(JIT_R0, JIT_R0, 1);
 #endif
-	jit_ldxr(JIT_R0, JIT_R0, JIT_R1);
+	jit_addr(JIT_R0, JIT_R0, LIGHTREC_REG_STATE);
+	jit_ldxi(JIT_R0, JIT_R0, offsetof(struct lightrec_state, code_lut));
 
 	/* If we get non-NULL, loop */
 	jit_patch_at(jit_bnei(JIT_R0, 0), loop);
