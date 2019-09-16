@@ -12,6 +12,8 @@
  * Lesser General Public License for more details.
  */
 
+#include "config.h"
+
 #if ENABLE_DISASSEMBLER
 #include <dis-asm.h>
 #endif
@@ -19,7 +21,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "config.h"
 #include "debug.h"
 #include "disassembler.h"
 #include "lightrec.h"
