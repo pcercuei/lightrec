@@ -64,20 +64,24 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 	C_EXTENSIONS OFF
 )
 
-find_library(LIBOPCODES NAMES opcodes-multiarch opcodes)
-find_path(LIBOPCODES_INCLUDE_DIR dis-asm.h)
-
 find_library(LIBLIGHTNING lightning REQUIRED)
 find_path(LIBLIGHTNING_INCLUDE_DIR lightning.h REQUIRED)
 
-if (LIBOPCODES AND LIBOPCODES_INCLUDE_DIR)
+include_directories(${LIBLIGHTNING_INCLUDE_DIR})
+target_link_libraries(${PROJECT_NAME} PRIVATE ${LIBLIGHTNING})
+
+if (LOG_LEVEL STREQUAL Debug)
+	find_library(LIBOPCODES NAMES opcodes-multiarch opcodes)
+	find_path(LIBOPCODES_INCLUDE_DIR dis-asm.h)
+
+	if (NOT LIBOPCODES OR NOT LIBOPCODES_INCLUDE_DIR)
+		message(SEND_ERROR "Debug log level requires libopcodes (from binutils) to be installed.")
+	endif ()
+
 	set(ENABLE_DISASSEMBLER ON)
 	include_directories(${LIBOPCODES_INCLUDE_DIR})
 	target_link_libraries(${PROJECT_NAME} PRIVATE ${LIBOPCODES})
 endif()
-
-include_directories(${LIBLIGHTNING_INCLUDE_DIR})
-target_link_libraries(${PROJECT_NAME} PRIVATE ${LIBLIGHTNING})
 
 include(GNUInstallDirs)
 install(TARGETS ${PROJECT_NAME}
