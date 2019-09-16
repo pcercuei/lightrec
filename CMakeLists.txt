@@ -56,7 +56,6 @@ if (ENABLE_THREADED_COMPILER)
 endif (ENABLE_THREADED_COMPILER)
 
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
-configure_file(config.h.cmakein config.h @ONLY)
 
 add_library(${PROJECT_NAME} ${LIGHTREC_SOURCES} ${LIGHTREC_HEADERS})
 set_target_properties(${PROJECT_NAME} PROPERTIES
@@ -86,6 +85,8 @@ if (LOG_LEVEL STREQUAL Debug)
 	include_directories(${LIBOPCODES_INCLUDE_DIR})
 	target_link_libraries(${PROJECT_NAME} PRIVATE ${LIBOPCODES})
 endif()
+
+configure_file(config.h.cmakein config.h @ONLY)
 
 include(GNUInstallDirs)
 install(TARGETS ${PROJECT_NAME}
