@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "config.h"
 #include "debug.h"
 #include "disassembler.h"
 #include "lightrec.h"
@@ -101,7 +102,7 @@ unsigned int lightrec_cycles_of_opcode(const struct opcode *op)
 		return 0;
 }
 
-#if (LOG_LEVEL >= DEBUG_L)
+#if ENABLE_DISASSEMBLER
 void lightrec_print_disassembly(const struct block *block)
 {
 	struct disassemble_info info;

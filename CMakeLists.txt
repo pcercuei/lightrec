@@ -71,7 +71,7 @@ find_library(LIBLIGHTNING lightning REQUIRED)
 find_path(LIBLIGHTNING_INCLUDE_DIR lightning.h REQUIRED)
 
 if (LIBOPCODES AND LIBOPCODES_INCLUDE_DIR)
-	add_definitions(-DENABLE_DISASSEMBLER=1)
+	set(ENABLE_DISASSEMBLER ON)
 	include_directories(${LIBOPCODES_INCLUDE_DIR})
 	target_link_libraries(${PROJECT_NAME} PRIVATE ${LIBOPCODES})
 endif()

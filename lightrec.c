@@ -386,10 +386,10 @@ static struct block * generate_wrapper(struct lightrec_state *state,
 	block->opcode_list = NULL;
 	block->flags = 0;
 
-#if (LOG_LEVEL >= DEBUG_L)
-	DEBUG("RW block:\n");
-	jit_disassemble();
-#endif
+	if (ENABLE_DISASSEMBLER) {
+		DEBUG("Wrapper block:\n");
+		jit_disassemble();
+	}
 
 	jit_clear_state();
 	return block;
@@ -513,10 +513,10 @@ static struct block * generate_wrapper_block(struct lightrec_state *state)
 	state->eob_wrapper_func = jit_address(addr2);
 	state->get_next_block = jit_address(addr);
 
-#if (LOG_LEVEL >= DEBUG_L)
-	DEBUG("Wrapper block:\n");
-	jit_disassemble();
-#endif
+	if (ENABLE_DISASSEMBLER) {
+		DEBUG("Main wrapper block:\n");
+		jit_disassemble();
+	}
 
 	/* We're done! */
 	jit_clear_state();
@@ -574,10 +574,10 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 
 	lightrec_optimize(list);
 
-#if (LOG_LEVEL >= DEBUG_L)
-	DEBUG("Disassembled block at PC: 0x%x\n", block->pc);
-	lightrec_print_disassembly(block);
-#endif
+	if (ENABLE_DISASSEMBLER) {
+		DEBUG("Disassembled block at PC: 0x%x\n", block->pc);
+		lightrec_print_disassembly(block);
+	}
 
 	return block;
 }
@@ -624,10 +624,11 @@ int lightrec_compile_block(struct block *block)
 	if (block->map == &block->state->maps[PSX_MAP_KERNEL_USER_RAM])
 		block->state->code_lut[block->kunseg_pc >> 2] = block->function;
 
-#if (LOG_LEVEL >= DEBUG_L)
-	DEBUG("Compiling block at PC: 0x%x\n", block->pc);
-	jit_disassemble();
-#endif
+	if (ENABLE_DISASSEMBLER) {
+		DEBUG("Compiling block at PC: 0x%x\n", block->pc);
+		jit_disassemble();
+	}
+
 	jit_clear_state();
 
 	return 0;

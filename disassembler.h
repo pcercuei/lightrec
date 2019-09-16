@@ -177,8 +177,6 @@ void lightrec_free_opcode_list(struct opcode *list);
 
 unsigned int lightrec_cycles_of_opcode(const struct opcode *op);
 
-#if (LOG_LEVEL >= DEBUG_L)
 void lightrec_print_disassembly(const struct block *block);
-#endif
 
 #endif /* __DISASSEMBLER_H__ */

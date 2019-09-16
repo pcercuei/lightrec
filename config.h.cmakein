@@ -17,6 +17,7 @@
 
 #cmakedefine01 ENABLE_THREADED_COMPILER
 #cmakedefine01 ENABLE_FIRST_PASS
+#cmakedefine01 ENABLE_DISASSEMBLER
 
 #endif /* __LIGHTREC_CONFIG_H__ */
 
