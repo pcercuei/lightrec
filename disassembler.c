@@ -116,7 +116,7 @@ void lightrec_print_disassembly(const struct block *block)
 	init_disassemble_info(&info, stdout, (fprintf_ftype) fprintf);
 
 	info.buffer = (bfd_byte *) code;
-	info.buffer_vma = (bfd_vma) code;
+	info.buffer_vma = (bfd_vma)(uintptr_t) code;
 	info.buffer_length = block->length;
 	info.flavour = bfd_target_unknown_flavour;
 	info.arch = bfd_arch_mips;
@@ -126,7 +126,7 @@ void lightrec_print_disassembly(const struct block *block)
 	for (i = 0; i < block->length; i += 4) {
 		void print_insn_little_mips(bfd_vma, struct disassemble_info *);
 		putc('\t', stdout);
-		print_insn_little_mips((uintptr_t) code++, &info);
+		print_insn_little_mips((bfd_vma)(uintptr_t) code++, &info);
 		putc('\n', stdout);
 	}
 }
