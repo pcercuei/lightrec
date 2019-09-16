@@ -64,10 +64,17 @@ static inline struct native_register * lightning_reg_to_lightrec(
 		struct regcache *cache, u8 reg)
 {
 	if ((JIT_V0 > JIT_R0 && reg >= JIT_V0) ||
-			(JIT_V0 < JIT_R0 && reg < JIT_R0))
-		return &cache->lightrec_regs[reg - JIT_V0];
-	else
-		return &cache->lightrec_regs[NUM_REGS + reg - JIT_R0];
+			(JIT_V0 < JIT_R0 && reg < JIT_R0)) {
+		if (JIT_V1 > JIT_V0)
+			return &cache->lightrec_regs[reg - JIT_V0];
+		else
+			return &cache->lightrec_regs[JIT_V0 - reg];
+	} else {
+		if (JIT_R1 > JIT_R0)
+			return &cache->lightrec_regs[NUM_REGS + reg - JIT_R0];
+		else
+			return &cache->lightrec_regs[NUM_REGS + JIT_R0 - reg];
+	}
 }
 
 static struct native_register * alloc_temp(struct regcache *cache)
