@@ -167,10 +167,10 @@ static void int_jump(struct interpreter *inter, bool link)
 	struct lightrec_state *state = inter->state;
 	u32 pc = (inter->pc & 0xf0000000) | (inter->op->j.imm << 2);
 
-	pc = int_delay_slot(inter, pc, true);
-
 	if (link)
 		state->native_reg_cache[31] = inter->pc + 8;
+
+	pc = int_delay_slot(inter, pc, true);
 
 	inter->pc = pc;
 }
@@ -190,10 +190,10 @@ static void int_jumpr(struct interpreter *inter, u8 link_reg)
 	struct lightrec_state *state = inter->state;
 	u32 next_pc = state->native_reg_cache[inter->op->r.rs];
 
-	next_pc = int_delay_slot(inter, next_pc, true);
-
 	if (link_reg)
 		state->native_reg_cache[link_reg] = inter->pc + 8;
+
+	next_pc = int_delay_slot(inter, next_pc, true);
 
 	inter->pc = next_pc;
 }
