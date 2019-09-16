@@ -12,7 +12,9 @@
  * Lesser General Public License for more details.
  */
 
+#if ENABLE_DISASSEMBLER
 #include <dis-asm.h>
+#endif
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
