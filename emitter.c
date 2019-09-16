@@ -714,7 +714,6 @@ static int rec_store_direct(const struct block *block, struct opcode *op,
 	u8 tmp, tmp2, tmp3, rs, rt;
 
 	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rs);
-	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
 	tmp2 = lightrec_alloc_reg_temp(reg_cache, _jit);
 	tmp3 = lightrec_alloc_reg_temp(reg_cache, _jit);
 
@@ -723,6 +722,10 @@ static int rec_store_direct(const struct block *block, struct opcode *op,
 	/* Convert to KUNSEG and avoid RAM mirrors */
 	jit_addi(tmp2, rs, (s16)op->i.imm);
 	jit_andi(tmp2, tmp2, 0x1f9fffff);
+
+	lightrec_free_reg(reg_cache, rs);
+	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
+
 	to_not_ram = jit_bgei(tmp2, 0x1fffff);
 
 	/* Compute the offset to the code LUT */
@@ -754,7 +757,6 @@ static int rec_store_direct(const struct block *block, struct opcode *op,
 	if (state->offset_ram || state->offset_scratch)
 		jit_addr(tmp2, tmp2, tmp3);
 
-	lightrec_free_reg(reg_cache, rs);
 	lightrec_free_reg(reg_cache, tmp);
 	lightrec_free_reg(reg_cache, tmp3);
 
