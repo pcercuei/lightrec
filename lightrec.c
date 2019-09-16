@@ -820,6 +820,9 @@ void lightrec_invalidate(struct lightrec_state *state, u32 addr, u32 len)
 		if (map != &state->maps[PSX_MAP_KERNEL_USER_RAM])
 			return;
 
+		/* Handle mirrors */
+		kaddr &= (state->maps[PSX_MAP_KERNEL_USER_RAM].length - 1);
+
 		for (; len > 4; len -= 4, kaddr += 4)
 			lightrec_invalidate_map(state, map, kaddr);
 
