@@ -720,8 +720,12 @@ static int rec_store_direct(const struct block *block, struct opcode *op,
 	jit_movi(tmp3, 0);
 
 	/* Convert to KUNSEG and avoid RAM mirrors */
-	jit_addi(tmp2, rs, (s16)op->i.imm);
-	jit_andi(tmp2, tmp2, 0x1f9fffff);
+	if (op->i.imm) {
+		jit_addi(tmp2, rs, (s16)op->i.imm);
+		jit_andi(tmp2, tmp2, 0x1f9fffff);
+	} else {
+		jit_andi(tmp2, rs, 0x1f9fffff);
+	}
 
 	lightrec_free_reg(reg_cache, rs);
 	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
