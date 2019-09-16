@@ -8,6 +8,13 @@ if (NOT LOG_LEVEL)
 	set_property(CACHE LOG_LEVEL PROPERTY STRINGS NoLog Error Warning Info Debug)
 endif()
 
+if (NOT CMAKE_BUILD_TYPE)
+	set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING
+		"Choose the type of build, options are: None(CMAKE_CXX_FLAGS or CMAKE_C_FLAGS used) Debug Release RelWithDebInfo MinSizeRel."
+		FORCE)
+	set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS None Debug Release RelWithDebInfo MinSizeRel)
+endif()
+
 string(TOUPPER ${LOG_LEVEL} LIGHTREC_LOG_LEVEL)
 add_definitions(-DLOG_LEVEL=${LIGHTREC_LOG_LEVEL}_L)
 
