@@ -22,6 +22,12 @@ extern "C" {
 #include <stddef.h>
 #include <stdint.h>
 
+#if __GNUC__ >= 4
+#   define __api __attribute__((visibility ("default")))
+#else
+#   define __api
+#endif
+
 typedef uint64_t u64;
 typedef uint32_t u32;
 typedef uint16_t u16;
@@ -85,28 +91,32 @@ struct lightrec_ops {
 	struct lightrec_cop_ops cop2_ops;
 };
 
-struct lightrec_state * lightrec_init(char *argv0,
-				      const struct lightrec_mem_map *map,
-				      size_t nb,
-				      const struct lightrec_ops *ops);
-void lightrec_destroy(struct lightrec_state *state);
+__api struct lightrec_state *lightrec_init(char *argv0,
+					   const struct lightrec_mem_map *map,
+					   size_t nb,
+					   const struct lightrec_ops *ops);
 
-u32 lightrec_execute(struct lightrec_state *state, u32 pc, u32 target_cycle);
-u32 lightrec_execute_one(struct lightrec_state *state, u32 pc);
-void lightrec_invalidate(struct lightrec_state *state, u32 addr, u32 len);
-void lightrec_invalidate_all(struct lightrec_state *state);
+__api void lightrec_destroy(struct lightrec_state *state);
 
-void lightrec_set_exit_flags(struct lightrec_state *state, u32 flags);
-u32 lightrec_exit_flags(struct lightrec_state *state);
+__api u32 lightrec_execute(struct lightrec_state *state,
+			   u32 pc, u32 target_cycle);
+__api u32 lightrec_execute_one(struct lightrec_state *state, u32 pc);
+__api u32 lightrec_run_interpreter(struct lightrec_state *state, u32 pc);
 
-void lightrec_dump_registers(struct lightrec_state *state, u32 regs[34]);
-void lightrec_restore_registers(struct lightrec_state *state, u32 regs[34]);
+__api void lightrec_invalidate(struct lightrec_state *state, u32 addr, u32 len);
+__api void lightrec_invalidate_all(struct lightrec_state *state);
 
-u32 lightrec_current_cycle_count(const struct lightrec_state *state);
-void lightrec_reset_cycle_count(struct lightrec_state *state, u32 cycles);
-void lightrec_set_target_cycle_count(struct lightrec_state *state, u32 cycles);
+__api void lightrec_set_exit_flags(struct lightrec_state *state, u32 flags);
+__api u32 lightrec_exit_flags(struct lightrec_state *state);
 
-u32 lightrec_run_interpreter(struct lightrec_state *state, u32 pc);
+__api void lightrec_dump_registers(struct lightrec_state *state, u32 regs[34]);
+__api void lightrec_restore_registers(struct lightrec_state *state,
+				      u32 regs[34]);
+
+__api u32 lightrec_current_cycle_count(const struct lightrec_state *state);
+__api void lightrec_reset_cycle_count(struct lightrec_state *state, u32 cycles);
+__api void lightrec_set_target_cycle_count(struct lightrec_state *state,
+					   u32 cycles);
 
 #ifdef __cplusplus
 };

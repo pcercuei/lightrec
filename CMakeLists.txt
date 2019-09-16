@@ -18,6 +18,10 @@ endif()
 string(TOUPPER ${LOG_LEVEL} LIGHTREC_LOG_LEVEL)
 add_definitions(-DLOG_LEVEL=${LIGHTREC_LOG_LEVEL}_L)
 
+if (CMAKE_COMPILER_IS_GNUCC)
+	add_compile_options(-fvisibility=hidden)
+endif()
+
 list(APPEND LIGHTREC_SOURCES
 	blockcache.c
 	disassembler.c
