@@ -22,7 +22,13 @@ extern "C" {
 #include <stddef.h>
 #include <stdint.h>
 
-#if __GNUC__ >= 4
+#ifdef _WIN32
+#   ifdef lightrec_EXPORTS
+#	define __api __declspec(dllexport)
+#   else
+#	define __api __declspec(dllimport)
+#   endif
+#elif __GNUC__ >= 4
 #   define __api __attribute__((visibility ("default")))
 #else
 #   define __api
