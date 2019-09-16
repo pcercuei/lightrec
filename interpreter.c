@@ -66,28 +66,16 @@ struct interpreter {
 	EXECUTE(int_standard[inter->op->i.op], inter);			\
 } while (0)
 
-static bool handle_mfc_in_delay_slot(struct interpreter *inter,
-				     u32 pc, bool branch)
+static bool load_in_delay_slot(const struct opcode *op)
 {
-	struct opcode *op = SLIST_NEXT(inter->op, next);
-	struct interpreter inter2 = {
-		.state = inter->state,
-		.cycles = inter->cycles,
-		.delay_slot = true,
-	};
-	struct block *block;
-
 	switch (op->i.op) {
-	case OP_LWC2:
-		break;
 	case OP_CP0:
 		switch (op->r.rs) {
 		case OP_CP0_MFC0:
 		case OP_CP0_CFC0:
-			if (op->r.rt)
-				break;
-		default: /* fall-through */
-			return false;
+			return true;
+		default:
+			break;
 		}
 
 		break;
@@ -96,63 +84,119 @@ static bool handle_mfc_in_delay_slot(struct interpreter *inter,
 			switch (op->r.rs) {
 			case OP_CP2_BASIC_MFC2:
 			case OP_CP2_BASIC_CFC2:
-				if (op->r.rt)
-					break;
-			default: /* fall-through */
-				return false;
+				return true;
+			default:
+				break;
 			}
 		}
 
 		break;
+	case OP_LWC2:
+	case OP_LB:
+	case OP_LH:
+	case OP_LW:
+	case OP_LWL:
+	case OP_LWR:
+	case OP_LBU:
+	case OP_LHU:
+		return true;
 	default:
-		return false;
+		break;
 	}
 
-	inter->block->flags |= BLOCK_NEVER_COMPILE;
-
-	if (!branch)
-		return false;
-
-	block = lightrec_get_block(inter->state, pc);
-
-	if (!opcode_reads_register(block->opcode_list, op->r.rt) &&
-	    !opcode_writes_register(block->opcode_list, op->r.rt))
-		return false;
-
-	inter2.block = block;
-	inter2.op = block->opcode_list;
-	inter2.pc = pc;
-
-	(*int_standard[inter2.op->i.op])(&inter2);
-
-	inter->cycles += lightrec_cycles_of_opcode(inter2.op);
-
-	return true;
+	return false;
 }
 
 static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 {
+	u32 *reg_cache = inter->state->native_reg_cache;
+	struct opcode *op_next, *op = SLIST_NEXT(inter->op, next);
 	struct interpreter inter2 = {
 		.state = inter->state,
-		.block = inter->block,
-		.op = SLIST_NEXT(inter->op, next),
-		.pc = inter->pc + 4,
 		.cycles = inter->cycles,
 		.delay_slot = true,
 	};
+	struct block *block;
+	bool run_first_op = false, dummy_ld = false, save_rs = false,
+	     load_in_ds;
+	u32 old_rs, new_rs, new_rt;
+	u32 next_pc;
 
-	if (handle_mfc_in_delay_slot(inter, pc, branch)) {
-		/* There was a MFC0, CFC0, MFC2, CFC2 or LWC2 in the delay slot.
-		 * The interpreter already executed the first opcode of the next
-		 * block, so we jump to the second opcode. */
-		pc += 4;
+	/* An opcode located in the delay slot performing a delayed read
+	 * requires special handling; we will always resort to using the
+	 * interpreter in that case. */
+	load_in_ds = load_in_delay_slot(op);
+	if (load_in_ds)
+		inter->block->flags |= BLOCK_NEVER_COMPILE;
+
+	if (branch) {
+		if (load_in_ds) {
+			block = lightrec_get_block(inter->state, pc);
+			op_next = block->opcode_list;
+
+			/* Verify that the next block actually reads the
+			 * destination register of the delay slot opcode. */
+			run_first_op = opcode_reads_register(op_next, op->r.rt);
+		}
+
+		if (load_in_ds && run_first_op) {
+			next_pc = pc + 4;
+
+			/* If the first opcode of the next block writes the
+			 * regiser used as the address for the load, we need to
+			 * reset to the old value after it has been executed,
+			 * then restore the new value after the delay slot
+			 * opcode has been executed. */
+			save_rs = opcode_reads_register(op, op->r.rs) &&
+				  opcode_writes_register(op_next, op->r.rs);
+			if (save_rs)
+				old_rs = reg_cache[op->r.rs];
+
+			/* If both the first opcode of the next block and the
+			 * delay slot opcode write to the same register, the
+			 * value written by the delay slot opcode is
+			 * discarded. */
+			dummy_ld = opcode_writes_register(op_next, op->r.rt);
+
+			inter2.block = block;
+			inter2.op = op_next;
+			inter2.pc = pc;
+
+			/* Execute the first opcode of the next block */
+			(*int_standard[inter2.op->i.op])(&inter2);
+
+			if (save_rs) {
+				new_rs = reg_cache[op->r.rs];
+				reg_cache[op->r.rs] = old_rs;
+			}
+
+			inter->cycles += lightrec_cycles_of_opcode(inter2.op);
+		} else {
+			next_pc = pc;
+		}
+	} else {
+		next_pc = inter->pc + 8;
 	}
 
+	inter2.block = inter->block;
+	inter2.op = op;
+	inter2.pc = inter->pc + 4;
+	inter2.cycles = inter->cycles;
+
+	if (dummy_ld)
+		new_rt = reg_cache[op->r.rt];
+
+	/* Execute delay slot opcode */
 	(*int_standard[inter2.op->i.op])(&inter2);
 
-	inter->cycles += lightrec_cycles_of_opcode(inter2.op);
+	if (save_rs)
+		reg_cache[op->r.rs] = new_rs;
+	if (dummy_ld)
+		reg_cache[op->r.rt] = new_rt;
 
-	return pc;
+	inter->cycles += lightrec_cycles_of_opcode(op);
+
+	return next_pc;
 }
 
 static void int_unimplemented(struct interpreter *inter)
