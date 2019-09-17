@@ -181,6 +181,11 @@ static inline u32 lut_offset(u32 pc)
 		return (pc & (RAM_SIZE - 1)) >> 2; // RAM
 }
 
+static inline _Bool is_big_endian(void)
+{
+	return __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__;
+}
+
 static inline _Bool lut_is_32bit(const struct lightrec_state *state)
 {
 	return __WORDSIZE == 32 ||

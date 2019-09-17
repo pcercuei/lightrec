@@ -1048,6 +1048,7 @@ static void rec_io(struct lightrec_cstate *state,
 static void rec_store_memory(struct lightrec_cstate *cstate,
 			     const struct block *block,
 			     u16 offset, jit_code_t code,
+			     jit_code_t swap_code,
 			     uintptr_t addr_offset, u32 addr_mask,
 			     bool invalidate)
 {
@@ -1096,7 +1097,17 @@ static void rec_store_memory(struct lightrec_cstate *cstate,
 		addr_reg2 = addr_reg;
 	}
 
-	jit_new_node_www(code, imm, addr_reg2, rt);
+	if (is_big_endian() && swap_code && c.i.rt) {
+		tmp3 = lightrec_alloc_reg_temp(reg_cache, _jit);
+
+		jit_new_node_ww(swap_code, tmp3, rt);
+		jit_new_node_www(code, imm, addr_reg2, tmp3);
+
+		lightrec_free_reg(reg_cache, tmp3);
+	} else {
+		jit_new_node_www(code, imm, addr_reg2, rt);
+	}
+
 	lightrec_free_reg(reg_cache, rt);
 
 	if (invalidate) {
@@ -1137,29 +1148,30 @@ static void rec_store_memory(struct lightrec_cstate *cstate,
 static void rec_store_ram(struct lightrec_cstate *cstate,
 			  const struct block *block,
 			  u16 offset, jit_code_t code,
-			  bool invalidate)
+			  jit_code_t swap_code, bool invalidate)
 {
 	_jit_note(block->_jit, __FILE__, __LINE__);
 
-	return rec_store_memory(cstate, block, offset, code,
+	return rec_store_memory(cstate, block, offset, code, swap_code,
 				cstate->state->offset_ram,
 				RAM_SIZE - 1, invalidate);
 }
 
 static void rec_store_scratch(struct lightrec_cstate *cstate,
-			      const struct block *block,
-			      u16 offset, jit_code_t code)
+			      const struct block *block, u16 offset,
+			      jit_code_t code, jit_code_t swap_code)
 {
 	_jit_note(block->_jit, __FILE__, __LINE__);
 
-	return rec_store_memory(cstate, block, offset, code,
+	return rec_store_memory(cstate, block, offset, code, swap_code,
 				cstate->state->offset_scratch,
 				0x1fffffff, false);
 }
 
 static void rec_store_direct_no_invalidate(struct lightrec_cstate *cstate,
 					   const struct block *block,
-					   u16 offset, jit_code_t code)
+					   u16 offset, jit_code_t code,
+					   jit_code_t swap_code)
 {
 	struct lightrec_state *state = cstate->state;
 	struct regcache *reg_cache = cstate->reg_cache;
@@ -1211,14 +1223,24 @@ static void rec_store_direct_no_invalidate(struct lightrec_cstate *cstate,
 	}
 
 	rt = lightrec_alloc_reg_in(reg_cache, _jit, c.i.rt, 0);
-	jit_new_node_www(code, imm, tmp, rt);
+
+	if (is_big_endian() && swap_code && c.i.rt) {
+		tmp2 = lightrec_alloc_reg_temp(reg_cache, _jit);
+
+		jit_new_node_ww(swap_code, tmp2, rt);
+		jit_new_node_www(code, imm, tmp, tmp2);
+
+		lightrec_free_reg(reg_cache, tmp2);
+	} else {
+		jit_new_node_www(code, imm, tmp, rt);
+	}
 
 	lightrec_free_reg(reg_cache, rt);
 	lightrec_free_reg(reg_cache, tmp);
 }
 
 static void rec_store_direct(struct lightrec_cstate *cstate, const struct block *block,
-			     u16 offset, jit_code_t code)
+			     u16 offset, jit_code_t code, jit_code_t swap_code)
 {
 	struct lightrec_state *state = cstate->state;
 	u32 ram_size = state->mirrors_mapped ? RAM_SIZE * 4 : RAM_SIZE;
@@ -1280,14 +1302,25 @@ static void rec_store_direct(struct lightrec_cstate *cstate, const struct block 
 	lightrec_free_reg(reg_cache, tmp3);
 
 	rt = lightrec_alloc_reg_in(reg_cache, _jit, c.i.rt, 0);
-	jit_new_node_www(code, 0, tmp2, rt);
+
+	if (is_big_endian() && swap_code && c.i.rt) {
+		tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
+
+		jit_new_node_ww(swap_code, tmp, rt);
+		jit_new_node_www(code, 0, tmp2, tmp);
+
+		lightrec_free_reg(reg_cache, tmp);
+	} else {
+		jit_new_node_www(code, 0, tmp2, rt);
+	}
 
 	lightrec_free_reg(reg_cache, rt);
 	lightrec_free_reg(reg_cache, tmp2);
 }
 
 static void rec_store(struct lightrec_cstate *state,
-		      const struct block *block, u16 offset, jit_code_t code)
+		      const struct block *block, u16 offset,
+		      jit_code_t code, jit_code_t swap_code)
 {
 	u16 flags = block->opcode_list[offset].flags;
 	bool no_invalidate = (flags & LIGHTREC_NO_INVALIDATE) ||
@@ -1295,16 +1328,19 @@ static void rec_store(struct lightrec_cstate *state,
 
 	switch (LIGHTREC_FLAGS_GET_IO_MODE(flags)) {
 	case LIGHTREC_IO_RAM:
-		rec_store_ram(state, block, offset, code, !no_invalidate);
+		rec_store_ram(state, block, offset, code,
+			      swap_code, !no_invalidate);
 		break;
 	case LIGHTREC_IO_SCRATCH:
-		rec_store_scratch(state, block, offset, code);
+		rec_store_scratch(state, block, offset, code, swap_code);
 		break;
 	case LIGHTREC_IO_DIRECT:
-		if (no_invalidate)
-			rec_store_direct_no_invalidate(state, block, offset, code);
-		else
-			rec_store_direct(state, block, offset, code);
+		if (no_invalidate) {
+			rec_store_direct_no_invalidate(state, block, offset,
+						       code, swap_code);
+		} else {
+			rec_store_direct(state, block, offset, code, swap_code);
+		}
 		break;
 	default:
 		rec_io(state, block, offset, true, false);
@@ -1316,14 +1352,15 @@ static void rec_SB(struct lightrec_cstate *state,
 		   const struct block *block, u16 offset)
 {
 	_jit_name(block->_jit, __func__);
-	rec_store(state, block, offset, jit_code_stxi_c);
+	rec_store(state, block, offset, jit_code_stxi_c, 0);
 }
 
 static void rec_SH(struct lightrec_cstate *state,
 		   const struct block *block, u16 offset)
 {
 	_jit_name(block->_jit, __func__);
-	rec_store(state, block, offset, jit_code_stxi_s);
+	rec_store(state, block, offset,
+		  jit_code_stxi_s, jit_code_bswapr_us);
 }
 
 static void rec_SW(struct lightrec_cstate *state,
@@ -1331,7 +1368,8 @@ static void rec_SW(struct lightrec_cstate *state,
 
 {
 	_jit_name(block->_jit, __func__);
-	rec_store(state, block, offset, jit_code_stxi_i);
+	rec_store(state, block, offset,
+		  jit_code_stxi_i, jit_code_bswapr_ui);
 }
 
 static void rec_SWL(struct lightrec_cstate *state,
@@ -1356,8 +1394,8 @@ static void rec_SWC2(struct lightrec_cstate *state,
 }
 
 static void rec_load_memory(struct lightrec_cstate *cstate,
-			    const struct block *block,
-			    u16 offset, jit_code_t code, bool is_unsigned,
+			    const struct block *block, u16 offset,
+			    jit_code_t code, jit_code_t swap_code, bool is_unsigned,
 			    uintptr_t addr_offset, u32 addr_mask)
 {
 	struct regcache *reg_cache = cstate->reg_cache;
@@ -1389,42 +1427,53 @@ static void rec_load_memory(struct lightrec_cstate *cstate,
 
 	jit_new_node_www(code, rt, addr_reg, (s16)c.i.imm);
 
+	if (is_big_endian() && swap_code) {
+		jit_new_node_ww(swap_code, rt, rt);
+
+		if (c.i.op == OP_LH)
+			jit_extr_s(rt, rt);
+		else if (c.i.op == OP_LW && __WORDSIZE == 64)
+			jit_extr_i(rt, rt);
+	}
+
 	lightrec_free_reg(reg_cache, rs);
 	lightrec_free_reg(reg_cache, rt);
 }
 
 static void rec_load_ram(struct lightrec_cstate *cstate,
-			 const struct block *block,
-			 u16 offset, jit_code_t code, bool is_unsigned)
+			 const struct block *block, u16 offset,
+			 jit_code_t code, jit_code_t swap_code, bool is_unsigned)
 {
 	_jit_note(block->_jit, __FILE__, __LINE__);
 
-	rec_load_memory(cstate, block, offset, code, is_unsigned,
+	rec_load_memory(cstate, block, offset, code, swap_code, is_unsigned,
 			cstate->state->offset_ram, RAM_SIZE - 1);
 }
 
 static void rec_load_bios(struct lightrec_cstate *cstate,
-			  const struct block *block,
-			  u16 offset, jit_code_t code, bool is_unsigned)
+			  const struct block *block, u16 offset,
+			  jit_code_t code, jit_code_t swap_code, bool is_unsigned)
 {
 	_jit_note(block->_jit, __FILE__, __LINE__);
 
-	rec_load_memory(cstate, block, offset, code, is_unsigned,
+	rec_load_memory(cstate, block, offset, code, swap_code, is_unsigned,
 			cstate->state->offset_bios, 0x1fffffff);
 }
 
 static void rec_load_scratch(struct lightrec_cstate *cstate,
-			     const struct block *block,
-			     u16 offset, jit_code_t code, bool is_unsigned)
+			     const struct block *block, u16 offset,
+			     jit_code_t code, jit_code_t swap_code, bool is_unsigned)
 {
 	_jit_note(block->_jit, __FILE__, __LINE__);
 
-	rec_load_memory(cstate, block, offset, code, is_unsigned,
+	rec_load_memory(cstate, block, offset, code, swap_code, is_unsigned,
 			cstate->state->offset_scratch, 0x1fffffff);
 }
 
-static void rec_load_direct(struct lightrec_cstate *cstate, const struct block *block,
-			    u16 offset, jit_code_t code, bool is_unsigned)
+static void rec_load_direct(struct lightrec_cstate *cstate,
+			    const struct block *block, u16 offset,
+			    jit_code_t code, jit_code_t swap_code,
+			    bool is_unsigned)
 {
 	struct lightrec_state *state = cstate->state;
 	struct regcache *reg_cache = cstate->reg_cache;
@@ -1516,28 +1565,38 @@ static void rec_load_direct(struct lightrec_cstate *cstate, const struct block *
 
 	jit_new_node_www(code, rt, rt, imm);
 
+	if (is_big_endian() && swap_code) {
+		jit_new_node_ww(swap_code, rt, rt);
+
+		if (c.i.op == OP_LH)
+			jit_extr_s(rt, rt);
+		else if (c.i.op == OP_LW && __WORDSIZE == 64)
+			jit_extr_i(rt, rt);
+	}
+
 	lightrec_free_reg(reg_cache, addr_reg);
 	lightrec_free_reg(reg_cache, rt);
 	lightrec_free_reg(reg_cache, tmp);
 }
 
 static void rec_load(struct lightrec_cstate *state, const struct block *block,
-		     u16 offset, jit_code_t code, bool is_unsigned)
+		     u16 offset, jit_code_t code, jit_code_t swap_code,
+		     bool is_unsigned)
 {
 	u16 flags = block->opcode_list[offset].flags;
 
 	switch (LIGHTREC_FLAGS_GET_IO_MODE(flags)) {
 	case LIGHTREC_IO_RAM:
-		rec_load_ram(state, block, offset, code, is_unsigned);
+		rec_load_ram(state, block, offset, code, swap_code, is_unsigned);
 		break;
 	case LIGHTREC_IO_BIOS:
-		rec_load_bios(state, block, offset, code, is_unsigned);
+		rec_load_bios(state, block, offset, code, swap_code, is_unsigned);
 		break;
 	case LIGHTREC_IO_SCRATCH:
-		rec_load_scratch(state, block, offset, code, is_unsigned);
+		rec_load_scratch(state, block, offset, code, swap_code, is_unsigned);
 		break;
 	case LIGHTREC_IO_DIRECT:
-		rec_load_direct(state, block, offset, code, is_unsigned);
+		rec_load_direct(state, block, offset, code, swap_code, is_unsigned);
 		break;
 	default:
 		rec_io(state, block, offset, false, true);
@@ -1548,25 +1607,25 @@ static void rec_load(struct lightrec_cstate *state, const struct block *block,
 static void rec_LB(struct lightrec_cstate *state, const struct block *block, u16 offset)
 {
 	_jit_name(block->_jit, __func__);
-	rec_load(state, block, offset, jit_code_ldxi_c, false);
+	rec_load(state, block, offset, jit_code_ldxi_c, 0, false);
 }
 
 static void rec_LBU(struct lightrec_cstate *state, const struct block *block, u16 offset)
 {
 	_jit_name(block->_jit, __func__);
-	rec_load(state, block, offset, jit_code_ldxi_uc, true);
+	rec_load(state, block, offset, jit_code_ldxi_uc, 0, true);
 }
 
 static void rec_LH(struct lightrec_cstate *state, const struct block *block, u16 offset)
 {
 	_jit_name(block->_jit, __func__);
-	rec_load(state, block, offset, jit_code_ldxi_s, false);
+	rec_load(state, block, offset, jit_code_ldxi_s, jit_code_bswapr_us, false);
 }
 
 static void rec_LHU(struct lightrec_cstate *state, const struct block *block, u16 offset)
 {
 	_jit_name(block->_jit, __func__);
-	rec_load(state, block, offset, jit_code_ldxi_us, true);
+	rec_load(state, block, offset, jit_code_ldxi_us, jit_code_bswapr_us, true);
 }
 
 static void rec_LWL(struct lightrec_cstate *state, const struct block *block, u16 offset)
@@ -1584,7 +1643,7 @@ static void rec_LWR(struct lightrec_cstate *state, const struct block *block, u1
 static void rec_LW(struct lightrec_cstate *state, const struct block *block, u16 offset)
 {
 	_jit_name(block->_jit, __func__);
-	rec_load(state, block, offset, jit_code_ldxi_i, false);
+	rec_load(state, block, offset, jit_code_ldxi_i, jit_code_bswapr_ui, false);
 }
 
 static void rec_LWC2(struct lightrec_cstate *state, const struct block *block, u16 offset)
