@@ -20,6 +20,7 @@
 struct block;
 struct opcode;
 
-int lightrec_rec_opcode(const struct block *block, struct opcode *op, u32 pc);
+int lightrec_rec_opcode(const struct block *block,
+			const struct opcode *op, u32 pc);
 
 #endif /* __EMITTER_H__ */
