@@ -359,7 +359,7 @@ static struct block * generate_wrapper(struct lightrec_state *state,
 	unsigned int i;
 	int stack_ptr;
 
-	block = malloc(sizeof(*block));
+	block = lightrec_malloc(MEM_FOR_IR, sizeof(*block));
 	if (!block)
 		goto err_no_mem;
 
@@ -403,7 +403,7 @@ static struct block * generate_wrapper(struct lightrec_state *state,
 	return block;
 
 err_free_block:
-	free(block);
+	lightrec_free(MEM_FOR_IR, sizeof(*block), block);
 err_no_mem:
 	ERROR("Unable to compile wrapper: Out of memory\n");
 	return NULL;
@@ -417,7 +417,7 @@ static struct block * generate_wrapper_block(struct lightrec_state *state)
 	unsigned int i;
 	u32 offset, ram_len;
 
-	block = malloc(sizeof(*block));
+	block = lightrec_malloc(MEM_FOR_IR, sizeof(*block));
 	if (!block)
 		goto err_no_mem;
 
@@ -531,7 +531,7 @@ static struct block * generate_wrapper_block(struct lightrec_state *state)
 	return block;
 
 err_free_block:
-	free(block);
+	lightrec_free(MEM_FOR_IR, sizeof(*block), block);
 err_no_mem:
 	ERROR("Unable to compile wrapper: Out of memory\n");
 	return NULL;
@@ -573,7 +573,7 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 
 	code = map->address + addr;
 
-	block = malloc(sizeof(*block));
+	block = lightrec_malloc(MEM_FOR_IR, sizeof(*block));
 	if (!block) {
 		ERROR("Unable to recompile block: Out of memory\n");
 		return NULL;
@@ -581,7 +581,7 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 
 	list = lightrec_disassemble(code, &length);
 	if (!list) {
-		free(block);
+		lightrec_free(MEM_FOR_IR, sizeof(*block), block);
 		return NULL;
 	}
 
@@ -712,7 +712,7 @@ void lightrec_free_block(struct block *block)
 		lightrec_free_opcode_list(block->opcode_list);
 	if (block->_jit)
 		_jit_destroy_state(block->_jit);
-	free(block);
+	lightrec_free(MEM_FOR_IR, sizeof(*block), block);
 }
 
 struct lightrec_state * lightrec_init(char *argv0,

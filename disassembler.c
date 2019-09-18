@@ -24,6 +24,7 @@
 #include "debug.h"
 #include "disassembler.h"
 #include "lightrec-private.h"
+#include "memmanager.h"
 
 static bool is_unconditional_jump(const struct opcode *op)
 {
@@ -56,7 +57,7 @@ void lightrec_free_opcode_list(struct opcode *list)
 {
 	while (list) {
 		struct opcode *next = SLIST_NEXT(list, next);
-		free(list);
+		lightrec_free(MEM_FOR_IR, sizeof(*list), list);
 		list = next;
 	}
 }
@@ -69,7 +70,7 @@ struct opcode * lightrec_disassemble(const u32 *src, unsigned int *len)
 	unsigned int i;
 
 	for (i = 0, last = NULL; ; i += sizeof(u32), last = curr) {
-		curr = calloc(1, sizeof(*curr));
+		curr = lightrec_calloc(MEM_FOR_IR, sizeof(*curr));
 		if (!curr) {
 			ERROR("Unable to allocate memory\n");
 			lightrec_free_opcode_list(SLIST_FIRST(&head));

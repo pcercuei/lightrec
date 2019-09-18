@@ -14,6 +14,7 @@
 
 #include "disassembler.h"
 #include "lightrec.h"
+#include "memmanager.h"
 #include "optimizer.h"
 #include "regcache.h"
 
@@ -242,7 +243,7 @@ static bool has_delay_slot(union code op)
 
 static int lightrec_add_unload(struct opcode *op, u8 reg)
 {
-	struct opcode *meta = malloc(sizeof(*meta));
+	struct opcode *meta = lightrec_malloc(MEM_FOR_IR, sizeof(*meta));
 
 	if (!meta)
 		return -ENOMEM;
