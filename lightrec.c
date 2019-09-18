@@ -439,21 +439,21 @@ static struct block * generate_wrapper_block(struct lightrec_state *state)
 	jit_jmpr(JIT_R0);
 
 	/* The block will jump here, with the number of cycles executed in
-	 * JIT_R0 */
+	 * JIT_V1 */
 	addr2 = jit_indirect();
 
-	/* Increment the cycle counter */
+	/* Increment the cycle counter, and jump to end if
+	 * (state->exit_flags != LIGHTREC_EXIT_NORMAL ||
+	 *  state->target_cycle < state->current_cycle) */
 	offset = offsetof(struct lightrec_state, current_cycle);
 	jit_ldxi_i(JIT_R1, LIGHTREC_REG_STATE, offset);
-	jit_addr(JIT_R1, JIT_R1, JIT_R0);
-	jit_stxi_i(offset, LIGHTREC_REG_STATE, JIT_R1);
-
-	/* Jump to end if (state->exit_flags != LIGHTREC_EXIT_NORMAL ||
-	 *		state->target_cycle < state->current_cycle) */
 	jit_ldxi_i(JIT_R0, LIGHTREC_REG_STATE,
 			offsetof(struct lightrec_state, target_cycle));
 	jit_ldxi_i(JIT_R2, LIGHTREC_REG_STATE,
 			offsetof(struct lightrec_state, exit_flags));
+	jit_addr(JIT_R1, JIT_R1, JIT_V1);
+	jit_stxi_i(offset, LIGHTREC_REG_STATE, JIT_R1);
+
 	jit_ltr_u(JIT_R0, JIT_R0, JIT_R1);
 	jit_orr(JIT_R0, JIT_R0, JIT_R2);
 	to_end = jit_bnei(JIT_R0, 0);
