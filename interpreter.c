@@ -337,7 +337,7 @@ static void int_cfc(struct interpreter *inter)
 	const struct opcode *op = inter->op;
 	u32 val;
 
-	val = lightrec_mfc(state, op);
+	val = lightrec_mfc(state, (union code)op->opcode);
 
 	if (likely(op->r.rt))
 		state->native_reg_cache[op->r.rt] = val;
@@ -350,7 +350,8 @@ static void int_ctc(struct interpreter *inter)
 	struct lightrec_state *state = inter->state;
 	const struct opcode *op = inter->op;
 
-	lightrec_mtc(state, op, state->native_reg_cache[op->r.rt]);
+	lightrec_mtc(state, (union code)op->opcode,
+		     state->native_reg_cache[op->r.rt]);
 
 	/* If we have a MTC0 or CTC0 to CP0 register 12 (Status) or 13 (Cause),
 	 * return early so that the emulator will be able to check software
@@ -475,8 +476,9 @@ static void int_io(struct interpreter *inter, bool is_load)
 	u32 *reg_cache = inter->state->native_reg_cache;
 	u32 val;
 
-	val = lightrec_rw(inter->state, inter->op,
-			  reg_cache[op->rs], reg_cache[op->rt]);
+	val = lightrec_rw(inter->state, (union code)inter->op->opcode,
+			  reg_cache[op->rs], reg_cache[op->rt],
+			  &inter->op->flags);
 
 	if (is_load && op->rt)
 		reg_cache[op->rt] = val;

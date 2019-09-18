@@ -163,8 +163,17 @@ struct opcode_j {
 #endif
 } __packed;
 
+union code {
+	/* Keep in sync with struct opcode */
+	u32 opcode;
+	struct opcode_r r;
+	struct opcode_i i;
+	struct opcode_j j;
+};
+
 struct opcode {
 	union {
+		/* Keep in sync with union code */
 		u32 opcode;
 		struct opcode_r r;
 		struct opcode_i i;

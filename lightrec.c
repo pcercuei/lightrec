@@ -43,11 +43,10 @@ static void __segfault_cb(struct lightrec_state *state, u32 addr)
 			"load/store at address 0x%08x\n", addr);
 }
 
-static u32 lightrec_rw_ops(struct lightrec_state *state,
-		const struct opcode *op, const struct lightrec_mem_map_ops *ops,
-		u32 addr, u32 data)
+static u32 lightrec_rw_ops(struct lightrec_state *state, union code op,
+		const struct lightrec_mem_map_ops *ops, u32 addr, u32 data)
 {
-	switch (op->i.op) {
+	switch (op.i.op) {
 	case OP_SB:
 		ops->sb(state, addr, (u8) data);
 		return 0;
@@ -95,8 +94,8 @@ lightrec_get_map(struct lightrec_state *state, u32 kaddr)
 	return NULL;
 }
 
-u32 lightrec_rw(struct lightrec_state *state,
-		struct opcode *op, u32 addr, u32 data)
+u32 lightrec_rw(struct lightrec_state *state, union code op,
+		u32 addr, u32 data, u32 *flags)
 {
 	const struct lightrec_mem_map *map;
 	const struct lightrec_mem_map_ops *ops;
@@ -105,7 +104,7 @@ u32 lightrec_rw(struct lightrec_state *state,
 	unsigned int i;
 	u32 kaddr;
 
-	addr += (s16) op->i.imm;
+	addr += (s16) op.i.imm;
 	kaddr = kunseg(addr);
 
 	map = lightrec_get_map(state, kaddr);
@@ -123,12 +122,13 @@ u32 lightrec_rw(struct lightrec_state *state,
 	while (map->mirror_of)
 		map = map->mirror_of;
 
-	op->flags |= LIGHTREC_DIRECT_IO;
+	if (flags)
+		*flags |= LIGHTREC_DIRECT_IO;
 
 	kaddr -= pc;
 	new_addr = (uintptr_t) map->address + kaddr;
 
-	switch (op->i.op) {
+	switch (op.i.op) {
 	case OP_SB:
 		*(u8 *) new_addr = (u8) data;
 		lightrec_invalidate_map(state, map, kaddr);
@@ -161,7 +161,7 @@ u32 lightrec_rw(struct lightrec_state *state,
 		return 0;
 	case OP_SWC2:
 		*(u32 *) new_addr = HTOLE32(state->ops.cop2_ops.mfc(state,
-							        op->i.rt));
+								    op.i.rt));
 		lightrec_invalidate_map(state, map, kaddr);
 		return 0;
 	case OP_LB:
@@ -185,7 +185,7 @@ u32 lightrec_rw(struct lightrec_state *state,
 
 		return (data & mask) | (mem_data >> (shift * 8));
 	case OP_LWC2:
-		state->ops.cop2_ops.mtc(state, op->i.rt,
+		state->ops.cop2_ops.mtc(state, op.i.rt,
 					LE32TOH(*(u32 *) new_addr));
 		return 0;
 	case OP_LW:
@@ -198,18 +198,18 @@ static void lightrec_rw_cb(struct lightrec_state *state)
 {
 	struct lightrec_op_data *opdata = &state->op_data;
 
-	opdata->data = lightrec_rw(state, opdata->op,
-				   opdata->addr, opdata->data);
+	opdata->data = lightrec_rw(state, opdata->op, opdata->addr,
+				   opdata->data, NULL);
 }
 
-u32 lightrec_mfc(struct lightrec_state *state, const struct opcode *op)
+u32 lightrec_mfc(struct lightrec_state *state, union code op)
 {
-	bool is_cfc = (op->i.op == OP_CP0 && op->r.rs == OP_CP0_CFC0) ||
-		      (op->i.op == OP_CP2 && op->r.rs == OP_CP2_BASIC_CFC2);
+	bool is_cfc = (op.i.op == OP_CP0 && op.r.rs == OP_CP0_CFC0) ||
+		      (op.i.op == OP_CP2 && op.r.rs == OP_CP2_BASIC_CFC2);
 	u32 (*func)(struct lightrec_state *, u8);
 	const struct lightrec_cop_ops *ops;
 
-	if (op->i.op == OP_CP0)
+	if (op.i.op == OP_CP0)
 		ops = &state->ops.cop0_ops;
 	else
 		ops = &state->ops.cop2_ops;
@@ -219,7 +219,7 @@ u32 lightrec_mfc(struct lightrec_state *state, const struct opcode *op)
 	else
 		func = ops->mfc;
 
-	return (*func)(state, op->r.rd);
+	return (*func)(state, op.r.rd);
 }
 
 static void lightrec_mfc_cb(struct lightrec_state *state)
@@ -227,15 +227,14 @@ static void lightrec_mfc_cb(struct lightrec_state *state)
 	state->op_data.data = lightrec_mfc(state, state->op_data.op);
 }
 
-void lightrec_mtc(struct lightrec_state *state,
-		  const struct opcode *op, u32 data)
+void lightrec_mtc(struct lightrec_state *state, union code op, u32 data)
 {
-	bool is_ctc = (op->i.op == OP_CP0 && op->r.rs == OP_CP0_CTC0) ||
-		      (op->i.op == OP_CP2 && op->r.rs == OP_CP2_BASIC_CTC2);
+	bool is_ctc = (op.i.op == OP_CP0 && op.r.rs == OP_CP0_CTC0) ||
+		      (op.i.op == OP_CP2 && op.r.rs == OP_CP2_BASIC_CTC2);
 	void (*func)(struct lightrec_state *, u8, u32);
 	const struct lightrec_cop_ops *ops;
 
-	if (op->i.op == OP_CP0)
+	if (op.i.op == OP_CP0)
 		ops = &state->ops.cop0_ops;
 	else
 		ops = &state->ops.cop2_ops;
@@ -245,7 +244,7 @@ void lightrec_mtc(struct lightrec_state *state,
 	else
 		func = ops->mtc;
 
-	(*func)(state, op->r.rd, data);
+	(*func)(state, op.r.rd, data);
 }
 
 static void lightrec_mtc_cb(struct lightrec_state *state)
@@ -271,14 +270,13 @@ static void lightrec_cp_cb(struct lightrec_state *state)
 {
 	void (*func)(struct lightrec_state *, u32);
 	struct lightrec_op_data *opdata = &state->op_data;
-	struct opcode *op = opdata->op;
 
-	if ((op->opcode >> 25) & 1)
+	if ((opdata->op.opcode >> 25) & 1)
 		func = state->ops.cop2_ops.op;
 	else
 		func = state->ops.cop0_ops.op;
 
-	(*func)(state, op->opcode);
+	(*func)(state, opdata->op.opcode);
 }
 
 struct block * lightrec_get_block(struct lightrec_state *state, u32 pc)

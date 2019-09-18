@@ -682,9 +682,9 @@ static int rec_io(const struct block *block, struct opcode *op,
 	}
 
 	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
-	jit_movi(tmp, (uintptr_t)op);
-	jit_stxi(offsetof(struct lightrec_state, op_data.op),
-		 LIGHTREC_REG_STATE, tmp);
+	jit_movi(tmp, op->opcode);
+	jit_stxi_i(offsetof(struct lightrec_state, op_data.op),
+		   LIGHTREC_REG_STATE, tmp);
 
 	jit_note(__FILE__, __LINE__);
 
@@ -1008,9 +1008,9 @@ static int rec_mfc(const struct block *block, struct opcode *op)
 	jit_note(__FILE__, __LINE__);
 
 	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
-	jit_movi(tmp, (uintptr_t)op);
-	jit_stxi(offsetof(struct lightrec_state, op_data.op),
-		 LIGHTREC_REG_STATE, tmp);
+	jit_movi(tmp, op->opcode);
+	jit_stxi_i(offsetof(struct lightrec_state, op_data.op),
+		   LIGHTREC_REG_STATE, tmp);
 
 	jit_movi(tmp, (uintptr_t)block->state->mfc_wrapper->function);
 	jit_callr(tmp);
@@ -1036,9 +1036,9 @@ static int rec_mtc(const struct block *block, struct opcode *op, u32 pc)
 	jit_note(__FILE__, __LINE__);
 
 	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
-	jit_movi(tmp, (uintptr_t)op);
-	jit_stxi(offsetof(struct lightrec_state, op_data.op),
-		 LIGHTREC_REG_STATE, tmp);
+	jit_movi(tmp, op->opcode);
+	jit_stxi_i(offsetof(struct lightrec_state, op_data.op),
+		   LIGHTREC_REG_STATE, tmp);
 
 	rt = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rt);
 	jit_stxi_i(offsetof(struct lightrec_state, op_data.data),
@@ -1138,9 +1138,9 @@ static int rec_CP(const struct block *block, struct opcode *op, u32 pc)
 	jit_note(__FILE__, __LINE__);
 
 	tmp = lightrec_alloc_reg_temp(state->reg_cache, _jit);
-	jit_movi(tmp, (uintptr_t)op);
-	jit_stxi(offsetof(struct lightrec_state, op_data.op),
-		 LIGHTREC_REG_STATE, tmp);
+	jit_movi(tmp, op->opcode);
+	jit_stxi_i(offsetof(struct lightrec_state, op_data.op),
+		   LIGHTREC_REG_STATE, tmp);
 
 	jit_movi(tmp, (uintptr_t)state->cp_wrapper->function);
 	jit_callr(tmp);
