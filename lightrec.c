@@ -19,6 +19,7 @@
 #include "emitter.h"
 #include "interpreter.h"
 #include "lightrec.h"
+#include "memmanager.h"
 #include "recompiler.h"
 #include "regcache.h"
 #include "optimizer.h"
@@ -736,9 +737,12 @@ struct lightrec_state * lightrec_init(char *argv0,
 
 	lut_size = map[PSX_MAP_KERNEL_USER_RAM].length >> 2;
 
-	state = calloc(1, sizeof(*state) + sizeof(*state->code_lut) * lut_size);
+	state = lightrec_calloc(MEM_FOR_LIGHTREC, sizeof(*state) +
+				sizeof(*state->code_lut) * lut_size);
 	if (!state)
 		goto err_finish_jit;
+
+	state->lut_size = lut_size;
 
 	state->block_cache = lightrec_blockcache_init();
 	if (!state->block_cache)
@@ -818,7 +822,8 @@ err_free_reg_cache:
 err_free_block_cache:
 	lightrec_free_block_cache(state->block_cache);
 err_free_state:
-	free(state);
+	lightrec_free(MEM_FOR_LIGHTREC, sizeof(*state) +
+		      sizeof(*state->code_lut) * state->lut_size, state);
 err_finish_jit:
 	finish_jit();
 	return NULL;
@@ -841,7 +846,8 @@ void lightrec_destroy(struct lightrec_state *state)
 	lightrec_free_block(state->cp_wrapper);
 	finish_jit();
 
-	free(state);
+	lightrec_free(MEM_FOR_LIGHTREC, sizeof(*state) +
+		      sizeof(*state->code_lut) * state->lut_size, state);
 }
 
 void lightrec_invalidate(struct lightrec_state *state, u32 addr, u32 len)

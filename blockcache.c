@@ -15,6 +15,7 @@
 #include "blockcache.h"
 #include "debug.h"
 #include "lightrec-private.h"
+#include "memmanager.h"
 
 #include <stdbool.h>
 #include <stdlib.h>
@@ -108,12 +109,12 @@ void lightrec_free_block_cache(struct blockcache *cache)
 		}
 	}
 
-	free(cache);
+	lightrec_free(MEM_FOR_LIGHTREC, sizeof(*cache), cache);
 }
 
 struct blockcache * lightrec_blockcache_init(void)
 {
-	return calloc(1, sizeof(struct blockcache));
+	return lightrec_calloc(MEM_FOR_LIGHTREC, sizeof(struct blockcache));
 }
 
 bool lightrec_block_is_outdated(struct block *block)

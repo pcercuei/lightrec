@@ -15,6 +15,7 @@
 #include "debug.h"
 #include "interpreter.h"
 #include "lightrec-private.h"
+#include "memmanager.h"
 
 #include <errno.h>
 #include <stdatomic.h>
@@ -58,7 +59,7 @@ static void lightrec_compile_list(struct recompiler *rec)
 		mtx_lock(&rec->mutex);
 
 		SLIST_REMOVE(&rec->list, next, block_rec, next);
-		free(next);
+		lightrec_free(MEM_FOR_LIGHTREC, sizeof(*next), next);
 		cnd_signal(&rec->cond);
 	}
 
@@ -91,7 +92,7 @@ struct recompiler *lightrec_recompiler_init(void)
 	struct recompiler *rec;
 	int ret;
 
-	rec = malloc(sizeof(*rec));
+	rec = lightrec_malloc(MEM_FOR_LIGHTREC, sizeof(*rec));
 	if (!rec) {
 		ERROR("Cannot create recompiler: Out of memory\n");
 		return NULL;
@@ -126,7 +127,7 @@ err_mtx_destroy:
 err_cnd_destroy:
 	cnd_destroy(&rec->cond);
 err_free_rec:
-	free(rec);
+	lightrec_free(MEM_FOR_LIGHTREC, sizeof(*rec), rec);
 	return NULL;
 }
 
@@ -142,7 +143,7 @@ void lightrec_free_recompiler(struct recompiler *rec)
 
 	mtx_destroy(&rec->mutex);
 	cnd_destroy(&rec->cond);
-	free(rec);
+	lightrec_free(MEM_FOR_LIGHTREC, sizeof(*rec), rec);
 }
 
 int lightrec_recompiler_add(struct recompiler *rec, struct block *block)
@@ -165,7 +166,7 @@ int lightrec_recompiler_add(struct recompiler *rec, struct block *block)
 		return 0;
 	}
 
-	block_rec = malloc(sizeof(*block_rec));
+	block_rec = lightrec_malloc(MEM_FOR_LIGHTREC, sizeof(*block_rec));
 	if (!block_rec) {
 		mtx_unlock(&rec->mutex);
 		return -ENOMEM;
@@ -202,7 +203,8 @@ void lightrec_recompiler_remove(struct recompiler *rec, struct block *block)
 				 * from the list */
 				SLIST_REMOVE(&rec->list, block_rec,
 					     block_rec, next);
-				free(block_rec);
+				lightrec_free(MEM_FOR_LIGHTREC,
+					      sizeof(*block_rec), block_rec);
 			}
 
 			break;

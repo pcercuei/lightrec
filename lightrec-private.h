@@ -100,6 +100,7 @@ struct lightrec_state {
 	const struct lightrec_mem_map *maps;
 	uintptr_t offset_ram, offset_bios, offset_scratch;
 	_Bool mirrors_mapped;
+	unsigned int lut_size;
 	void *code_lut[];
 };
 

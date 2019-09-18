@@ -13,6 +13,7 @@
  */
 
 #include "debug.h"
+#include "memmanager.h"
 #include "regcache.h"
 
 #include <lightning.h>
@@ -312,7 +313,8 @@ void lightrec_clean_reg(struct regcache *cache, jit_state_t *_jit, u8 jit_reg)
 
 struct native_register * lightrec_regcache_enter_branch(struct regcache *cache)
 {
-	struct native_register *backup = malloc(sizeof(cache->lightrec_regs));
+	struct native_register *backup = lightrec_malloc(MEM_FOR_LIGHTREC,
+							 sizeof(cache->lightrec_regs));
 
 	memcpy(backup, &cache->lightrec_regs, sizeof(cache->lightrec_regs));
 
@@ -323,7 +325,7 @@ void lightrec_regcache_leave_branch(struct regcache *cache,
 			struct native_register *regs)
 {
 	memcpy(&cache->lightrec_regs, regs, sizeof(cache->lightrec_regs));
-	free(regs);
+	lightrec_free(MEM_FOR_LIGHTREC, sizeof(cache->lightrec_regs), regs);
 }
 
 void lightrec_regcache_reset(struct regcache *cache)
@@ -333,12 +335,12 @@ void lightrec_regcache_reset(struct regcache *cache)
 
 struct regcache * lightrec_regcache_init(void)
 {
-	return calloc(1, sizeof(struct regcache));
+	return lightrec_calloc(MEM_FOR_LIGHTREC, sizeof(struct regcache));
 }
 
 void lightrec_free_regcache(struct regcache *cache)
 {
-	free(cache);
+	return lightrec_free(MEM_FOR_LIGHTREC, sizeof(*cache), cache);
 }
 
 void lightrec_regcache_mark_live(struct regcache *cache, jit_state_t *_jit)
