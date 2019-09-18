@@ -352,7 +352,13 @@ static void int_ctc(struct interpreter *inter)
 
 	lightrec_mtc(state, op, state->native_reg_cache[op->r.rt]);
 
-	JUMP_NEXT(inter);
+	/* If we have a MTC0 or CTC0 to CP0 register 12 (Status) or 13 (Cause),
+	 * return early so that the emulator will be able to check software
+	 * interrupt status. */
+	if (op->i.op == OP_CP0 && (op->r.rd == 12 || op->r.rd == 13))
+		inter->pc += 4;
+	else
+		JUMP_NEXT(inter);
 }
 
 static void int_cp0_RFE(struct interpreter *inter)
