@@ -49,27 +49,27 @@ static u32 lightrec_rw_ops(struct lightrec_state *state,
 {
 	switch (op->i.op) {
 	case OP_SB:
-		ops->sb(state, op, addr, (u8) data);
+		ops->sb(state, addr, (u8) data);
 		return 0;
 	case OP_SH:
-		ops->sh(state, op, addr, (u16) data);
+		ops->sh(state, addr, (u16) data);
 		return 0;
 	case OP_SWL:
 	case OP_SWR:
 	case OP_SW:
-		ops->sw(state, op, addr, data);
+		ops->sw(state, addr, data);
 		return 0;
 	case OP_LB:
-		return (s32) (s8) ops->lb(state, op, addr);
+		return (s32) (s8) ops->lb(state, addr);
 	case OP_LBU:
-		return ops->lb(state, op, addr);
+		return ops->lb(state, addr);
 	case OP_LH:
-		return (s32) (s16) ops->lh(state, op, addr);
+		return (s32) (s16) ops->lh(state, addr);
 	case OP_LHU:
-		return ops->lh(state, op, addr);
+		return ops->lh(state, addr);
 	case OP_LW:
 	default:
-		return ops->lw(state, op, addr);
+		return ops->lw(state, addr);
 	}
 }
 
