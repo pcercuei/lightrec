@@ -28,6 +28,7 @@ list(APPEND LIGHTREC_SOURCES
 	emitter.c
 	interpreter.c
 	lightrec.c
+	memmanager.c
 	optimizer.c
 	regcache.c
 )
@@ -39,6 +40,7 @@ list(APPEND LIGHTREC_HEADERS
 	interpreter.h
 	lightrec-private.h
 	lightrec.h
+	memmanager.h
 	optimizer.h
 	recompiler.h
 	regcache.h

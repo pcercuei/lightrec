@@ -66,6 +66,10 @@ enum psx_map {
 	PSX_MAP_MIRROR3,
 };
 
+enum mem_type {
+	MEM_TYPE_END,
+};
+
 struct lightrec_mem_map_ops {
 	void (*sb)(struct lightrec_state *, u32 addr, u8 data);
 	void (*sh)(struct lightrec_state *, u32 addr, u16 data);
@@ -122,6 +126,9 @@ __api u32 lightrec_current_cycle_count(const struct lightrec_state *state);
 __api void lightrec_reset_cycle_count(struct lightrec_state *state, u32 cycles);
 __api void lightrec_set_target_cycle_count(struct lightrec_state *state,
 					   u32 cycles);
+
+__api unsigned int lightrec_get_mem_usage(enum mem_type type);
+__api unsigned int lightrec_get_total_mem_usage(void);
 
 #ifdef __cplusplus
 };
