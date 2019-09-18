@@ -17,9 +17,6 @@
 
 #include "lightrec.h"
 
-#define __weak __attribute__((weak))
-#define __packed __attribute__((packed))
-
 #define ARRAY_SIZE(x) (sizeof(x) ? sizeof(x) / sizeof((x)[0]) : 0)
 #define BIT(x) (1 << (x))
 

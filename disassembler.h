@@ -16,12 +16,16 @@
 #define __DISASSEMBLER_H__
 
 #include "debug.h"
-#include "lightrec-private.h"
+#include "lightrec.h"
 
 #include <sys/queue.h>
 
+#define __packed __attribute__((packed))
+
 #define LIGHTREC_SKIP_PC_UPDATE	(1 << 0)
 #define LIGHTREC_DIRECT_IO	(1 << 1)
+
+struct block;
 
 enum standard_opcodes {
 	OP_SPECIAL		= 0x00,

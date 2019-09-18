@@ -23,7 +23,7 @@
 
 #include "debug.h"
 #include "disassembler.h"
-#include "lightrec.h"
+#include "lightrec-private.h"
 
 static bool is_unconditional_jump(const struct opcode *op)
 {
