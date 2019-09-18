@@ -1026,7 +1026,7 @@ static int rec_mfc(const struct block *block, struct opcode *op)
 	return 0;
 }
 
-static int rec_mtc(const struct block *block, struct opcode *op)
+static int rec_mtc(const struct block *block, struct opcode *op, u32 pc)
 {
 	struct lightrec_state *state = block->state;
 	struct regcache *reg_cache = state->reg_cache;
@@ -1051,7 +1051,10 @@ static int rec_mtc(const struct block *block, struct opcode *op)
 
 	lightrec_regcache_mark_live(reg_cache, _jit);
 
-	return 0;
+	if (op->i.op != OP_CP0 || (op->r.rd != 12 && op->r.rd != 13))
+		return 0;
+
+	return lightrec_emit_end_of_block(block, pc, -1, pc + 4, 0, 0, NULL);
 }
 
 static int rec_cp0_MFC0(const struct block *block, struct opcode *op, u32 pc)
@@ -1069,13 +1072,13 @@ static int rec_cp0_CFC0(const struct block *block, struct opcode *op, u32 pc)
 static int rec_cp0_MTC0(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_mtc(block, op);
+	return rec_mtc(block, op, pc);
 }
 
 static int rec_cp0_CTC0(const struct block *block, struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_mtc(block, op);
+	return rec_mtc(block, op, pc);
 }
 
 static int rec_cp2_basic_MFC2(const struct block *block,
@@ -1096,14 +1099,14 @@ static int rec_cp2_basic_MTC2(const struct block *block,
 		struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_mtc(block, op);
+	return rec_mtc(block, op, pc);
 }
 
 static int rec_cp2_basic_CTC2(const struct block *block,
 		struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	return rec_mtc(block, op);
+	return rec_mtc(block, op, pc);
 }
 
 static int rec_cp0_RFE(const struct block *block, struct opcode *op, u32 pc)
