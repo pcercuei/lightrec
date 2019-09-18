@@ -358,6 +358,7 @@ static struct block * generate_wrapper(struct lightrec_state *state,
 	jit_state_t *_jit;
 	unsigned int i;
 	int stack_ptr;
+	jit_word_t code_size;
 
 	block = lightrec_malloc(MEM_FOR_IR, sizeof(*block));
 	if (!block)
@@ -394,6 +395,11 @@ static struct block * generate_wrapper(struct lightrec_state *state,
 	block->opcode_list = NULL;
 	block->flags = 0;
 
+	jit_get_code(&code_size);
+	lightrec_register(MEM_FOR_CODE, code_size);
+
+	block->code_size = code_size;
+
 	if (ENABLE_DISASSEMBLER) {
 		DEBUG("Wrapper block:\n");
 		jit_disassemble();
@@ -416,6 +422,7 @@ static struct block * generate_wrapper_block(struct lightrec_state *state)
 	jit_node_t *to_end, *to_end2, *to_c, *loop, *addr, *addr2;
 	unsigned int i;
 	u32 offset, ram_len;
+	jit_word_t code_size;
 
 	block = lightrec_malloc(MEM_FOR_IR, sizeof(*block));
 	if (!block)
@@ -518,6 +525,11 @@ static struct block * generate_wrapper_block(struct lightrec_state *state)
 	block->opcode_list = NULL;
 	block->flags = 0;
 
+	jit_get_code(&code_size);
+	lightrec_register(MEM_FOR_CODE, code_size);
+
+	block->code_size = code_size;
+
 	state->eob_wrapper_func = jit_address(addr2);
 	state->get_next_block = jit_address(addr);
 
@@ -595,6 +607,7 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 	block->map = map;
 	block->next.sle_next = NULL;
 	block->flags = 0;
+	block->code_size = 0;
 #if ENABLE_THREADED_COMPILER
 	block->op_list_freed = (atomic_flag)ATOMIC_FLAG_INIT;
 #endif
@@ -615,6 +628,7 @@ int lightrec_compile_block(struct block *block)
 	struct opcode *elm;
 	jit_state_t *_jit;
 	bool skip_next = false;
+	jit_word_t code_size;
 	u32 pc = block->pc;
 	int ret;
 
@@ -651,6 +665,11 @@ int lightrec_compile_block(struct block *block)
 	/* Add compiled function to the LUT */
 	if (block->map == &block->state->maps[PSX_MAP_KERNEL_USER_RAM])
 		block->state->code_lut[block->kunseg_pc >> 2] = block->function;
+
+	jit_get_code(&code_size);
+	lightrec_register(MEM_FOR_CODE, code_size);
+
+	block->code_size = code_size;
 
 	if (ENABLE_DISASSEMBLER) {
 		DEBUG("Compiling block at PC: 0x%x\n", block->pc);
@@ -712,6 +731,7 @@ void lightrec_free_block(struct block *block)
 		lightrec_free_opcode_list(block->opcode_list);
 	if (block->_jit)
 		_jit_destroy_state(block->_jit);
+	lightrec_unregister(MEM_FOR_CODE, block->code_size);
 	lightrec_free(MEM_FOR_IR, sizeof(*block), block);
 }
 

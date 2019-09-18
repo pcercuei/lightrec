@@ -69,6 +69,7 @@ struct block {
 #endif
 	u32 flags;
 	unsigned int cycles;
+	unsigned int code_size;
 	const struct lightrec_mem_map *map;
 	struct {
 		struct block *sle_next;
