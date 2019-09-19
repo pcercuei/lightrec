@@ -156,6 +156,13 @@ int lightrec_recompiler_add(struct recompiler *rec, struct block *block)
 		}
 	}
 
+	/* By the time this function was called, the block has been recompiled
+	 * and ins't in the wait list anymore. Just return here. */
+	if (block->function) {
+		mtx_unlock(&rec->mutex);
+		return 0;
+	}
+
 	block_rec = malloc(sizeof(*block_rec));
 	if (!block_rec) {
 		mtx_unlock(&rec->mutex);
