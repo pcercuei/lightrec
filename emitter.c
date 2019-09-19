@@ -895,8 +895,7 @@ static int rec_load_direct(const struct block *block, const struct opcode *op,
 		if (state->offset_ram)
 			jit_movi(tmp, state->offset_ram);
 	} else {
-		jit_andi(tmp, addr_reg, BIT(28));
-		to_not_ram = jit_bnei(tmp, 0);
+		to_not_ram = jit_bmsi(addr_reg, BIT(28));
 
 		/* Convert to KUNSEG and avoid RAM mirrors */
 		jit_andi(rt, addr_reg, 0x1fffff);
@@ -908,11 +907,8 @@ static int rec_load_direct(const struct block *block, const struct opcode *op,
 
 		jit_patch(to_not_ram);
 
-		if (state->offset_bios != state->offset_scratch) {
-			jit_rshi(tmp, tmp, 28 - 22);
-			jit_andr(tmp, addr_reg, tmp);
-			to_not_bios = jit_beqi(tmp, 0);
-		}
+		if (state->offset_bios != state->offset_scratch)
+			to_not_bios = jit_bmci(addr_reg, BIT(22));
 
 		/* Convert to KUNSEG */
 		jit_andi(rt, addr_reg, 0x1fc7ffff);
