@@ -115,6 +115,8 @@ static inline u32 kunseg(u32 addr)
 void lightrec_mtc(struct lightrec_state *state, union code op, u32 data);
 u32 lightrec_mfc(struct lightrec_state *state, union code op);
 
+union code lightrec_read_opcode(struct lightrec_state *state, u32 pc);
+
 struct block * lightrec_get_block(struct lightrec_state *state, u32 pc);
 int lightrec_compile_block(struct block *block);
 

@@ -172,6 +172,7 @@ union code {
 };
 
 struct opcode {
+	/* Keep this union at the first position */
 	union {
 		union code c;
 
@@ -186,6 +187,8 @@ struct opcode {
 };
 
 SLIST_HEAD(opcode_list_head, opcode);
+
+#define code_to_opcode(code) ((struct opcode *)&(code))
 
 struct opcode * lightrec_disassemble(const u32 *src, unsigned int *len);
 void lightrec_free_opcode_list(struct opcode *list);

@@ -527,6 +527,22 @@ err_no_mem:
 	return NULL;
 }
 
+union code lightrec_read_opcode(struct lightrec_state *state, u32 pc)
+{
+	u32 addr, kunseg_pc = kunseg(pc);
+	const u32 *code;
+	const struct lightrec_mem_map *map = lightrec_get_map(state, kunseg_pc);
+
+	addr = kunseg_pc - map->pc;
+
+	while (map->mirror_of)
+		map = map->mirror_of;
+
+	code = map->address + addr;
+
+	return (union code) *code;
+}
+
 static struct block * lightrec_precompile_block(struct lightrec_state *state,
 						u32 pc)
 {

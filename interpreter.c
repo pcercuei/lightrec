@@ -110,13 +110,14 @@ static bool load_in_delay_slot(const struct opcode *op)
 static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 {
 	u32 *reg_cache = inter->state->native_reg_cache;
-	struct opcode *op_next, *op = SLIST_NEXT(inter->op, next);
+	struct opcode *op = SLIST_NEXT(inter->op, next);
+	union code op_next;
 	struct interpreter inter2 = {
 		.state = inter->state,
 		.cycles = inter->cycles,
 		.delay_slot = true,
+		.block = NULL,
 	};
-	struct block *block;
 	bool run_first_op = false, dummy_ld = false, save_rs = false,
 	     load_in_ds;
 	u32 old_rs, new_rs, new_rt;
@@ -131,13 +132,11 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 
 	if (branch) {
 		if (load_in_ds) {
-			block = lightrec_get_block(inter->state, pc);
-			op_next = block->opcode_list;
+			op_next = lightrec_read_opcode(inter->state, pc);
 
 			/* Verify that the next block actually reads the
 			 * destination register of the delay slot opcode. */
-			run_first_op = opcode_reads_register(op_next->c,
-							     op->r.rt);
+			run_first_op = opcode_reads_register(op_next, op->r.rt);
 		}
 
 		if (load_in_ds && run_first_op) {
@@ -149,7 +148,7 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 			 * then restore the new value after the delay slot
 			 * opcode has been executed. */
 			save_rs = opcode_reads_register(op->c, op->r.rs) &&
-				opcode_writes_register(op_next->c, op->r.rs);
+				opcode_writes_register(op_next, op->r.rs);
 			if (save_rs)
 				old_rs = reg_cache[op->r.rs];
 
@@ -157,10 +156,9 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 			 * delay slot opcode write to the same register, the
 			 * value written by the delay slot opcode is
 			 * discarded. */
-			dummy_ld = opcode_writes_register(op_next->c, op->r.rt);
+			dummy_ld = opcode_writes_register(op_next, op->r.rt);
 
-			inter2.block = block;
-			inter2.op = op_next;
+			inter2.op = code_to_opcode(op_next);
 			inter2.pc = pc;
 
 			/* Execute the first opcode of the next block */
