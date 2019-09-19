@@ -807,6 +807,11 @@ struct lightrec_state * lightrec_init(char *argv0,
 	if (!state->cp_wrapper)
 		goto err_free_rfe_wrapper;
 
+	state->rw_func = state->rw_wrapper->function;
+	state->mfc_func = state->mfc_wrapper->function;
+	state->mtc_func = state->mtc_wrapper->function;
+	state->rfe_func = state->rfe_wrapper->function;
+	state->cp_func = state->cp_wrapper->function;
 
 	map = &state->maps[PSX_MAP_BIOS];
 	state->offset_bios = (uintptr_t)map->address - map->pc;

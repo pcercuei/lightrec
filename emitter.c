@@ -701,7 +701,7 @@ static int rec_io(const struct block *block, const struct opcode *op,
 {
 	struct regcache *reg_cache = block->state->reg_cache;
 	jit_state_t *_jit = block->_jit;
-	u8 rt, rs, tmp;
+	u8 rt, rs, tmp, tmp2;
 
 	jit_note(__FILE__, __LINE__);
 
@@ -718,15 +718,19 @@ static int rec_io(const struct block *block, const struct opcode *op,
 	}
 
 	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
+	tmp2 = lightrec_alloc_reg_temp(reg_cache, _jit);
+	jit_ldxi(tmp2, LIGHTREC_REG_STATE,
+		 offsetof(struct lightrec_state, rw_func));
+
 	jit_movi(tmp, op->opcode);
 	jit_stxi_i(offsetof(struct lightrec_state, op_data.op),
 		   LIGHTREC_REG_STATE, tmp);
 
 	jit_note(__FILE__, __LINE__);
 
-	jit_movi(tmp, (uintptr_t)block->state->rw_wrapper->function);
-	jit_callr(tmp);
+	jit_callr(tmp2);
 	lightrec_free_reg(reg_cache, tmp);
+	lightrec_free_reg(reg_cache, tmp2);
 
 	lightrec_regcache_mark_live(reg_cache, _jit);
 
@@ -1032,7 +1036,7 @@ static int rec_special_BREAK(const struct block *block,
 
 static int rec_mfc(const struct block *block, const struct opcode *op)
 {
-	u8 rt, tmp;
+	u8 rt, tmp, tmp2;
 	struct lightrec_state *state = block->state;
 	struct regcache *reg_cache = state->reg_cache;
 	jit_state_t *_jit = block->_jit;
@@ -1040,13 +1044,18 @@ static int rec_mfc(const struct block *block, const struct opcode *op)
 	jit_note(__FILE__, __LINE__);
 
 	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
+	tmp2 = lightrec_alloc_reg_temp(reg_cache, _jit);
+
+	jit_ldxi(tmp2, LIGHTREC_REG_STATE,
+		 offsetof(struct lightrec_state, mfc_func));
+
 	jit_movi(tmp, op->opcode);
 	jit_stxi_i(offsetof(struct lightrec_state, op_data.op),
 		   LIGHTREC_REG_STATE, tmp);
 
-	jit_movi(tmp, (uintptr_t)block->state->mfc_wrapper->function);
-	jit_callr(tmp);
+	jit_callr(tmp2);
 	lightrec_free_reg(reg_cache, tmp);
+	lightrec_free_reg(reg_cache, tmp2);
 
 	lightrec_regcache_mark_live(reg_cache, _jit);
 
@@ -1063,23 +1072,28 @@ static int rec_mtc(const struct block *block, const struct opcode *op, u32 pc)
 	struct lightrec_state *state = block->state;
 	struct regcache *reg_cache = state->reg_cache;
 	jit_state_t *_jit = block->_jit;
-	u8 rt, tmp;
+	u8 rt, tmp, tmp2;
 
 	jit_note(__FILE__, __LINE__);
 
 	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
+	tmp2 = lightrec_alloc_reg_temp(reg_cache, _jit);
+	rt = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rt);
+
+	jit_ldxi(tmp2, LIGHTREC_REG_STATE,
+		 offsetof(struct lightrec_state, mtc_func));
+
 	jit_movi(tmp, op->opcode);
 	jit_stxi_i(offsetof(struct lightrec_state, op_data.op),
 		   LIGHTREC_REG_STATE, tmp);
 
-	rt = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rt);
 	jit_stxi_i(offsetof(struct lightrec_state, op_data.data),
 		   LIGHTREC_REG_STATE, rt);
 	lightrec_free_reg(reg_cache, rt);
 
-	jit_movi(tmp, (uintptr_t)block->state->mtc_wrapper->function);
-	jit_callr(tmp);
+	jit_callr(tmp2);
 	lightrec_free_reg(reg_cache, tmp);
+	lightrec_free_reg(reg_cache, tmp2);
 
 	lightrec_regcache_mark_live(reg_cache, _jit);
 
@@ -1156,7 +1170,8 @@ static int rec_cp0_RFE(const struct block *block,
 	jit_note(__FILE__, __LINE__);
 
 	tmp = lightrec_alloc_reg_temp(state->reg_cache, _jit);
-	jit_movi(tmp, (uintptr_t)state->rfe_wrapper->function);
+	jit_ldxi(tmp, LIGHTREC_REG_STATE,
+		 offsetof(struct lightrec_state, rfe_func));
 	jit_callr(tmp);
 	lightrec_free_reg(state->reg_cache, tmp);
 
@@ -1169,19 +1184,24 @@ static int rec_CP(const struct block *block, const struct opcode *op, u32 pc)
 {
 	struct lightrec_state *state = block->state;
 	jit_state_t *_jit = block->_jit;
-	u8 tmp;
+	u8 tmp, tmp2;
 
 	jit_name(__func__);
 	jit_note(__FILE__, __LINE__);
 
 	tmp = lightrec_alloc_reg_temp(state->reg_cache, _jit);
+	tmp2 = lightrec_alloc_reg_temp(state->reg_cache, _jit);
+
+	jit_ldxi(tmp2, LIGHTREC_REG_STATE,
+		 offsetof(struct lightrec_state, cp_func));
+
 	jit_movi(tmp, op->opcode);
 	jit_stxi_i(offsetof(struct lightrec_state, op_data.op),
 		   LIGHTREC_REG_STATE, tmp);
 
-	jit_movi(tmp, (uintptr_t)state->cp_wrapper->function);
-	jit_callr(tmp);
+	jit_callr(tmp2);
 	lightrec_free_reg(state->reg_cache, tmp);
+	lightrec_free_reg(state->reg_cache, tmp2);
 
 	lightrec_regcache_mark_live(state->reg_cache, _jit);
 

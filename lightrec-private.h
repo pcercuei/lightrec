@@ -91,6 +91,7 @@ struct lightrec_state {
 	struct lightrec_op_data op_data;
 	struct block *wrapper, *rw_wrapper, *mfc_wrapper, *mtc_wrapper,
 		     *rfe_wrapper, *cp_wrapper;
+	void *rw_func, *mfc_func, *mtc_func, *rfe_func, *cp_func;
 	struct blockcache *block_cache;
 	struct regcache *reg_cache;
 	struct recompiler *rec;
