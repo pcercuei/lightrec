@@ -136,7 +136,8 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 
 			/* Verify that the next block actually reads the
 			 * destination register of the delay slot opcode. */
-			run_first_op = opcode_reads_register(op_next, op->r.rt);
+			run_first_op = opcode_reads_register(op_next->c,
+							     op->r.rt);
 		}
 
 		if (load_in_ds && run_first_op) {
@@ -147,8 +148,8 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 			 * reset to the old value after it has been executed,
 			 * then restore the new value after the delay slot
 			 * opcode has been executed. */
-			save_rs = opcode_reads_register(op, op->r.rs) &&
-				  opcode_writes_register(op_next, op->r.rs);
+			save_rs = opcode_reads_register(op->c, op->r.rs) &&
+				opcode_writes_register(op_next->c, op->r.rs);
 			if (save_rs)
 				old_rs = reg_cache[op->r.rs];
 
@@ -156,7 +157,7 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 			 * delay slot opcode write to the same register, the
 			 * value written by the delay slot opcode is
 			 * discarded. */
-			dummy_ld = opcode_writes_register(op_next, op->r.rt);
+			dummy_ld = opcode_writes_register(op_next->c, op->r.rt);
 
 			inter2.block = block;
 			inter2.op = op_next;

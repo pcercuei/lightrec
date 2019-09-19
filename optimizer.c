@@ -26,11 +26,11 @@ struct optimizer_list {
 	unsigned int nb_optimizers;
 };
 
-bool opcode_reads_register(const struct opcode *op, u8 reg)
+bool opcode_reads_register(union code op, u8 reg)
 {
-	switch (op->i.op) {
+	switch (op.i.op) {
 	case OP_SPECIAL:
-		switch (op->r.op) {
+		switch (op.r.op) {
 		case OP_SPECIAL_SYSCALL:
 		case OP_SPECIAL_BREAK:
 			return false;
@@ -38,7 +38,7 @@ bool opcode_reads_register(const struct opcode *op, u8 reg)
 		case OP_SPECIAL_JALR:
 		case OP_SPECIAL_MTHI:
 		case OP_SPECIAL_MTLO:
-			return op->r.rs == reg;
+			return op.r.rs == reg;
 		case OP_SPECIAL_MFHI:
 			return reg == REG_HI;
 		case OP_SPECIAL_MFLO:
@@ -46,24 +46,24 @@ bool opcode_reads_register(const struct opcode *op, u8 reg)
 		case OP_SPECIAL_SLL:
 		case OP_SPECIAL_SRL:
 		case OP_SPECIAL_SRA:
-			return op->r.rt == reg;
+			return op.r.rt == reg;
 		default:
-			return op->r.rs == reg || op->r.rt == reg;
+			return op.r.rs == reg || op.r.rt == reg;
 		}
 	case OP_CP0:
-		switch (op->r.rs) {
+		switch (op.r.rs) {
 		case OP_CP0_MTC0:
 		case OP_CP0_CTC0:
-			return op->r.rt == reg;
+			return op.r.rt == reg;
 		default:
 			return false;
 		}
 	case OP_CP2:
-		if (op->r.op == OP_CP2_BASIC) {
-			switch (op->r.rs) {
+		if (op.r.op == OP_CP2_BASIC) {
+			switch (op.r.rs) {
 			case OP_CP2_BASIC_MTC2:
 			case OP_CP2_BASIC_CTC2:
-				return op->r.rt == reg;
+				return op.r.rt == reg;
 			default:
 				return false;
 			}
@@ -83,17 +83,17 @@ bool opcode_reads_register(const struct opcode *op, u8 reg)
 	case OP_SWL:
 	case OP_SW:
 	case OP_SWR:
-		return op->i.rs == reg || op->i.rt == reg;
+		return op.i.rs == reg || op.i.rt == reg;
 	default:
-		return op->i.rs == reg;
+		return op.i.rs == reg;
 	}
 }
 
-bool opcode_writes_register(const struct opcode *op, u8 reg)
+bool opcode_writes_register(union code op, u8 reg)
 {
-	switch (op->i.op) {
+	switch (op.i.op) {
 	case OP_SPECIAL:
-		switch (op->r.op) {
+		switch (op.r.op) {
 		case OP_SPECIAL_JR:
 		case OP_SPECIAL_JALR:
 		case OP_SPECIAL_SYSCALL:
@@ -109,7 +109,7 @@ bool opcode_writes_register(const struct opcode *op, u8 reg)
 		case OP_SPECIAL_MTLO:
 			return reg == REG_LO;
 		default:
-			return op->r.rd == reg;
+			return op.r.rd == reg;
 		}
 	case OP_ADDI:
 	case OP_ADDIU:
@@ -126,12 +126,12 @@ bool opcode_writes_register(const struct opcode *op, u8 reg)
 	case OP_LBU:
 	case OP_LHU:
 	case OP_LWR:
-		return op->i.rt == reg;
+		return op.i.rt == reg;
 	case OP_CP0:
-		switch (op->r.rs) {
+		switch (op.r.rs) {
 		case OP_CP0_MFC0:
 		case OP_CP0_CFC0:
-			return op->i.rt == reg;
+			return op.i.rt == reg;
 		default:
 			return false;
 		}
@@ -141,12 +141,12 @@ bool opcode_writes_register(const struct opcode *op, u8 reg)
 }
 
 /* TODO: Complete */
-static bool is_nop(struct opcode *op)
+static bool is_nop(union code op)
 {
 	if (opcode_writes_register(op, 0)) {
-		switch (op->i.op) {
+		switch (op.i.op) {
 		case OP_CP0:
-			return op->r.rs != OP_CP0_MFC0;
+			return op.r.rs != OP_CP0_MFC0;
 		case OP_LB:
 		case OP_LH:
 		case OP_LWL:
@@ -160,42 +160,42 @@ static bool is_nop(struct opcode *op)
 		}
 	}
 
-	switch (op->i.op) {
+	switch (op.i.op) {
 	case OP_SPECIAL:
-		switch (op->r.op) {
+		switch (op.r.op) {
 		case OP_SPECIAL_AND:
-			return op->r.rd == op->r.rt && op->r.rd == op->r.rs;
+			return op.r.rd == op.r.rt && op.r.rd == op.r.rs;
 		case OP_SPECIAL_ADD:
 		case OP_SPECIAL_ADDU:
-			return (op->r.rd == op->r.rt && op->r.rs == 0) ||
-				(op->r.rd == op->r.rs && op->r.rt == 0);
+			return (op.r.rd == op.r.rt && op.r.rs == 0) ||
+				(op.r.rd == op.r.rs && op.r.rt == 0);
 		case OP_SPECIAL_SUB:
 		case OP_SPECIAL_SUBU:
-			return op->r.rd == op->r.rs && op->r.rt == 0;
+			return op.r.rd == op.r.rs && op.r.rt == 0;
 		case OP_SPECIAL_OR:
-			if (op->r.rd == op->r.rt)
-				return op->r.rd == op->r.rs || op->r.rs == 0;
+			if (op.r.rd == op.r.rt)
+				return op.r.rd == op.r.rs || op.r.rs == 0;
 			else
-				return (op->r.rd == op->r.rs) && op->r.rt == 0;
+				return (op.r.rd == op.r.rs) && op.r.rt == 0;
 		case OP_SPECIAL_SLL:
 		case OP_SPECIAL_SRA:
 		case OP_SPECIAL_SRL:
-			return op->r.imm == 0;
+			return op.r.imm == 0;
 		default:
 			return false;
 		}
 	case OP_ORI:
 	case OP_ADDI:
 	case OP_ADDIU:
-		return op->i.rt == op->i.rs && op->i.imm == 0;
+		return op.i.rt == op.i.rs && op.i.imm == 0;
 	case OP_BGTZ:
-		return (op->i.rs == 0 || op->i.imm == 1);
+		return (op.i.rs == 0 || op.i.imm == 1);
 	case OP_REGIMM:
-		return (op->i.op == OP_REGIMM_BLTZ ||
-				op->i.op == OP_REGIMM_BLTZAL) &&
-			(op->i.rs == 0 || op->i.imm == 1);
+		return (op.i.op == OP_REGIMM_BLTZ ||
+				op.i.op == OP_REGIMM_BLTZAL) &&
+			(op.i.rs == 0 || op.i.imm == 1);
 	case OP_BNE:
-		return (op->i.rs == op->i.rt || op->i.imm == 1);
+		return (op.i.rs == op.i.rt || op.i.imm == 1);
 	default:
 		return false;
 	}
@@ -206,7 +206,7 @@ static int lightrec_transform_to_nops(struct opcode *list)
 	/* Transform all opcodes detected as useless to real NOPs
 	 * (0x0: SLL r0, r0, #0) */
 	for (; list; list = SLIST_NEXT(list, next)) {
-		if (list->opcode != 0 && is_nop(list)) {
+		if (list->opcode != 0 && is_nop(list->c)) {
 			DEBUG("Converting useless opcode 0x%08x to NOP\n",
 					list->opcode);
 			list->opcode = 0x0;
@@ -216,11 +216,11 @@ static int lightrec_transform_to_nops(struct opcode *list)
 	return 0;
 }
 
-static bool has_delay_slot(struct opcode *op)
+static bool has_delay_slot(union code op)
 {
-	switch (op->i.op) {
+	switch (op.i.op) {
 	case OP_SPECIAL:
-		switch (op->r.op) {
+		switch (op.r.op) {
 		case OP_SPECIAL_JR:
 		case OP_SPECIAL_JALR:
 			return true;
@@ -266,16 +266,16 @@ static int lightrec_early_unload(struct opcode *list)
 
 		for (op = list; op; last = op,
 				op = SLIST_NEXT(op, next), id++) {
-			if (has_delay_slot(op) ||
-					(last && has_delay_slot(last)))
+			if (has_delay_slot(op->c) ||
+			    (last && has_delay_slot(last->c)))
 				continue;
 
-			if (opcode_reads_register(op, i)) {
+			if (opcode_reads_register(op->c, i)) {
 				last_r = op;
 				last_r_id = id;
 			}
 
-			if (opcode_writes_register(op, i)) {
+			if (opcode_writes_register(op->c, i)) {
 				last_w = op;
 				last_w_id = id;
 			}

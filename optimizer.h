@@ -15,10 +15,10 @@
 #ifndef __OPTIMIZER_H__
 #define __OPTIMIZER_H__
 
-struct opcode;
+#include "disassembler.h"
 
-_Bool opcode_reads_register(const struct opcode *op, u8 reg);
-_Bool opcode_writes_register(const struct opcode *op, u8 reg);
+_Bool opcode_reads_register(union code op, u8 reg);
+_Bool opcode_writes_register(union code op, u8 reg);
 
 int lightrec_optimize(struct opcode *list);
 
