@@ -560,6 +560,7 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 	const u32 *code;
 	u32 addr, kunseg_pc = kunseg(pc);
 	const struct lightrec_mem_map *map = lightrec_get_map(state, kunseg_pc);
+	unsigned int length;
 
 	if (!map)
 		return NULL;
@@ -577,7 +578,7 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 		return NULL;
 	}
 
-	list = lightrec_disassemble(code, &block->length);
+	list = lightrec_disassemble(code, &length);
 	if (!list) {
 		free(block);
 		return NULL;
@@ -590,7 +591,6 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 	block->function = NULL;
 	block->opcode_list = list;
 	block->cycles = 0;
-	block->code = code;
 	block->map = map;
 	block->next.sle_next = NULL;
 	block->flags = 0;
@@ -602,7 +602,7 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 
 	if (ENABLE_DISASSEMBLER) {
 		DEBUG("Disassembled block at PC: 0x%x\n", block->pc);
-		lightrec_print_disassembly(block);
+		lightrec_print_disassembly(block, code, length);
 	}
 
 	return block;

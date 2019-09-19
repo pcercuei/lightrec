@@ -63,18 +63,16 @@ struct block {
 	struct lightrec_state *state;
 	struct opcode *opcode_list;
 	void (*function)(void);
-	const u32 *code;
 	u32 pc, kunseg_pc;
 #if ENABLE_THREADED_COMPILER
 	atomic_flag op_list_freed;
 #endif
+	u32 flags;
 	unsigned int cycles;
-	unsigned int length;
 	const struct lightrec_mem_map *map;
 	struct {
 		struct block *sle_next;
 	} next;
-	uintptr_t flags;
 };
 
 struct lightrec_op_data {
