@@ -23,4 +23,6 @@ void lightrec_free_recompiler(struct recompiler *rec);
 int lightrec_recompiler_add(struct recompiler *rec, struct block *block);
 void lightrec_recompiler_remove(struct recompiler *rec, struct block *block);
 
+void * lightrec_recompiler_run_first_pass(struct block *block, u32 *pc);
+
 #endif /* __LIGHTREC_RECOMPILER_H__ */

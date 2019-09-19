@@ -13,9 +13,11 @@
  */
 
 #include "debug.h"
+#include "interpreter.h"
 #include "lightrec-private.h"
 
 #include <errno.h>
+#include <stdatomic.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <sys/queue.h>
@@ -208,4 +210,39 @@ void lightrec_recompiler_remove(struct recompiler *rec, struct block *block)
 	}
 
 	mtx_unlock(&rec->mutex);
+}
+
+void * lightrec_recompiler_run_first_pass(struct block *block, u32 *pc)
+{
+	bool freed;
+
+	/* Mark the opcode list as freed, so that the threaded compiler won't
+	 * free it while we're using it in the interpreter. */
+	freed = atomic_flag_test_and_set(&block->op_list_freed);
+
+	if (likely(block->function)) {
+		if (!freed) {
+			/* The block was already compiled but the opcode list
+			 * didn't get freed yet - do it now */
+			lightrec_free_opcode_list(block->opcode_list);
+			block->opcode_list = NULL;
+		}
+
+		return block->function;
+	}
+
+	/* Block wasn't compiled yet - run the interpreter */
+	*pc = lightrec_emulate_block(block);
+
+	atomic_flag_clear(&block->op_list_freed);
+
+	/* The block got compiled while the interpreter was running.
+	 * We can free the opcode list now. */
+	if (block->function &&
+	    !atomic_flag_test_and_set(&block->op_list_freed)) {
+		lightrec_free_opcode_list(block->opcode_list);
+		block->opcode_list = NULL;
+	}
+
+	return NULL;
 }

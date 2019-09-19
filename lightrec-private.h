@@ -15,8 +15,13 @@
 #ifndef __LIGHTREC_PRIVATE_H__
 #define __LIGHTREC_PRIVATE_H__
 
+#include "config.h"
 #include "disassembler.h"
 #include "lightrec.h"
+
+#if ENABLE_THREADED_COMPILER
+#include <stdatomic.h>
+#endif
 
 #define ARRAY_SIZE(x) (sizeof(x) ? sizeof(x) / sizeof((x)[0]) : 0)
 #define BIT(x) (1 << (x))
@@ -60,6 +65,9 @@ struct block {
 	void (*function)(void);
 	const u32 *code;
 	u32 pc, kunseg_pc;
+#if ENABLE_THREADED_COMPILER
+	atomic_flag op_list_freed;
+#endif
 	unsigned int cycles;
 	unsigned int length;
 	const struct lightrec_mem_map *map;

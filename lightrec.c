@@ -26,6 +26,9 @@
 #include <errno.h>
 #include <lightning.h>
 #include <limits.h>
+#if ENABLE_THREADED_COMPILER
+#include <stdatomic.h>
+#endif
 #include <stdbool.h>
 #include <stddef.h>
 #include <string.h>
@@ -314,15 +317,21 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 {
 	for (;;) {
 		struct block *block = lightrec_get_block(state, pc);
+		void *func;
 
 		if (unlikely(!block))
 			return NULL;
 
-		if (likely(block->function))
-			return block->function;
+		if (ENABLE_FIRST_PASS && ENABLE_THREADED_COMPILER)
+			func = lightrec_recompiler_run_first_pass(block, &pc);
+		else
+			func = block->function;
+
+		if (likely(func))
+			return func;
 
 		/* Block wasn't compiled yet - run the interpreter */
-		if (ENABLE_FIRST_PASS)
+		if (ENABLE_FIRST_PASS && !ENABLE_THREADED_COMPILER)
 			pc = lightrec_emulate_block(block);
 
 		if (likely(!(block->flags & BLOCK_NEVER_COMPILE))) {
@@ -585,6 +594,9 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 	block->map = map;
 	block->next.sle_next = NULL;
 	block->flags = 0;
+#if ENABLE_THREADED_COMPILER
+	block->op_list_freed = (atomic_flag)ATOMIC_FLAG_INIT;
+#endif
 
 	lightrec_optimize(list);
 
@@ -598,6 +610,7 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 
 int lightrec_compile_block(struct block *block)
 {
+	bool op_list_freed = false;
 	struct opcode *elm;
 	jit_state_t *_jit;
 	bool skip_next = false;
@@ -645,6 +658,14 @@ int lightrec_compile_block(struct block *block)
 
 	jit_clear_state();
 
+#if ENABLE_THREADED_COMPILER
+	op_list_freed = atomic_flag_test_and_set(&block->op_list_freed);
+#endif
+	if (!op_list_freed) {
+		lightrec_free_opcode_list(block->opcode_list);
+		block->opcode_list = NULL;
+	}
+
 	return 0;
 }
 
@@ -686,7 +707,8 @@ u32 lightrec_run_interpreter(struct lightrec_state *state, u32 pc)
 
 void lightrec_free_block(struct block *block)
 {
-	lightrec_free_opcode_list(block->opcode_list);
+	if (block->opcode_list)
+		lightrec_free_opcode_list(block->opcode_list);
 	if (block->_jit)
 		_jit_destroy_state(block->_jit);
 	free(block);
