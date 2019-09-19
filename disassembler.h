@@ -173,6 +173,8 @@ union code {
 
 struct opcode {
 	union {
+		union code c;
+
 		/* Keep in sync with union code */
 		u32 opcode;
 		struct opcode_r r;
