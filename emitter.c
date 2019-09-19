@@ -327,8 +327,27 @@ static int rec_SLTI(const struct block *block, const struct opcode *op, u32 pc)
 
 static int rec_ANDI(const struct block *block, const struct opcode *op, u32 pc)
 {
+	struct regcache *reg_cache = block->state->reg_cache;
+	jit_state_t *_jit = block->_jit;
+	u8 rs = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rs),
+	   rt = lightrec_alloc_reg_out(reg_cache, _jit, op->i.rt);
+
 	_jit_name(block->_jit, __func__);
-	return rec_alu_imm(block, op, jit_code_andi, false);
+	jit_note(__FILE__, __LINE__);
+
+	/* PSX code uses ANDI 0xff / ANDI 0xffff a lot, which are basically
+	 * casts to uint8_t / uint16_t. */
+	if (op->i.imm == 0xff)
+		jit_extr_uc(rt, rs);
+	else if (op->i.imm == 0xffff)
+		jit_extr_us(rt, rs);
+	else
+		jit_andi(rt, rs, (u32)(u16) op->i.imm);
+
+	lightrec_free_reg(reg_cache, rs);
+	lightrec_free_reg(reg_cache, rt);
+
+	return 0;
 }
 
 static int rec_ORI(const struct block *block, const struct opcode *op, u32 pc)
