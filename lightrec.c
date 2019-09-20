@@ -629,7 +629,7 @@ int lightrec_compile_block(struct block *block)
 	jit_state_t *_jit;
 	bool skip_next = false;
 	jit_word_t code_size;
-	u32 pc = block->pc;
+	u32 next_pc;
 	int ret;
 
 	_jit = jit_new_state();
@@ -649,12 +649,10 @@ int lightrec_compile_block(struct block *block)
 		if (skip_next) {
 			skip_next = false;
 		} else if (elm->opcode) {
-			ret = lightrec_rec_opcode(block, elm, pc);
+			next_pc = block->pc + elm->offset * sizeof(u32);
+			ret = lightrec_rec_opcode(block, elm, next_pc);
 			skip_next = ret == SKIP_DELAY_SLOT;
 		}
-
-		if (likely(!(elm->flags & LIGHTREC_SKIP_PC_UPDATE)))
-			pc += 4;
 	}
 
 	jit_ret();
