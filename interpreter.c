@@ -22,12 +22,12 @@
 
 struct interpreter;
 
-static void int_CP0(struct interpreter *inter);
-static void int_CP2(struct interpreter *inter);
-static void int_SPECIAL(struct interpreter *inter);
-static void int_REGIMM(struct interpreter *inter);
+static u32 int_CP0(struct interpreter *inter);
+static u32 int_CP2(struct interpreter *inter);
+static u32 int_SPECIAL(struct interpreter *inter);
+static u32 int_REGIMM(struct interpreter *inter);
 
-typedef void (*lightrec_int_func_t)(struct interpreter *inter);
+typedef u32 (*lightrec_int_func_t)(struct interpreter *inter);
 
 static const lightrec_int_func_t int_standard[64];
 
@@ -35,15 +35,11 @@ struct interpreter {
 	struct lightrec_state *state;
 	struct block *block;
 	struct opcode *op;
-	u32 pc;
 	u32 cycles;
 	bool delay_slot;
 };
 
-#define EXECUTE(func, inter) do {					\
-	(*(func))(inter);						\
-	return;								\
-} while (0)
+#define EXECUTE(func, inter) return (*(func))(inter)
 
 #define JUMP_SKIP(inter) do {						\
 	inter->op = SLIST_NEXT(inter->op, next);			\
@@ -52,17 +48,15 @@ struct interpreter {
 
 #define JUMP_NEXT(inter) do {						\
 	inter->cycles += lightrec_cycles_of_opcode(inter->op);		\
-	if (likely(!inter->delay_slot)) {				\
-		inter->op = SLIST_NEXT(inter->op, next);		\
-		inter->pc += 4;						\
-		EXECUTE(int_standard[inter->op->i.op], inter);		\
-	}								\
+	if (unlikely(inter->delay_slot))				\
+		return 0;						\
+	inter->op = SLIST_NEXT(inter->op, next);			\
+	EXECUTE(int_standard[inter->op->i.op], inter);			\
 } while (0)
 
 #define JUMP_AFTER_BRANCH(inter) do {					\
 	inter->cycles += lightrec_cycles_of_opcode(inter->op);		\
 	inter->op = SLIST_NEXT(SLIST_NEXT(inter->op, next), next);	\
-	inter->pc += 8;							\
 	EXECUTE(int_standard[inter->op->i.op], inter);			\
 } while (0)
 
@@ -110,7 +104,7 @@ static bool load_in_delay_slot(const struct opcode *op)
 static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 {
 	u32 *reg_cache = inter->state->native_reg_cache;
-	struct opcode *op = SLIST_NEXT(inter->op, next);
+	struct opcode new_op, *op = SLIST_NEXT(inter->op, next);
 	union code op_next;
 	struct interpreter inter2 = {
 		.state = inter->state,
@@ -158,8 +152,11 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 			 * discarded. */
 			dummy_ld = opcode_writes_register(op_next, op->r.rt);
 
-			inter2.op = code_to_opcode(op_next);
-			inter2.pc = pc;
+			new_op.c = op_next;
+			new_op.flags = 0;
+			new_op.offset = 0;
+			SLIST_NEXT(&new_op, next) = NULL;
+			inter2.op = &new_op;
 
 			/* Execute the first opcode of the next block */
 			(*int_standard[inter2.op->i.op])(&inter2);
@@ -174,12 +171,12 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 			next_pc = pc;
 		}
 	} else {
-		next_pc = inter->pc + 8;
+		next_pc = inter->block->pc
+			+ (inter->op->offset + 2) * sizeof(u32);
 	}
 
 	inter2.block = inter->block;
 	inter2.op = op;
-	inter2.pc = inter->pc + 4;
 	inter2.cycles = inter->cycles;
 
 	if (dummy_ld)
@@ -198,63 +195,63 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 	return next_pc;
 }
 
-static void int_unimplemented(struct interpreter *inter)
+static u32 int_unimplemented(struct interpreter *inter)
 {
 	WARNING("Unimplemented opcode 0x%08x\n", inter->op->opcode);
 
 	JUMP_NEXT(inter);
 }
 
-static void int_jump(struct interpreter *inter, bool link)
+static u32 int_jump(struct interpreter *inter, bool link)
 {
 	struct lightrec_state *state = inter->state;
-	u32 pc = (inter->pc & 0xf0000000) | (inter->op->j.imm << 2);
+	u32 old_pc = inter->block->pc + inter->op->offset * sizeof(u32);
+	u32 pc = (old_pc & 0xf0000000) | (inter->op->j.imm << 2);
 
 	if (link)
-		state->native_reg_cache[31] = inter->pc + 8;
+		state->native_reg_cache[31] = old_pc + 8;
 
-	pc = int_delay_slot(inter, pc, true);
-
-	inter->pc = pc;
+	return int_delay_slot(inter, pc, true);
 }
 
-static void int_J(struct interpreter *inter)
+static u32 int_J(struct interpreter *inter)
 {
-	int_jump(inter, false);
+	return int_jump(inter, false);
 }
 
-static void int_JAL(struct interpreter *inter)
+static u32 int_JAL(struct interpreter *inter)
 {
-	int_jump(inter, true);
+	return int_jump(inter, true);
 }
 
-static void int_jumpr(struct interpreter *inter, u8 link_reg)
+static u32 int_jumpr(struct interpreter *inter, u8 link_reg)
 {
 	struct lightrec_state *state = inter->state;
-	u32 next_pc = state->native_reg_cache[inter->op->r.rs];
+	u32 old_pc, next_pc = state->native_reg_cache[inter->op->r.rs];
 
-	if (link_reg)
-		state->native_reg_cache[link_reg] = inter->pc + 8;
+	if (link_reg) {
+		old_pc = inter->block->pc + inter->op->offset * sizeof(u32);
+		state->native_reg_cache[link_reg] = old_pc + 8;
+	}
 
-	next_pc = int_delay_slot(inter, next_pc, true);
-
-	inter->pc = next_pc;
+	return int_delay_slot(inter, next_pc, true);
 }
 
-static void int_special_JR(struct interpreter *inter)
+static u32 int_special_JR(struct interpreter *inter)
 {
-	int_jumpr(inter, 0);
+	return int_jumpr(inter, 0);
 }
 
-static void int_special_JALR(struct interpreter *inter)
+static u32 int_special_JALR(struct interpreter *inter)
 {
-	int_jumpr(inter, inter->op->r.rd);
+	return int_jumpr(inter, inter->op->r.rd);
 }
 
-static void int_beq(struct interpreter *inter, bool bne)
+static u32 int_beq(struct interpreter *inter, bool bne)
 {
 	struct lightrec_state *state = inter->state;
-	u32 rs, rt, next_pc = inter->pc + 4 + ((s16)inter->op->i.imm << 2);
+	u32 old_pc = inter->block->pc + inter->op->offset * sizeof(u32);
+	u32 rs, rt, next_pc = old_pc + 4 + ((s16)inter->op->i.imm << 2);
 	bool branch;
 
 	rs = inter->state->native_reg_cache[inter->op->i.rs];
@@ -264,30 +261,31 @@ static void int_beq(struct interpreter *inter, bool bne)
 	next_pc = int_delay_slot(inter, next_pc, branch);
 
 	if (branch)
-		inter->pc = next_pc;
-	else
-		JUMP_AFTER_BRANCH(inter);
+		return next_pc;
+
+	JUMP_AFTER_BRANCH(inter);
 }
 
-static void int_BEQ(struct interpreter *inter)
+static u32 int_BEQ(struct interpreter *inter)
 {
-	int_beq(inter, false);
+	return int_beq(inter, false);
 }
 
-static void int_BNE(struct interpreter *inter)
+static u32 int_BNE(struct interpreter *inter)
 {
-	int_beq(inter, true);
+	return int_beq(inter, true);
 }
 
-static void int_bgez(struct interpreter *inter, bool link, bool lt, bool regimm)
+static u32 int_bgez(struct interpreter *inter, bool link, bool lt, bool regimm)
 {
 	struct lightrec_state *state = inter->state;
-	u32 next_pc = inter->pc + 4 + ((s16)inter->op->i.imm << 2);
+	u32 old_pc = inter->block->pc + inter->op->offset * sizeof(u32);
+	u32 next_pc = old_pc + 4 + ((s16)inter->op->i.imm << 2);
 	bool branch;
 	s32 rs;
 
 	if (link)
-		inter->state->native_reg_cache[31] = inter->pc + 8;
+		inter->state->native_reg_cache[31] = old_pc + 8;
 
 	rs = (s32)inter->state->native_reg_cache[inter->op->i.rs];
 	branch = (regimm && !rs || rs > 0) ^ lt;
@@ -295,42 +293,42 @@ static void int_bgez(struct interpreter *inter, bool link, bool lt, bool regimm)
 	next_pc = int_delay_slot(inter, next_pc, branch);
 
 	if (branch)
-		inter->pc = next_pc;
-	else
-		JUMP_AFTER_BRANCH(inter);
+		return next_pc;
+
+	JUMP_AFTER_BRANCH(inter);
 }
 
-static void int_regimm_BLTZ(struct interpreter *inter)
+static u32 int_regimm_BLTZ(struct interpreter *inter)
 {
-	int_bgez(inter, false, true, true);
+	return int_bgez(inter, false, true, true);
 }
 
-static void int_regimm_BGEZ(struct interpreter *inter)
+static u32 int_regimm_BGEZ(struct interpreter *inter)
 {
-	int_bgez(inter, false, false, true);
+	return int_bgez(inter, false, false, true);
 }
 
-static void int_regimm_BLTZAL(struct interpreter *inter)
+static u32 int_regimm_BLTZAL(struct interpreter *inter)
 {
-	int_bgez(inter, true, true, true);
+	return int_bgez(inter, true, true, true);
 }
 
-static void int_regimm_BGEZAL(struct interpreter *inter)
+static u32 int_regimm_BGEZAL(struct interpreter *inter)
 {
-	int_bgez(inter, true, false, true);
+	return int_bgez(inter, true, false, true);
 }
 
-static void int_BLEZ(struct interpreter *inter)
+static u32 int_BLEZ(struct interpreter *inter)
 {
-	int_bgez(inter, false, true, false);
+	return int_bgez(inter, false, true, false);
 }
 
-static void int_BGTZ(struct interpreter *inter)
+static u32 int_BGTZ(struct interpreter *inter)
 {
-	int_bgez(inter, false, false, false);
+	return int_bgez(inter, false, false, false);
 }
 
-static void int_cfc(struct interpreter *inter)
+static u32 int_cfc(struct interpreter *inter)
 {
 	struct lightrec_state *state = inter->state;
 	const struct opcode *op = inter->op;
@@ -344,7 +342,7 @@ static void int_cfc(struct interpreter *inter)
 	JUMP_NEXT(inter);
 }
 
-static void int_ctc(struct interpreter *inter)
+static u32 int_ctc(struct interpreter *inter)
 {
 	struct lightrec_state *state = inter->state;
 	const struct opcode *op = inter->op;
@@ -355,12 +353,12 @@ static void int_ctc(struct interpreter *inter)
 	 * return early so that the emulator will be able to check software
 	 * interrupt status. */
 	if (op->i.op == OP_CP0 && (op->r.rd == 12 || op->r.rd == 13))
-		inter->pc += 4;
-	else
-		JUMP_NEXT(inter);
+		return inter->block->pc + (op->offset + 1) * sizeof(u32);
+
+	JUMP_NEXT(inter);
 }
 
-static void int_cp0_RFE(struct interpreter *inter)
+static u32 int_cp0_RFE(struct interpreter *inter)
 {
 	struct lightrec_state *state = inter->state;
 	u32 status;
@@ -377,7 +375,7 @@ static void int_cp0_RFE(struct interpreter *inter)
 	JUMP_NEXT(inter);
 }
 
-static void int_CP(struct interpreter *inter)
+static u32 int_CP(struct interpreter *inter)
 {
 	struct lightrec_state *state = inter->state;
 	const struct lightrec_cop_ops *ops;
@@ -393,7 +391,7 @@ static void int_CP(struct interpreter *inter)
 	JUMP_NEXT(inter);
 }
 
-static void int_ADDI(struct interpreter *inter)
+static u32 int_ADDI(struct interpreter *inter)
 {
 	u32 *reg_cache = inter->state->native_reg_cache;
 	struct opcode_i *op = &inter->op->i;
@@ -404,7 +402,7 @@ static void int_ADDI(struct interpreter *inter)
 	JUMP_NEXT(inter);
 }
 
-static void int_SLTI(struct interpreter *inter)
+static u32 int_SLTI(struct interpreter *inter)
 {
 	u32 *reg_cache = inter->state->native_reg_cache;
 	struct opcode_i *op = &inter->op->i;
@@ -415,7 +413,7 @@ static void int_SLTI(struct interpreter *inter)
 	JUMP_NEXT(inter);
 }
 
-static void int_SLTIU(struct interpreter *inter)
+static u32 int_SLTIU(struct interpreter *inter)
 {
 	u32 *reg_cache = inter->state->native_reg_cache;
 	struct opcode_i *op = &inter->op->i;
@@ -426,7 +424,7 @@ static void int_SLTIU(struct interpreter *inter)
 	JUMP_NEXT(inter);
 }
 
-static void int_ANDI(struct interpreter *inter)
+static u32 int_ANDI(struct interpreter *inter)
 {
 	u32 *reg_cache = inter->state->native_reg_cache;
 	struct opcode_i *op = &inter->op->i;
@@ -437,7 +435,7 @@ static void int_ANDI(struct interpreter *inter)
 	JUMP_NEXT(inter);
 }
 
-static void int_ORI(struct interpreter *inter)
+static u32 int_ORI(struct interpreter *inter)
 {
 	u32 *reg_cache = inter->state->native_reg_cache;
 	struct opcode_i *op = &inter->op->i;
@@ -448,7 +446,7 @@ static void int_ORI(struct interpreter *inter)
 	JUMP_NEXT(inter);
 }
 
-static void int_XORI(struct interpreter *inter)
+static u32 int_XORI(struct interpreter *inter)
 {
 	u32 *reg_cache = inter->state->native_reg_cache;
 	struct opcode_i *op = &inter->op->i;
@@ -459,7 +457,7 @@ static void int_XORI(struct interpreter *inter)
 	JUMP_NEXT(inter);
 }
 
-static void int_LUI(struct interpreter *inter)
+static u32 int_LUI(struct interpreter *inter)
 {
 	struct opcode_i *op = &inter->op->i;
 
@@ -468,7 +466,7 @@ static void int_LUI(struct interpreter *inter)
 	JUMP_NEXT(inter);
 }
 
-static void int_io(struct interpreter *inter, bool is_load)
+static u32 int_io(struct interpreter *inter, bool is_load)
 {
 	struct opcode_i *op = &inter->op->i;
 	u32 *reg_cache = inter->state->native_reg_cache;
@@ -484,22 +482,22 @@ static void int_io(struct interpreter *inter, bool is_load)
 	JUMP_NEXT(inter);
 }
 
-static void int_load(struct interpreter *inter)
+static u32 int_load(struct interpreter *inter)
 {
-	int_io(inter, true);
+	return int_io(inter, true);
 }
 
-static void int_store(struct interpreter *inter)
+static u32 int_store(struct interpreter *inter)
 {
-	int_io(inter, false);
+	return int_io(inter, false);
 }
 
-static void int_LWC2(struct interpreter *inter)
+static u32 int_LWC2(struct interpreter *inter)
 {
-	int_io(inter, false);
+	return int_io(inter, false);
 }
 
-static void int_special_SLL(struct interpreter *inter)
+static u32 int_special_SLL(struct interpreter *inter)
 {
 	struct opcode *op = inter->op;
 	u32 rt;
@@ -512,7 +510,7 @@ static void int_special_SLL(struct interpreter *inter)
 	JUMP_NEXT(inter);
 }
 
-static void int_special_SRL(struct interpreter *inter)
+static u32 int_special_SRL(struct interpreter *inter)
 {
 	struct opcode *op = inter->op;
 	u32 rt = inter->state->native_reg_cache[op->r.rt];
@@ -522,7 +520,7 @@ static void int_special_SRL(struct interpreter *inter)
 	JUMP_NEXT(inter);
 }
 
-static void int_special_SRA(struct interpreter *inter)
+static u32 int_special_SRA(struct interpreter *inter)
 {
 	struct opcode *op = inter->op;
 	s32 rt = inter->state->native_reg_cache[op->r.rt];
@@ -532,7 +530,7 @@ static void int_special_SRA(struct interpreter *inter)
 	JUMP_NEXT(inter);
 }
 
-static void int_special_SLLV(struct interpreter *inter)
+static u32 int_special_SLLV(struct interpreter *inter)
 {
 	struct opcode *op = inter->op;
 	u32 rs = inter->state->native_reg_cache[op->r.rs];
@@ -543,7 +541,7 @@ static void int_special_SLLV(struct interpreter *inter)
 	JUMP_NEXT(inter);
 }
 
-static void int_special_SRLV(struct interpreter *inter)
+static u32 int_special_SRLV(struct interpreter *inter)
 {
 	struct opcode *op = inter->op;
 	u32 rs = inter->state->native_reg_cache[op->r.rs];
@@ -554,7 +552,7 @@ static void int_special_SRLV(struct interpreter *inter)
 	JUMP_NEXT(inter);
 }
 
-static void int_special_SRAV(struct interpreter *inter)
+static u32 int_special_SRAV(struct interpreter *inter)
 {
 	struct opcode *op = inter->op;
 	u32 rs = inter->state->native_reg_cache[op->r.rs];
@@ -565,16 +563,18 @@ static void int_special_SRAV(struct interpreter *inter)
 	JUMP_NEXT(inter);
 }
 
-static void int_syscall_break(struct interpreter *inter)
+static u32 int_syscall_break(struct interpreter *inter)
 {
 
 	if (inter->op->r.op == OP_SPECIAL_BREAK)
 		inter->state->exit_flags |= LIGHTREC_EXIT_BREAK;
 	else
 		inter->state->exit_flags |= LIGHTREC_EXIT_SYSCALL;
+
+	return inter->block->pc + inter->op->offset * sizeof(u32);
 }
 
-static void int_special_MFHI(struct interpreter *inter)
+static u32 int_special_MFHI(struct interpreter *inter)
 {
 	u32 *reg_cache = inter->state->native_reg_cache;
 	struct opcode_r *op = &inter->op->r;
@@ -585,7 +585,7 @@ static void int_special_MFHI(struct interpreter *inter)
 	JUMP_NEXT(inter);
 }
 
-static void int_special_MTHI(struct interpreter *inter)
+static u32 int_special_MTHI(struct interpreter *inter)
 {
 	u32 *reg_cache = inter->state->native_reg_cache;
 
@@ -594,7 +594,7 @@ static void int_special_MTHI(struct interpreter *inter)
 	JUMP_NEXT(inter);
 }
 
-static void int_special_MFLO(struct interpreter *inter)
+static u32 int_special_MFLO(struct interpreter *inter)
 {
 	u32 *reg_cache = inter->state->native_reg_cache;
 	struct opcode_r *op = &inter->op->r;
@@ -605,7 +605,7 @@ static void int_special_MFLO(struct interpreter *inter)
 	JUMP_NEXT(inter);
 }
 
-static void int_special_MTLO(struct interpreter *inter)
+static u32 int_special_MTLO(struct interpreter *inter)
 {
 	u32 *reg_cache = inter->state->native_reg_cache;
 
@@ -614,7 +614,7 @@ static void int_special_MTLO(struct interpreter *inter)
 	JUMP_NEXT(inter);
 }
 
-static void int_special_MULT(struct interpreter *inter)
+static u32 int_special_MULT(struct interpreter *inter)
 {
 	u32 *reg_cache = inter->state->native_reg_cache;
 	s32 rs = reg_cache[inter->op->r.rs];
@@ -627,7 +627,7 @@ static void int_special_MULT(struct interpreter *inter)
 	JUMP_NEXT(inter);
 }
 
-static void int_special_MULTU(struct interpreter *inter)
+static u32 int_special_MULTU(struct interpreter *inter)
 {
 	u32 *reg_cache = inter->state->native_reg_cache;
 	u32 rs = reg_cache[inter->op->r.rs];
@@ -640,7 +640,7 @@ static void int_special_MULTU(struct interpreter *inter)
 	JUMP_NEXT(inter);
 }
 
-static void int_special_DIV(struct interpreter *inter)
+static u32 int_special_DIV(struct interpreter *inter)
 {
 	u32 *reg_cache = inter->state->native_reg_cache;
 	s32 rs = reg_cache[inter->op->r.rs];
@@ -661,7 +661,7 @@ static void int_special_DIV(struct interpreter *inter)
 	JUMP_NEXT(inter);
 }
 
-static void int_special_DIVU(struct interpreter *inter)
+static u32 int_special_DIVU(struct interpreter *inter)
 {
 	u32 *reg_cache = inter->state->native_reg_cache;
 	u32 rs = reg_cache[inter->op->r.rs];
@@ -682,7 +682,7 @@ static void int_special_DIVU(struct interpreter *inter)
 	JUMP_NEXT(inter);
 }
 
-static void int_special_ADD(struct interpreter *inter)
+static u32 int_special_ADD(struct interpreter *inter)
 {
 	u32 *reg_cache = inter->state->native_reg_cache;
 	struct opcode_r *op = &inter->op->r;
@@ -695,7 +695,7 @@ static void int_special_ADD(struct interpreter *inter)
 	JUMP_NEXT(inter);
 }
 
-static void int_special_SUB(struct interpreter *inter)
+static u32 int_special_SUB(struct interpreter *inter)
 {
 	u32 *reg_cache = inter->state->native_reg_cache;
 	struct opcode_r *op = &inter->op->r;
@@ -708,7 +708,7 @@ static void int_special_SUB(struct interpreter *inter)
 	JUMP_NEXT(inter);
 }
 
-static void int_special_AND(struct interpreter *inter)
+static u32 int_special_AND(struct interpreter *inter)
 {
 	u32 *reg_cache = inter->state->native_reg_cache;
 	struct opcode_r *op = &inter->op->r;
@@ -721,7 +721,7 @@ static void int_special_AND(struct interpreter *inter)
 	JUMP_NEXT(inter);
 }
 
-static void int_special_OR(struct interpreter *inter)
+static u32 int_special_OR(struct interpreter *inter)
 {
 	u32 *reg_cache = inter->state->native_reg_cache;
 	struct opcode_r *op = &inter->op->r;
@@ -734,7 +734,7 @@ static void int_special_OR(struct interpreter *inter)
 	JUMP_NEXT(inter);
 }
 
-static void int_special_XOR(struct interpreter *inter)
+static u32 int_special_XOR(struct interpreter *inter)
 {
 	u32 *reg_cache = inter->state->native_reg_cache;
 	struct opcode_r *op = &inter->op->r;
@@ -747,7 +747,7 @@ static void int_special_XOR(struct interpreter *inter)
 	JUMP_NEXT(inter);
 }
 
-static void int_special_NOR(struct interpreter *inter)
+static u32 int_special_NOR(struct interpreter *inter)
 {
 	u32 *reg_cache = inter->state->native_reg_cache;
 	struct opcode_r *op = &inter->op->r;
@@ -760,7 +760,7 @@ static void int_special_NOR(struct interpreter *inter)
 	JUMP_NEXT(inter);
 }
 
-static void int_special_SLT(struct interpreter *inter)
+static u32 int_special_SLT(struct interpreter *inter)
 {
 	u32 *reg_cache = inter->state->native_reg_cache;
 	struct opcode_r *op = &inter->op->r;
@@ -773,7 +773,7 @@ static void int_special_SLT(struct interpreter *inter)
 	JUMP_NEXT(inter);
 }
 
-static void int_special_SLTU(struct interpreter *inter)
+static u32 int_special_SLTU(struct interpreter *inter)
 {
 	u32 *reg_cache = inter->state->native_reg_cache;
 	struct opcode_r *op = &inter->op->r;
@@ -786,7 +786,7 @@ static void int_special_SLTU(struct interpreter *inter)
 	JUMP_NEXT(inter);
 }
 
-static void int_META_UNLOAD(struct interpreter *inter)
+static u32 int_META_UNLOAD(struct interpreter *inter)
 {
 	JUMP_SKIP(inter);
 }
@@ -881,7 +881,7 @@ static const lightrec_int_func_t int_cp2_basic[64] = {
 	[OP_CP2_BASIC_CTC2]	= int_ctc,
 };
 
-static void int_SPECIAL(struct interpreter *inter)
+static u32 int_SPECIAL(struct interpreter *inter)
 {
 	lightrec_int_func_t f = int_special[inter->op->r.op];
 	if (likely(f))
@@ -890,7 +890,7 @@ static void int_SPECIAL(struct interpreter *inter)
 	int_unimplemented(inter);
 }
 
-static void int_REGIMM(struct interpreter *inter)
+static u32 int_REGIMM(struct interpreter *inter)
 {
 	lightrec_int_func_t f = int_regimm[inter->op->r.rt];
 	if (likely(f))
@@ -899,7 +899,7 @@ static void int_REGIMM(struct interpreter *inter)
 	int_unimplemented(inter);
 }
 
-static void int_CP0(struct interpreter *inter)
+static u32 int_CP0(struct interpreter *inter)
 {
 	lightrec_int_func_t f = int_cp0[inter->op->r.rs];
 	if (likely(f))
@@ -908,7 +908,7 @@ static void int_CP0(struct interpreter *inter)
 		int_CP(inter);
 }
 
-static void int_CP2(struct interpreter *inter)
+static u32 int_CP2(struct interpreter *inter)
 {
 	if (inter->op->r.op == OP_CP2_BASIC) {
 		lightrec_int_func_t f = int_cp2_basic[inter->op->r.rs];
@@ -919,7 +919,7 @@ static void int_CP2(struct interpreter *inter)
 	int_CP(inter);
 }
 
-static void lightrec_int_op(struct interpreter *inter)
+static u32 lightrec_int_op(struct interpreter *inter)
 {
 	EXECUTE(int_standard[inter->op->i.op], inter);
 }
@@ -927,20 +927,20 @@ static void lightrec_int_op(struct interpreter *inter)
 u32 lightrec_emulate_block(struct block *block)
 {
 	struct interpreter inter;
+	u32 pc;
 
 	inter.block = block;
 	inter.state = block->state;
 	inter.op = block->opcode_list;
-	inter.pc = block->pc;
 	inter.cycles = 0;
 	inter.delay_slot = false;
 
-	lightrec_int_op(&inter);
+	pc = lightrec_int_op(&inter);
 
 	/* Add the cycles of the last branch */
 	inter.cycles += lightrec_cycles_of_opcode(inter.op);
 
 	block->state->current_cycle += inter.cycles;
 
-	return inter.pc;
+	return pc;
 }
