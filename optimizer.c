@@ -250,7 +250,7 @@ static int lightrec_add_unload(struct opcode *op, u8 reg)
 
 	meta->i.op = OP_META_REG_UNLOAD;
 	meta->i.rs = reg;
-	meta->flags = LIGHTREC_SKIP_PC_UPDATE;
+	meta->flags = 0;
 	meta->offset = op->offset;
 	SLIST_INSERT_AFTER(op, meta, next);
 

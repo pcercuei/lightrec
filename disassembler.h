@@ -22,8 +22,7 @@
 
 #define __packed __attribute__((packed))
 
-#define LIGHTREC_SKIP_PC_UPDATE	(1 << 0)
-#define LIGHTREC_DIRECT_IO	(1 << 1)
+#define LIGHTREC_DIRECT_IO	(1 << 0)
 
 struct block;
 
