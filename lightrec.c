@@ -644,7 +644,7 @@ int lightrec_compile_block(struct block *block)
 	jit_tramp(256);
 
 	for (elm = block->opcode_list; elm; elm = SLIST_NEXT(elm, next)) {
-		block->cycles += lightrec_cycles_of_opcode(elm);
+		block->cycles += lightrec_cycles_of_opcode(elm->c);
 
 		if (skip_next) {
 			skip_next = false;

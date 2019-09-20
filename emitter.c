@@ -66,7 +66,7 @@ static int lightrec_emit_end_of_block(const struct block *block, u32 pc,
 	}
 
 	if (delay_slot) {
-		cycles += lightrec_cycles_of_opcode(delay_slot);
+		cycles += lightrec_cycles_of_opcode(delay_slot->c);
 
 		/* Recompile the delay slot */
 		if (delay_slot->opcode)

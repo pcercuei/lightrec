@@ -192,7 +192,7 @@ SLIST_HEAD(opcode_list_head, opcode);
 struct opcode * lightrec_disassemble(const u32 *src, unsigned int *len);
 void lightrec_free_opcode_list(struct opcode *list);
 
-unsigned int lightrec_cycles_of_opcode(const struct opcode *op);
+unsigned int lightrec_cycles_of_opcode(union code code);
 
 void lightrec_print_disassembly(const struct block *block,
 				const u32 *code, unsigned int length);

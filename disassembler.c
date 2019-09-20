@@ -101,13 +101,12 @@ struct opcode * lightrec_disassemble(const u32 *src, unsigned int *len)
 	return SLIST_FIRST(&head);
 }
 
-unsigned int lightrec_cycles_of_opcode(const struct opcode *op)
+unsigned int lightrec_cycles_of_opcode(union code code)
 {
-	/* TODO: Add a proper cycle counter */
-	if (likely(!(op->flags & LIGHTREC_SKIP_PC_UPDATE)))
-		return 2;
-	else
+	if (code.i.op == OP_META_REG_UNLOAD)
 		return 0;
+	else
+		return 2;
 }
 
 #if ENABLE_DISASSEMBLER

@@ -47,7 +47,7 @@ struct interpreter {
 } while (0)
 
 #define JUMP_NEXT(inter) do {						\
-	inter->cycles += lightrec_cycles_of_opcode(inter->op);		\
+	inter->cycles += lightrec_cycles_of_opcode(inter->op->c);	\
 	if (unlikely(inter->delay_slot))				\
 		return 0;						\
 	inter->op = SLIST_NEXT(inter->op, next);			\
@@ -55,7 +55,7 @@ struct interpreter {
 } while (0)
 
 #define JUMP_AFTER_BRANCH(inter) do {					\
-	inter->cycles += lightrec_cycles_of_opcode(inter->op);		\
+	inter->cycles += lightrec_cycles_of_opcode(inter->op->c);	\
 	inter->op = SLIST_NEXT(SLIST_NEXT(inter->op, next), next);	\
 	EXECUTE(int_standard[inter->op->i.op], inter);			\
 } while (0)
@@ -166,7 +166,7 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 				reg_cache[op->r.rs] = old_rs;
 			}
 
-			inter->cycles += lightrec_cycles_of_opcode(inter2.op);
+			inter->cycles += lightrec_cycles_of_opcode(op_next);
 		} else {
 			next_pc = pc;
 		}
@@ -190,7 +190,7 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 	if (dummy_ld)
 		reg_cache[op->r.rt] = new_rt;
 
-	inter->cycles += lightrec_cycles_of_opcode(op);
+	inter->cycles += lightrec_cycles_of_opcode(op->c);
 
 	return next_pc;
 }
@@ -938,7 +938,7 @@ u32 lightrec_emulate_block(struct block *block)
 	pc = lightrec_int_op(&inter);
 
 	/* Add the cycles of the last branch */
-	inter.cycles += lightrec_cycles_of_opcode(inter.op);
+	inter.cycles += lightrec_cycles_of_opcode(inter.op->c);
 
 	block->state->current_cycle += inter.cycles;
 
