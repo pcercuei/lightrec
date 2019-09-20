@@ -25,8 +25,10 @@ extern "C" {
 #ifdef _WIN32
 #   ifdef lightrec_EXPORTS
 #	define __api __declspec(dllexport)
-#   else
+#   elif !defined(LIGHTREC_STATIC)
 #	define __api __declspec(dllimport)
+#   else
+#	define __api
 #   endif
 #elif __GNUC__ >= 4
 #   define __api __attribute__((visibility ("default")))
