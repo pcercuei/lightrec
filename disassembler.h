@@ -182,7 +182,8 @@ struct opcode {
 		struct opcode_i i;
 		struct opcode_j j;
 	};
-	u32 flags;
+	u16 flags;
+	u16 offset;
 	SLIST_ENTRY(opcode) next;
 };
 

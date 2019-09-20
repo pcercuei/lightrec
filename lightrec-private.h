@@ -107,7 +107,7 @@ struct lightrec_state {
 };
 
 u32 lightrec_rw(struct lightrec_state *state, union code op,
-		u32 addr, u32 data, u32 *flags);
+		u32 addr, u32 data, u16 *flags);
 
 void lightrec_free_block(struct block *block);
 

@@ -99,7 +99,7 @@ lightrec_get_map(struct lightrec_state *state, u32 kaddr)
 }
 
 u32 lightrec_rw(struct lightrec_state *state, union code op,
-		u32 addr, u32 data, u32 *flags)
+		u32 addr, u32 data, u16 *flags)
 {
 	const struct lightrec_mem_map *map;
 	const struct lightrec_mem_map_ops *ops;

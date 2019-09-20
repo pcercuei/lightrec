@@ -69,7 +69,7 @@ struct opcode * lightrec_disassemble(const u32 *src, unsigned int *len)
 	struct opcode *curr, *last;
 	unsigned int i;
 
-	for (i = 0, last = NULL; ; i += sizeof(u32), last = curr) {
+	for (i = 0, last = NULL; ; i++, last = curr) {
 		curr = lightrec_calloc(MEM_FOR_IR, sizeof(*curr));
 		if (!curr) {
 			ERROR("Unable to allocate memory\n");
@@ -85,6 +85,7 @@ struct opcode * lightrec_disassemble(const u32 *src, unsigned int *len)
 
 		/* TODO: Take care of endianness */
 		curr->opcode = LE32TOH(*src++);
+		curr->offset = i;
 
 		/* NOTE: The block disassembly ends after the opcode that
 		 * follows an unconditional jump (delay slot) */
@@ -95,7 +96,7 @@ struct opcode * lightrec_disassemble(const u32 *src, unsigned int *len)
 	}
 
 	if (len)
-		*len = i + sizeof(u32);
+		*len = (i + 1) * sizeof(u32);
 
 	return SLIST_FIRST(&head);
 }
