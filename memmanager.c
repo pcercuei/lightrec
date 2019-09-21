@@ -98,3 +98,11 @@ void lightrec_free(enum mem_type type, unsigned int len, void *ptr)
 	lightrec_unregister(type, len);
 	free(ptr);
 }
+
+float lightrec_get_average_ipi(void)
+{
+	unsigned int code_mem = lightrec_get_mem_usage(MEM_FOR_CODE);
+	unsigned int native_mem = lightrec_get_mem_usage(MEM_FOR_MIPS_CODE);
+
+	return native_mem ? (float)code_mem / (float)native_mem : 0.0f;
+}
