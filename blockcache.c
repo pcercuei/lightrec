@@ -19,7 +19,6 @@
 
 #include <stdbool.h>
 #include <stdlib.h>
-#include <sys/queue.h>
 
 /* Must be power of two */
 #define TINY_LUT_SIZE 0x100
@@ -42,7 +41,7 @@ struct block * lightrec_find_block(struct blockcache *cache, u32 pc)
 
 	block = cache->lut[(pc >> 2) & (LUT_SIZE - 1)];
 	for (block = cache->lut[(pc >> 2) & (LUT_SIZE - 1)];
-	     block; block = SLIST_NEXT(block, next)) {
+	     block; block = block->next) {
 		if (block->kunseg_pc == pc) {
 			cache->tiny_lut[(pc >> 2) & (TINY_LUT_SIZE - 1)] = block;
 			return block;
@@ -60,7 +59,7 @@ void lightrec_register_block(struct blockcache *cache, struct block *block)
 
 	old = cache->lut[(pc >> 2) & (LUT_SIZE - 1)];
 	if (old)
-		SLIST_NEXT(block, next) = old;
+		block->next = old;
 
 	cache->lut[(pc >> 2) & (LUT_SIZE - 1)] = block;
 	cache->tiny_lut[(pc >> 2) & (TINY_LUT_SIZE - 1)] = block;
@@ -83,13 +82,13 @@ void lightrec_unregister_block(struct blockcache *cache, struct block *block)
 	cache->tiny_lut[(pc >> 2) & (TINY_LUT_SIZE - 1)] = NULL;
 
 	if (old == block) {
-		cache->lut[(pc >> 2) & (LUT_SIZE - 1)] = SLIST_NEXT(old, next);
+		cache->lut[(pc >> 2) & (LUT_SIZE - 1)] = old->next;
 		return;
 	}
 
-	for (; old; old = SLIST_NEXT(old, next)) {
-		if (SLIST_NEXT(old, next) == block) {
-			SLIST_NEXT(old, next) = SLIST_NEXT(block, next);
+	for (; old; old = old->next) {
+		if (old->next == block) {
+			old->next = block->next;
 			return;
 		}
 	}
@@ -104,7 +103,7 @@ void lightrec_free_block_cache(struct blockcache *cache)
 
 	for (i = 0; i < LUT_SIZE; i++) {
 		for (block = cache->lut[i]; block; block = next) {
-			next = SLIST_NEXT(block, next);
+			next = block->next;
 			lightrec_free_block(block);
 		}
 	}

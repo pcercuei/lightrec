@@ -42,7 +42,7 @@ struct interpreter {
 #define EXECUTE(func, inter) return (*(func))(inter)
 
 #define JUMP_SKIP(inter) do {						\
-	inter->op = SLIST_NEXT(inter->op, next);			\
+	inter->op = inter->op->next;					\
 	EXECUTE(int_standard[inter->op->i.op], inter);			\
 } while (0)
 
@@ -50,13 +50,13 @@ struct interpreter {
 	inter->cycles += lightrec_cycles_of_opcode(inter->op->c);	\
 	if (unlikely(inter->delay_slot))				\
 		return 0;						\
-	inter->op = SLIST_NEXT(inter->op, next);			\
+	inter->op = inter->op->next;					\
 	EXECUTE(int_standard[inter->op->i.op], inter);			\
 } while (0)
 
 #define JUMP_AFTER_BRANCH(inter) do {					\
 	inter->cycles += lightrec_cycles_of_opcode(inter->op->c);	\
-	inter->op = SLIST_NEXT(SLIST_NEXT(inter->op, next), next);	\
+	inter->op = inter->op->next->next;				\
 	EXECUTE(int_standard[inter->op->i.op], inter);			\
 } while (0)
 
@@ -104,7 +104,7 @@ static bool load_in_delay_slot(const struct opcode *op)
 static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 {
 	u32 *reg_cache = inter->state->native_reg_cache;
-	struct opcode new_op, *op = SLIST_NEXT(inter->op, next);
+	struct opcode new_op, *op = inter->op->next;
 	union code op_next;
 	struct interpreter inter2 = {
 		.state = inter->state,
@@ -155,7 +155,7 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 			new_op.c = op_next;
 			new_op.flags = 0;
 			new_op.offset = 0;
-			SLIST_NEXT(&new_op, next) = NULL;
+			new_op.next = NULL;
 			inter2.op = &new_op;
 
 			/* Execute the first opcode of the next block */

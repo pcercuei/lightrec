@@ -206,7 +206,7 @@ static int lightrec_transform_to_nops(struct opcode *list)
 {
 	/* Transform all opcodes detected as useless to real NOPs
 	 * (0x0: SLL r0, r0, #0) */
-	for (; list; list = SLIST_NEXT(list, next)) {
+	for (; list; list = list->next) {
 		if (list->opcode != 0 && is_nop(list->c)) {
 			pr_debug("Converting useless opcode 0x%08x to NOP\n",
 					list->opcode);
@@ -252,7 +252,8 @@ static int lightrec_add_unload(struct opcode *op, u8 reg)
 	meta->i.rs = reg;
 	meta->flags = 0;
 	meta->offset = op->offset;
-	SLIST_INSERT_AFTER(op, meta, next);
+	meta->next = op->next;
+	op->next = meta;
 
 	return 0;
 }
@@ -266,8 +267,7 @@ static int lightrec_early_unload(struct opcode *list)
 		unsigned int last_r_id = 0, last_w_id = 0, id = 0;
 		int ret;
 
-		for (op = list; op; last = op,
-				op = SLIST_NEXT(op, next), id++) {
+		for (op = list; op; last = op, op = op->next, id++) {
 			if (has_delay_slot(op->c) ||
 			    (last && has_delay_slot(last->c)))
 				continue;

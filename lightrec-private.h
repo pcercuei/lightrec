@@ -71,9 +71,7 @@ struct block {
 	unsigned int cycles;
 	unsigned int code_size;
 	const struct lightrec_mem_map *map;
-	struct {
-		struct block *sle_next;
-	} next;
+	struct block *next;
 };
 
 struct lightrec_op_data {

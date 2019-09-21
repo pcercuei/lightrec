@@ -56,7 +56,7 @@ static bool is_syscall(const struct opcode *op)
 void lightrec_free_opcode_list(struct opcode *list)
 {
 	while (list) {
-		struct opcode *next = SLIST_NEXT(list, next);
+		struct opcode *next = list->next;
 		lightrec_free(MEM_FOR_IR, sizeof(*list), list);
 		list = next;
 	}
@@ -64,7 +64,7 @@ void lightrec_free_opcode_list(struct opcode *list)
 
 struct opcode * lightrec_disassemble(const u32 *src, unsigned int *len)
 {
-	struct opcode_list_head head = { NULL };
+	struct opcode *head = NULL;
 	bool stop_next = false;
 	struct opcode *curr, *last;
 	unsigned int i;
@@ -73,15 +73,14 @@ struct opcode * lightrec_disassemble(const u32 *src, unsigned int *len)
 		curr = lightrec_calloc(MEM_FOR_IR, sizeof(*curr));
 		if (!curr) {
 			pr_err("Unable to allocate memory\n");
-			lightrec_free_opcode_list(SLIST_FIRST(&head));
+			lightrec_free_opcode_list(head);
 			return NULL;
 		}
 
-		if (!last) {
-			SLIST_INSERT_HEAD(&head, curr, next);
-		} else {
-			SLIST_INSERT_AFTER(last, curr, next);
-		}
+		if (!last)
+			head = curr;
+		else
+			last->next = curr;
 
 		/* TODO: Take care of endianness */
 		curr->opcode = LE32TOH(*src++);
@@ -98,7 +97,7 @@ struct opcode * lightrec_disassemble(const u32 *src, unsigned int *len)
 	if (len)
 		*len = (i + 1) * sizeof(u32);
 
-	return SLIST_FIRST(&head);
+	return head;
 }
 
 unsigned int lightrec_cycles_of_opcode(union code code)

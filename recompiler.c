@@ -21,12 +21,11 @@
 #include <stdatomic.h>
 #include <stdbool.h>
 #include <stdlib.h>
-#include <sys/queue.h>
 #include <threads.h>
 
 struct block_rec {
 	struct block *block;
-	SLIST_ENTRY(block_rec) next;
+	struct block_rec *next;
 };
 
 struct recompiler {
@@ -35,8 +34,22 @@ struct recompiler {
 	mtx_t mutex;
 	bool stop;
 	struct block *current_block;
-	SLIST_HEAD(block_rec_head, block_rec) list;
+	struct block_rec *list;
 };
+
+static void slist_remove(struct recompiler *rec, struct block_rec *elm)
+{
+	struct block_rec *prev;
+
+	if (rec->list == elm) {
+		rec->list = elm->next;
+	} else {
+		for (prev = rec->list; prev && prev->next != elm; )
+			prev = prev->next;
+		if (prev)
+			prev->next = elm->next;
+	}
+}
 
 static void lightrec_compile_list(struct recompiler *rec)
 {
@@ -44,7 +57,7 @@ static void lightrec_compile_list(struct recompiler *rec)
 	struct block *block;
 	int ret;
 
-	while (next = SLIST_FIRST(&rec->list)) {
+	while (next = rec->list) {
 		block = next->block;
 		rec->current_block = block;
 
@@ -58,7 +71,7 @@ static void lightrec_compile_list(struct recompiler *rec)
 
 		mtx_lock(&rec->mutex);
 
-		SLIST_REMOVE(&rec->list, next, block_rec, next);
+		slist_remove(rec, next);
 		lightrec_free(MEM_FOR_LIGHTREC, sizeof(*next), next);
 		cnd_signal(&rec->cond);
 	}
@@ -81,7 +94,7 @@ static int lightrec_recompiler_thd(void *d)
 				return 0;
 			}
 
-		} while (SLIST_EMPTY(&rec->list));
+		} while (!rec->list);
 
 		lightrec_compile_list(rec);
 	}
@@ -100,7 +113,7 @@ struct recompiler *lightrec_recompiler_init(void)
 
 	rec->stop = false;
 	rec->current_block = NULL;
-	SLIST_INIT(&rec->list);
+	rec->list = NULL;
 
 	ret = cnd_init(&rec->cond);
 	if (ret) {
@@ -152,7 +165,7 @@ int lightrec_recompiler_add(struct recompiler *rec, struct block *block)
 
 	mtx_lock(&rec->mutex);
 
-	SLIST_FOREACH(block_rec, &rec->list, next) {
+	for (block_rec = rec->list; block_rec; block_rec = block_rec->next) {
 		if (block_rec->block == block) {
 			mtx_unlock(&rec->mutex);
 			return 0;
@@ -175,7 +188,8 @@ int lightrec_recompiler_add(struct recompiler *rec, struct block *block)
 	pr_debug("Adding block PC 0x%x to recompiler\n", block->pc);
 
 	block_rec->block = block;
-	SLIST_INSERT_HEAD(&rec->list, block_rec, next);
+	block_rec->next = rec->list;
+	rec->list = block_rec;
 
 	/* Signal the thread */
 	cnd_signal(&rec->cond);
@@ -190,7 +204,7 @@ void lightrec_recompiler_remove(struct recompiler *rec, struct block *block)
 
 	mtx_lock(&rec->mutex);
 
-	SLIST_FOREACH(block_rec, &rec->list, next) {
+	for (block_rec = rec->list; block_rec; block_rec = block_rec->next) {
 		if (block_rec->block == block) {
 			if (block == rec->current_block) {
 				/* Block is being recompiled - wait for
@@ -201,8 +215,7 @@ void lightrec_recompiler_remove(struct recompiler *rec, struct block *block)
 			} else {
 				/* Block is not yet being processed - remove it
 				 * from the list */
-				SLIST_REMOVE(&rec->list, block_rec,
-					     block_rec, next);
+				slist_remove(rec, block_rec);
 				lightrec_free(MEM_FOR_LIGHTREC,
 					      sizeof(*block_rec), block_rec);
 			}

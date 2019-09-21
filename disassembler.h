@@ -18,8 +18,6 @@
 #include "debug.h"
 #include "lightrec.h"
 
-#include <sys/queue.h>
-
 #define __packed __attribute__((packed))
 
 #define LIGHTREC_DIRECT_IO	(1 << 0)
@@ -183,10 +181,8 @@ struct opcode {
 	};
 	u16 flags;
 	u16 offset;
-	SLIST_ENTRY(opcode) next;
+	struct opcode *next;
 };
-
-SLIST_HEAD(opcode_list_head, opcode);
 
 struct opcode * lightrec_disassemble(const u32 *src, unsigned int *len);
 void lightrec_free_opcode_list(struct opcode *list);

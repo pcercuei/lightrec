@@ -100,8 +100,7 @@ static int rec_special_JR(const struct block *block,
 			block->_jit, op->r.rs);
 
 	_jit_name(block->_jit, __func__);
-	return lightrec_emit_end_of_block(block, pc, rs,
-			0, 31, 0, SLIST_NEXT(op, next));
+	return lightrec_emit_end_of_block(block, pc, rs, 0, 31, 0, op->next);
 }
 
 static int rec_special_JALR(const struct block *block,
@@ -112,30 +111,30 @@ static int rec_special_JALR(const struct block *block,
 
 	_jit_name(block->_jit, __func__);
 	return lightrec_emit_end_of_block(block, pc, rs,
-			0, op->r.rd, pc + 8, SLIST_NEXT(op, next));
+					  0, op->r.rd, pc + 8, op->next);
 }
 
 static int rec_J(const struct block *block, const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return lightrec_emit_end_of_block(block, pc, -1,
-			(pc & 0xf0000000) | (op->j.imm << 2),
-			31, 0, SLIST_NEXT(op, next));
+					  (pc & 0xf0000000) | (op->j.imm << 2),
+					  31, 0, op->next);
 }
 
 static int rec_JAL(const struct block *block, const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
 	return lightrec_emit_end_of_block(block, pc, -1,
-			(pc & 0xf0000000) | (op->j.imm << 2), 31, pc + 8,
-			SLIST_NEXT(op, next));
+					  (pc & 0xf0000000) | (op->j.imm << 2),
+					  31, pc + 8, op->next);
 }
 
 static int rec_b(const struct block *block, const struct opcode *op, u32 pc,
 		jit_code_t code, u32 link, bool unconditional, bool bz)
 {
 	struct regcache *reg_cache = block->state->reg_cache;
-	struct opcode *delay_slot = SLIST_NEXT(op, next);
+	struct opcode *delay_slot = op->next;
 	struct native_register *regs_backup;
 	jit_state_t *_jit = block->_jit;
 	jit_node_t *addr;

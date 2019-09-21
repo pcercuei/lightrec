@@ -605,7 +605,7 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 	block->opcode_list = list;
 	block->cycles = 0;
 	block->map = map;
-	block->next.sle_next = NULL;
+	block->next = NULL;
 	block->flags = 0;
 	block->code_size = 0;
 #if ENABLE_THREADED_COMPILER
@@ -643,7 +643,7 @@ int lightrec_compile_block(struct block *block)
 	jit_prolog();
 	jit_tramp(256);
 
-	for (elm = block->opcode_list; elm; elm = SLIST_NEXT(elm, next)) {
+	for (elm = block->opcode_list; elm; elm = elm->next) {
 		block->cycles += lightrec_cycles_of_opcode(elm->c);
 
 		if (skip_next) {
