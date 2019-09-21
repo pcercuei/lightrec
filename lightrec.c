@@ -35,7 +35,7 @@
 #include <string.h>
 
 #define GENMASK(h, l) \
-	(((~0UL) << (l)) & (~0UL >> (__WORDSIZE - 1 - (h))))
+	(((uintptr_t)-1 << (l)) & ((uintptr_t)-1 >> (__WORDSIZE - 1 - (h))))
 
 static struct block * lightrec_precompile_block(struct lightrec_state *state,
 						u32 pc);
