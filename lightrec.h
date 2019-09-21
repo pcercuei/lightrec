@@ -70,6 +70,7 @@ enum psx_map {
 
 enum mem_type {
 	MEM_FOR_CODE,
+	MEM_FOR_MIPS_CODE,
 	MEM_FOR_IR,
 	MEM_FOR_LIGHTREC,
 	MEM_TYPE_END,

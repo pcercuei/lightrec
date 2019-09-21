@@ -67,7 +67,8 @@ struct block {
 #if ENABLE_THREADED_COMPILER
 	atomic_flag op_list_freed;
 #endif
-	u32 flags;
+	u16 flags;
+	u16 nb_ops;
 	unsigned int cycles;
 	unsigned int code_size;
 	const struct lightrec_mem_map *map;
