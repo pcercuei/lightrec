@@ -94,7 +94,7 @@ void lightrec_unregister_block(struct blockcache *cache, struct block *block)
 		}
 	}
 
-	ERROR("Block at PC 0x%x is not in cache\n", block->pc);
+	pr_err("Block at PC 0x%x is not in cache\n", block->pc);
 }
 
 void lightrec_free_block_cache(struct blockcache *cache)

@@ -43,8 +43,8 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 static void __segfault_cb(struct lightrec_state *state, u32 addr)
 {
 	lightrec_set_exit_flags(state, LIGHTREC_EXIT_SEGFAULT);
-	ERROR("Segmentation fault in recompiled code: invalid "
-			"load/store at address 0x%08x\n", addr);
+	pr_err("Segmentation fault in recompiled code: invalid "
+	       "load/store at address 0x%08x\n", addr);
 }
 
 static u32 lightrec_rw_ops(struct lightrec_state *state, union code op,
@@ -288,7 +288,7 @@ struct block * lightrec_get_block(struct lightrec_state *state, u32 pc)
 	struct block *block = lightrec_find_block(state->block_cache, pc);
 
 	if (block && lightrec_block_is_outdated(block)) {
-		DEBUG("Block at PC 0x%08x is outdated!\n", block->pc);
+		pr_debug("Block at PC 0x%08x is outdated!\n", block->pc);
 
 		/* Make sure the recompiler isn't processing the block we'll
 		 * destroy */
@@ -303,7 +303,7 @@ struct block * lightrec_get_block(struct lightrec_state *state, u32 pc)
 	if (!block) {
 		block = lightrec_precompile_block(state, pc);
 		if (!block) {
-			ERROR("Unable to recompile block at PC 0x%x\n", pc);
+			pr_err("Unable to recompile block at PC 0x%x\n", pc);
 			state->exit_flags = LIGHTREC_EXIT_SEGFAULT;
 			return NULL;
 		}
@@ -401,7 +401,7 @@ static struct block * generate_wrapper(struct lightrec_state *state,
 	block->code_size = code_size;
 
 	if (ENABLE_DISASSEMBLER) {
-		DEBUG("Wrapper block:\n");
+		pr_debug("Wrapper block:\n");
 		jit_disassemble();
 	}
 
@@ -411,7 +411,7 @@ static struct block * generate_wrapper(struct lightrec_state *state,
 err_free_block:
 	lightrec_free(MEM_FOR_IR, sizeof(*block), block);
 err_no_mem:
-	ERROR("Unable to compile wrapper: Out of memory\n");
+	pr_err("Unable to compile wrapper: Out of memory\n");
 	return NULL;
 }
 
@@ -534,7 +534,7 @@ static struct block * generate_wrapper_block(struct lightrec_state *state)
 	state->get_next_block = jit_address(addr);
 
 	if (ENABLE_DISASSEMBLER) {
-		DEBUG("Main wrapper block:\n");
+		pr_debug("Main wrapper block:\n");
 		jit_disassemble();
 	}
 
@@ -545,7 +545,7 @@ static struct block * generate_wrapper_block(struct lightrec_state *state)
 err_free_block:
 	lightrec_free(MEM_FOR_IR, sizeof(*block), block);
 err_no_mem:
-	ERROR("Unable to compile wrapper: Out of memory\n");
+	pr_err("Unable to compile wrapper: Out of memory\n");
 	return NULL;
 }
 
@@ -587,7 +587,7 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 
 	block = lightrec_malloc(MEM_FOR_IR, sizeof(*block));
 	if (!block) {
-		ERROR("Unable to recompile block: Out of memory\n");
+		pr_err("Unable to recompile block: Out of memory\n");
 		return NULL;
 	}
 
@@ -615,7 +615,7 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 	lightrec_optimize(list);
 
 	if (ENABLE_DISASSEMBLER) {
-		DEBUG("Disassembled block at PC: 0x%x\n", block->pc);
+		pr_debug("Disassembled block at PC: 0x%x\n", block->pc);
 		lightrec_print_disassembly(block, code, length);
 	}
 
@@ -670,7 +670,7 @@ int lightrec_compile_block(struct block *block)
 	block->code_size = code_size;
 
 	if (ENABLE_DISASSEMBLER) {
-		DEBUG("Compiling block at PC: 0x%x\n", block->pc);
+		pr_debug("Compiling block at PC: 0x%x\n", block->pc);
 		jit_disassemble();
 	}
 
@@ -747,7 +747,7 @@ struct lightrec_state * lightrec_init(char *argv0,
 	    !ops->cop0_ops.ctc || !ops->cop0_ops.op ||
 	    !ops->cop2_ops.mfc || !ops->cop2_ops.cfc || !ops->cop2_ops.mtc ||
 	    !ops->cop2_ops.ctc || !ops->cop2_ops.op) {
-		ERROR("Missing callbacks in lightrec_ops structure\n");
+		pr_err("Missing callbacks in lightrec_ops structure\n");
 		return NULL;
 	}
 

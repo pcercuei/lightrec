@@ -44,7 +44,7 @@
 
 #if (LOG_LEVEL >= DEBUG_L)
 # ifdef COLOR_DEBUG
-#  define DEBUG(str, ...) do {						\
+#  define pr_debug(str, ...) do {					\
 	if (isatty(STDOUT_FILENO))					\
 		fprintf(stdout, COLOR_DEBUG "DEBUG: " str COLOR_END,	\
 			##__VA_ARGS__);					\
@@ -52,28 +52,28 @@
 		fprintf(stdout, "DEBUG: " str, ##__VA_ARGS__);		\
 	} while (0)
 # else
-#  define DEBUG(...) \
+#  define pr_debug(...) \
     fprintf(stdout, "DEBUG: " __VA_ARGS__)
 # endif
 #else
-#define DEBUG(...)
+#define pr_debug(...)
 #endif
 
 #if (LOG_LEVEL >= INFO_L)
 # ifdef COLOR_INFO
-#  define INFO(str, ...) \
+#  define pr_info(str, ...) \
     fprintf(stdout, COLOR_INFO str COLOR_END, ##__VA_ARGS__)
 # else
-#  define INFO(...) \
+#  define pr_info(...) \
     fprintf(stdout, __VA_ARGS__)
 # endif
 #else
-#define INFO(...)
+#define pr_info(...)
 #endif
 
 #if (LOG_LEVEL >= WARNING_L)
 # ifdef COLOR_WARNING
-#  define WARNING(str, ...) do {					\
+#  define pr_warn(str, ...) do {					\
 	if (isatty(STDERR_FILENO))					\
 		fprintf(stderr, COLOR_WARNING "WARNING: " str COLOR_END,\
 			##__VA_ARGS__);					\
@@ -81,16 +81,16 @@
 		fprintf(stderr, "WARNING: " str, ##__VA_ARGS__);	\
 	} while (0)
 # else
-#  define WARNING(...) \
+#  define pr_warn(...) \
     fprintf(stderr, "WARNING: " __VA_ARGS__)
 # endif
 #else
-#define WARNING(...)
+#define pr_warn(...)
 #endif
 
 #if (LOG_LEVEL >= ERROR_L)
 # ifdef COLOR_ERROR
-#  define ERROR(str, ...) do {						\
+#  define pr_err(str, ...) do {						\
 	if (isatty(STDERR_FILENO))					\
 		fprintf(stderr, COLOR_ERROR "ERROR: " str COLOR_END,	\
 			##__VA_ARGS__);					\
@@ -98,11 +98,11 @@
 		fprintf(stderr, "ERROR: " str, ##__VA_ARGS__);		\
 	} while (0)
 # else
-#  define ERROR(...) \
+#  define pr_err(...) \
     fprintf(stderr, "ERROR: " __VA_ARGS__)
 # endif
 #else
-#define ERROR(...)
+#define pr_err(...)
 #endif
 
 #endif

@@ -208,7 +208,7 @@ static int lightrec_transform_to_nops(struct opcode *list)
 	 * (0x0: SLL r0, r0, #0) */
 	for (; list; list = SLIST_NEXT(list, next)) {
 		if (list->opcode != 0 && is_nop(list->c)) {
-			DEBUG("Converting useless opcode 0x%08x to NOP\n",
+			pr_debug("Converting useless opcode 0x%08x to NOP\n",
 					list->opcode);
 			list->opcode = 0x0;
 		}

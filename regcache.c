@@ -173,7 +173,7 @@ u8 lightrec_alloc_reg_temp(struct regcache *cache, jit_state_t *_jit)
 	struct native_register *nreg = alloc_temp(cache);
 	if (!nreg) {
 		/* No free register, no dirty register to free. */
-		ERROR("No more registers! Abandon ship!\n");
+		pr_err("No more registers! Abandon ship!\n");
 		return 0;
 	}
 
@@ -192,7 +192,7 @@ u8 lightrec_alloc_reg_out(struct regcache *cache, jit_state_t *_jit, u8 reg)
 	struct native_register *nreg = alloc_in_out(cache, reg);
 	if (!nreg) {
 		/* No free register, no dirty register to free. */
-		ERROR("No more registers! Abandon ship!\n");
+		pr_err("No more registers! Abandon ship!\n");
 		return 0;
 	}
 
@@ -217,7 +217,7 @@ u8 lightrec_alloc_reg_in(struct regcache *cache, jit_state_t *_jit, u8 reg)
 	struct native_register *nreg = alloc_in_out(cache, reg);
 	if (!nreg) {
 		/* No free register, no dirty register to free. */
-		ERROR("No more registers! Abandon ship!\n");
+		pr_err("No more registers! Abandon ship!\n");
 		return 0;
 	}
 

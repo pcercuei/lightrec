@@ -197,7 +197,7 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 
 static u32 int_unimplemented(struct interpreter *inter)
 {
-	WARNING("Unimplemented opcode 0x%08x\n", inter->op->opcode);
+	pr_warn("Unimplemented opcode 0x%08x\n", inter->op->opcode);
 
 	JUMP_NEXT(inter);
 }

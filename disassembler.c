@@ -72,7 +72,7 @@ struct opcode * lightrec_disassemble(const u32 *src, unsigned int *len)
 	for (i = 0, last = NULL; ; i++, last = curr) {
 		curr = lightrec_calloc(MEM_FOR_IR, sizeof(*curr));
 		if (!curr) {
-			ERROR("Unable to allocate memory\n");
+			pr_err("Unable to allocate memory\n");
 			lightrec_free_opcode_list(SLIST_FIRST(&head));
 			return NULL;
 		}

@@ -52,8 +52,8 @@ static void lightrec_compile_list(struct recompiler *rec)
 
 		ret = lightrec_compile_block(block);
 		if (ret) {
-			ERROR("Unable to compile block at PC 0x%x: %d\n",
-			      block->pc, ret);
+			pr_err("Unable to compile block at PC 0x%x: %d\n",
+			       block->pc, ret);
 		}
 
 		mtx_lock(&rec->mutex);
@@ -94,7 +94,7 @@ struct recompiler *lightrec_recompiler_init(void)
 
 	rec = lightrec_malloc(MEM_FOR_LIGHTREC, sizeof(*rec));
 	if (!rec) {
-		ERROR("Cannot create recompiler: Out of memory\n");
+		pr_err("Cannot create recompiler: Out of memory\n");
 		return NULL;
 	}
 
@@ -104,19 +104,19 @@ struct recompiler *lightrec_recompiler_init(void)
 
 	ret = cnd_init(&rec->cond);
 	if (ret) {
-		ERROR("Cannot init cond variable: %d\n", ret);
+		pr_err("Cannot init cond variable: %d\n", ret);
 		goto err_free_rec;
 	}
 
 	ret = mtx_init(&rec->mutex, mtx_plain);
 	if (ret) {
-		ERROR("Cannot init mutex variable: %d\n", ret);
+		pr_err("Cannot init mutex variable: %d\n", ret);
 		goto err_cnd_destroy;
 	}
 
 	ret = thrd_create(&rec->thd, lightrec_recompiler_thd, rec);
 	if (ret) {
-		ERROR("Cannot create recompiler thread: %d\n", ret);
+		pr_err("Cannot create recompiler thread: %d\n", ret);
 		goto err_mtx_destroy;
 	}
 
@@ -172,7 +172,7 @@ int lightrec_recompiler_add(struct recompiler *rec, struct block *block)
 		return -ENOMEM;
 	}
 
-	DEBUG("Adding block PC 0x%x to recompiler\n", block->pc);
+	pr_debug("Adding block PC 0x%x to recompiler\n", block->pc);
 
 	block_rec->block = block;
 	SLIST_INSERT_HEAD(&rec->list, block_rec, next);

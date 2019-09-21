@@ -37,7 +37,7 @@ static int rec_CP2(const struct block *block, const struct opcode *op, u32 pc);
 static int unknown_opcode(const struct block *block,
 			  const struct opcode *op, u32 pc)
 {
-	WARNING("Unknown opcode: 0x%08x at PC 0x%08x\n", op->opcode, pc);
+	pr_warn("Unknown opcode: 0x%08x at PC 0x%08x\n", op->opcode, pc);
 
 	return 0;
 }
@@ -1216,7 +1216,7 @@ static int rec_meta_unload(const struct block *block,
 	jit_state_t *_jit = block->_jit;
 	u8 reg = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rs);
 
-	DEBUG("Unloading reg %s\n", lightrec_reg_name(op->i.rs));
+	pr_debug("Unloading reg %s\n", lightrec_reg_name(op->i.rs));
 	lightrec_unload_reg(reg_cache, _jit, reg);
 	return 0;
 }
