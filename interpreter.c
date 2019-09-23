@@ -249,7 +249,6 @@ static u32 int_special_JALR(struct interpreter *inter)
 
 static u32 int_beq(struct interpreter *inter, bool bne)
 {
-	struct lightrec_state *state = inter->state;
 	u32 old_pc = inter->block->pc + inter->op->offset * sizeof(u32);
 	u32 rs, rt, next_pc = old_pc + 4 + ((s16)inter->op->i.imm << 2);
 	bool branch;
@@ -278,7 +277,6 @@ static u32 int_BNE(struct interpreter *inter)
 
 static u32 int_bgez(struct interpreter *inter, bool link, bool lt, bool regimm)
 {
-	struct lightrec_state *state = inter->state;
 	u32 old_pc = inter->block->pc + inter->op->offset * sizeof(u32);
 	u32 next_pc = old_pc + 4 + ((s16)inter->op->i.imm << 2);
 	bool branch;
@@ -288,7 +286,7 @@ static u32 int_bgez(struct interpreter *inter, bool link, bool lt, bool regimm)
 		inter->state->native_reg_cache[31] = old_pc + 8;
 
 	rs = (s32)inter->state->native_reg_cache[inter->op->i.rs];
-	branch = (regimm && !rs || rs > 0) ^ lt;
+	branch = ((regimm && !rs) || rs > 0) ^ lt;
 
 	next_pc = int_delay_slot(inter, next_pc, branch);
 
