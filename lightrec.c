@@ -102,10 +102,8 @@ u32 lightrec_rw(struct lightrec_state *state, union code op,
 		u32 addr, u32 data, u16 *flags)
 {
 	const struct lightrec_mem_map *map;
-	const struct lightrec_mem_map_ops *ops;
 	u32 shift, mem_data, mask, pc;
 	uintptr_t new_addr;
-	unsigned int i;
 	u32 kaddr;
 
 	addr += (s16) op.i.imm;
@@ -117,7 +115,6 @@ u32 lightrec_rw(struct lightrec_state *state, union code op,
 		return 0;
 	}
 
-	ops = map->ops;
 	pc = map->pc;
 
 	if (unlikely(map->ops))
@@ -745,7 +742,7 @@ struct lightrec_state * lightrec_init(char *argv0,
 				      const struct lightrec_ops *ops)
 {
 	struct lightrec_state *state;
-	unsigned int i, lut_size;
+	unsigned int lut_size;
 
 	/* Sanity-check ops */
 	if (!ops ||
@@ -860,8 +857,6 @@ err_finish_jit:
 
 void lightrec_destroy(struct lightrec_state *state)
 {
-	unsigned int i;
-
 	if (ENABLE_THREADED_COMPILER)
 		lightrec_free_recompiler(state->rec);
 
