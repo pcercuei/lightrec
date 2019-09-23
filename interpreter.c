@@ -887,7 +887,7 @@ static u32 int_SPECIAL(struct interpreter *inter)
 	if (likely(f))
 		EXECUTE(f, inter);
 
-	int_unimplemented(inter);
+	return int_unimplemented(inter);
 }
 
 static u32 int_REGIMM(struct interpreter *inter)
@@ -896,7 +896,7 @@ static u32 int_REGIMM(struct interpreter *inter)
 	if (likely(f))
 		EXECUTE(f, inter);
 
-	int_unimplemented(inter);
+	return int_unimplemented(inter);
 }
 
 static u32 int_CP0(struct interpreter *inter)
@@ -904,8 +904,8 @@ static u32 int_CP0(struct interpreter *inter)
 	lightrec_int_func_t f = int_cp0[inter->op->r.rs];
 	if (likely(f))
 		EXECUTE(f, inter);
-	else
-		int_CP(inter);
+
+	return int_CP(inter);
 }
 
 static u32 int_CP2(struct interpreter *inter)
@@ -916,7 +916,7 @@ static u32 int_CP2(struct interpreter *inter)
 			EXECUTE(f, inter);
 	}
 
-	int_CP(inter);
+	return int_CP(inter);
 }
 
 static u32 lightrec_int_op(struct interpreter *inter)
