@@ -57,7 +57,7 @@ static void lightrec_compile_list(struct recompiler *rec)
 	struct block *block;
 	int ret;
 
-	while (next = rec->list) {
+	while (!!(next = rec->list)) {
 		block = next->block;
 		rec->current_block = block;
 
