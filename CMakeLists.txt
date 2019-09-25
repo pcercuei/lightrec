@@ -69,6 +69,14 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 	C_EXTENSIONS OFF
 )
 
+if (ENABLE_THREADED_COMPILER)
+	find_library(PTHREAD_LIBRARIES pthread REQUIRED)
+	find_path(PTHREAD_INCLUDE_DIR pthread.h REQUIRED)
+
+	include_directories(${PTHREAD_INCLUDE_DIR})
+	target_link_libraries(${PROJECT_NAME} PRIVATE ${PTHREAD_LIBRARIES})
+endif (ENABLE_THREADED_COMPILER)
+
 find_library(LIBLIGHTNING lightning REQUIRED)
 find_path(LIBLIGHTNING_INCLUDE_DIR lightning.h REQUIRED)
 

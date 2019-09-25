@@ -21,7 +21,7 @@
 #include <stdatomic.h>
 #include <stdbool.h>
 #include <stdlib.h>
-#include <threads.h>
+#include <pthread.h>
 
 struct block_rec {
 	struct block *block;
@@ -29,9 +29,9 @@ struct block_rec {
 };
 
 struct recompiler {
-	thrd_t thd;
-	cnd_t cond;
-	mtx_t mutex;
+	pthread_t thd;
+	pthread_cond_t cond;
+	pthread_mutex_t mutex;
 	bool stop;
 	struct block *current_block;
 	struct block_rec *list;
@@ -61,7 +61,7 @@ static void lightrec_compile_list(struct recompiler *rec)
 		block = next->block;
 		rec->current_block = block;
 
-		mtx_unlock(&rec->mutex);
+		pthread_mutex_unlock(&rec->mutex);
 
 		ret = lightrec_compile_block(block);
 		if (ret) {
@@ -69,29 +69,29 @@ static void lightrec_compile_list(struct recompiler *rec)
 			       block->pc, ret);
 		}
 
-		mtx_lock(&rec->mutex);
+		pthread_mutex_lock(&rec->mutex);
 
 		slist_remove(rec, next);
 		lightrec_free(MEM_FOR_LIGHTREC, sizeof(*next), next);
-		cnd_signal(&rec->cond);
+		pthread_cond_signal(&rec->cond);
 	}
 
 	rec->current_block = NULL;
 }
 
-static int lightrec_recompiler_thd(void *d)
+static void * lightrec_recompiler_thd(void *d)
 {
 	struct recompiler *rec = d;
 
-	mtx_lock(&rec->mutex);
+	pthread_mutex_lock(&rec->mutex);
 
 	for (;;) {
 		do {
-			cnd_wait(&rec->cond, &rec->mutex);
+			pthread_cond_wait(&rec->cond, &rec->mutex);
 
 			if (rec->stop) {
-				mtx_unlock(&rec->mutex);
-				return 0;
+				pthread_mutex_unlock(&rec->mutex);
+				return NULL;
 			}
 
 		} while (!rec->list);
@@ -115,19 +115,19 @@ struct recompiler *lightrec_recompiler_init(void)
 	rec->current_block = NULL;
 	rec->list = NULL;
 
-	ret = cnd_init(&rec->cond);
+	ret = pthread_cond_init(&rec->cond, NULL);
 	if (ret) {
 		pr_err("Cannot init cond variable: %d\n", ret);
 		goto err_free_rec;
 	}
 
-	ret = mtx_init(&rec->mutex, mtx_plain);
+	ret = pthread_mutex_init(&rec->mutex, NULL);
 	if (ret) {
 		pr_err("Cannot init mutex variable: %d\n", ret);
 		goto err_cnd_destroy;
 	}
 
-	ret = thrd_create(&rec->thd, lightrec_recompiler_thd, rec);
+	ret = pthread_create(&rec->thd, NULL, lightrec_recompiler_thd, rec);
 	if (ret) {
 		pr_err("Cannot create recompiler thread: %d\n", ret);
 		goto err_mtx_destroy;
@@ -136,9 +136,9 @@ struct recompiler *lightrec_recompiler_init(void)
 	return rec;
 
 err_mtx_destroy:
-	mtx_destroy(&rec->mutex);
+	pthread_mutex_destroy(&rec->mutex);
 err_cnd_destroy:
-	cnd_destroy(&rec->cond);
+	pthread_cond_destroy(&rec->cond);
 err_free_rec:
 	lightrec_free(MEM_FOR_LIGHTREC, sizeof(*rec), rec);
 	return NULL;
@@ -149,13 +149,13 @@ void lightrec_free_recompiler(struct recompiler *rec)
 	rec->stop = true;
 
 	/* Stop the thread */
-	mtx_lock(&rec->mutex);
-	cnd_signal(&rec->cond);
-	mtx_unlock(&rec->mutex);
-	thrd_join(rec->thd, NULL);
+	pthread_mutex_lock(&rec->mutex);
+	pthread_cond_signal(&rec->cond);
+	pthread_mutex_unlock(&rec->mutex);
+	pthread_join(rec->thd, NULL);
 
-	mtx_destroy(&rec->mutex);
-	cnd_destroy(&rec->cond);
+	pthread_mutex_destroy(&rec->mutex);
+	pthread_cond_destroy(&rec->cond);
 	lightrec_free(MEM_FOR_LIGHTREC, sizeof(*rec), rec);
 }
 
@@ -163,11 +163,11 @@ int lightrec_recompiler_add(struct recompiler *rec, struct block *block)
 {
 	struct block_rec *block_rec;
 
-	mtx_lock(&rec->mutex);
+	pthread_mutex_lock(&rec->mutex);
 
 	for (block_rec = rec->list; block_rec; block_rec = block_rec->next) {
 		if (block_rec->block == block) {
-			mtx_unlock(&rec->mutex);
+			pthread_mutex_unlock(&rec->mutex);
 			return 0;
 		}
 	}
@@ -175,13 +175,13 @@ int lightrec_recompiler_add(struct recompiler *rec, struct block *block)
 	/* By the time this function was called, the block has been recompiled
 	 * and ins't in the wait list anymore. Just return here. */
 	if (block->function) {
-		mtx_unlock(&rec->mutex);
+		pthread_mutex_unlock(&rec->mutex);
 		return 0;
 	}
 
 	block_rec = lightrec_malloc(MEM_FOR_LIGHTREC, sizeof(*block_rec));
 	if (!block_rec) {
-		mtx_unlock(&rec->mutex);
+		pthread_mutex_unlock(&rec->mutex);
 		return -ENOMEM;
 	}
 
@@ -192,8 +192,8 @@ int lightrec_recompiler_add(struct recompiler *rec, struct block *block)
 	rec->list = block_rec;
 
 	/* Signal the thread */
-	cnd_signal(&rec->cond);
-	mtx_unlock(&rec->mutex);
+	pthread_cond_signal(&rec->cond);
+	pthread_mutex_unlock(&rec->mutex);
 
 	return 0;
 }
@@ -202,7 +202,7 @@ void lightrec_recompiler_remove(struct recompiler *rec, struct block *block)
 {
 	struct block_rec *block_rec;
 
-	mtx_lock(&rec->mutex);
+	pthread_mutex_lock(&rec->mutex);
 
 	for (block_rec = rec->list; block_rec; block_rec = block_rec->next) {
 		if (block_rec->block == block) {
@@ -210,7 +210,8 @@ void lightrec_recompiler_remove(struct recompiler *rec, struct block *block)
 				/* Block is being recompiled - wait for
 				 * completion */
 				do {
-					cnd_wait(&rec->cond, &rec->mutex);
+					pthread_cond_wait(&rec->cond,
+							  &rec->mutex);
 				} while (block == rec->current_block);
 			} else {
 				/* Block is not yet being processed - remove it
@@ -224,7 +225,7 @@ void lightrec_recompiler_remove(struct recompiler *rec, struct block *block)
 		}
 	}
 
-	mtx_unlock(&rec->mutex);
+	pthread_mutex_unlock(&rec->mutex);
 }
 
 void * lightrec_recompiler_run_first_pass(struct block *block, u32 *pc)
