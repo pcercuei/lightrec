@@ -161,12 +161,21 @@ void lightrec_free_recompiler(struct recompiler *rec)
 
 int lightrec_recompiler_add(struct recompiler *rec, struct block *block)
 {
-	struct block_rec *block_rec;
+	struct block_rec *block_rec, *prev;
 
 	pthread_mutex_lock(&rec->mutex);
 
-	for (block_rec = rec->list; block_rec; block_rec = block_rec->next) {
+	for (block_rec = rec->list, prev = NULL; block_rec;
+	     prev = block_rec, block_rec = block_rec->next) {
 		if (block_rec->block == block) {
+			/* The block to compile is already in the queue - bump
+			 * it to the top of the list */
+			if (prev) {
+				prev->next = block_rec->next;
+				block_rec->next = rec->list;
+				rec->list = block_rec;
+			}
+
 			pthread_mutex_unlock(&rec->mutex);
 			return 0;
 		}
