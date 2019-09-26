@@ -101,11 +101,10 @@ static struct native_register * alloc_temp(struct regcache *cache)
 	return NULL;
 }
 
-static struct native_register * alloc_in_out(struct regcache *cache, u8 reg)
+static struct native_register * find_mapped_reg(struct regcache *cache, u8 reg)
 {
 	unsigned int i;
 
-	/* Try to find if the register is already mapped somewhere */
 	for (i = 0; i < ARRAY_SIZE(cache->lightrec_regs); i++) {
 		struct native_register *nreg = &cache->lightrec_regs[i];
 		if ((!reg || nreg->loaded || nreg->dirty) &&
@@ -113,24 +112,37 @@ static struct native_register * alloc_in_out(struct regcache *cache, u8 reg)
 			return nreg;
 	}
 
+	return NULL;
+}
+
+static struct native_register * alloc_in_out(struct regcache *cache, u8 reg)
+{
+	struct native_register *nreg;
+	unsigned int i;
+
+	/* Try to find if the register is already mapped somewhere */
+	nreg = find_mapped_reg(cache, reg);
+	if (nreg)
+		return nreg;
+
 	/* Try to allocate a non-dirty, non-loaded register.
 	 * Loaded registers may be re-used later, so it's better to avoid
 	 * re-using one if possible. */
 	for (i = 0; i < ARRAY_SIZE(cache->lightrec_regs); i++) {
-		struct native_register *nreg = &cache->lightrec_regs[i];
+		nreg = &cache->lightrec_regs[i];
 		if (!nreg->used && !nreg->dirty && !nreg->loaded)
 			return nreg;
 	}
 
 	/* Try to allocate a non-dirty register */
 	for (i = 0; i < ARRAY_SIZE(cache->lightrec_regs); i++) {
-		struct native_register *nreg = &cache->lightrec_regs[i];
+		nreg = &cache->lightrec_regs[i];
 		if (!nreg->used && !nreg->dirty)
 			return nreg;
 	}
 
 	for (i = 0; i < ARRAY_SIZE(cache->lightrec_regs); i++) {
-		struct native_register *nreg = &cache->lightrec_regs[i];
+		nreg = &cache->lightrec_regs[i];
 		if (!nreg->used)
 			return nreg;
 	}
@@ -256,6 +268,31 @@ u8 lightrec_alloc_reg_in(struct regcache *cache, jit_state_t *_jit, u8 reg)
 	nreg->used = true;
 	nreg->output = false;
 	nreg->emulated_register = reg;
+	return jit_reg;
+}
+
+u8 lightrec_request_reg_in(struct regcache *cache, jit_state_t *_jit,
+			   u8 reg, u8 jit_reg)
+{
+	struct native_register *nreg;
+	unsigned int i;
+	u16 offset;
+
+	nreg = find_mapped_reg(cache, reg);
+	if (nreg)
+		return lightrec_reg_to_lightning(cache, nreg);
+
+	nreg = lightning_reg_to_lightrec(cache, jit_reg);
+	lightrec_unload_nreg(cache, _jit, nreg, jit_reg);
+
+	/* Load previous value from register cache */
+	offset = offsetof(struct lightrec_state, native_reg_cache) + (reg << 2);
+	jit_ldxi_i(jit_reg, LIGHTREC_REG_STATE, offset);
+
+	nreg->used = true;
+	nreg->loaded = true;
+	nreg->emulated_register = reg;
+
 	return jit_reg;
 }
 
