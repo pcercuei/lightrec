@@ -829,7 +829,7 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 		return NULL;
 	}
 
-	list = lightrec_disassemble(state, code, &length);
+	list = lightrec_disassemble(state, code, &length, 0);
 	if (!list) {
 		lightrec_free(state, MEM_FOR_IR, sizeof(*block), block);
 		return NULL;

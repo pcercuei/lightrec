@@ -66,7 +66,8 @@ void lightrec_free_opcode_list(struct lightrec_state *state, struct opcode *list
 }
 
 struct opcode * lightrec_disassemble(struct lightrec_state *state,
-				     const u32 *src, unsigned int *len)
+				     const u32 *src, unsigned int *len,
+				     u16 start_offset)
 {
 	struct opcode *head = NULL;
 	bool stop_next = false;
@@ -88,7 +89,7 @@ struct opcode * lightrec_disassemble(struct lightrec_state *state,
 
 		/* TODO: Take care of endianness */
 		curr->opcode = LE32TOH(*src++);
-		curr->offset = i;
+		curr->offset = i + start_offset;
 
 		/* NOTE: The block disassembly ends after the opcode that
 		 * follows an unconditional jump (delay slot) */

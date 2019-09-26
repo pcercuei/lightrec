@@ -200,7 +200,8 @@ struct opcode {
 };
 
 struct opcode * lightrec_disassemble(struct lightrec_state *state,
-				     const u32 *src, unsigned int *len);
+				     const u32 *src, unsigned int *len,
+				     u16 start_offset);
 void lightrec_free_opcode_list(struct lightrec_state *state,
 			       struct opcode *list);
 
