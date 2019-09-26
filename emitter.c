@@ -96,8 +96,8 @@ static int lightrec_emit_end_of_block(const struct block *block, u32 pc,
 static int rec_special_JR(const struct block *block,
 			  const struct opcode *op, u32 pc)
 {
-	u8 rs = lightrec_alloc_reg_in(block->state->reg_cache,
-			block->_jit, op->r.rs);
+	u8 rs = lightrec_request_reg_in(block->state->reg_cache,
+					block->_jit, op->r.rs, JIT_V0);
 
 	_jit_name(block->_jit, __func__);
 	return lightrec_emit_end_of_block(block, pc, rs, 0, 31, 0, op->next);
@@ -106,8 +106,8 @@ static int rec_special_JR(const struct block *block,
 static int rec_special_JALR(const struct block *block,
 			    const struct opcode *op, u32 pc)
 {
-	u8 rs = lightrec_alloc_reg_in(block->state->reg_cache,
-			block->_jit, op->r.rs);
+	u8 rs = lightrec_request_reg_in(block->state->reg_cache,
+					block->_jit, op->r.rs, JIT_V0);
 
 	_jit_name(block->_jit, __func__);
 	return lightrec_emit_end_of_block(block, pc, rs,
