@@ -664,7 +664,7 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 #endif
 	block->nb_ops = length / sizeof(u32);
 
-	lightrec_optimize(list);
+	lightrec_optimize(block);
 
 	lightrec_register(MEM_FOR_MIPS_CODE, length);
 

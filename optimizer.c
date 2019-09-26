@@ -245,8 +245,10 @@ bool load_in_delay_slot(union code op)
 	return false;
 }
 
-static int lightrec_transform_ops(struct opcode *list)
+static int lightrec_transform_ops(struct block *block)
 {
+	struct opcode *list = block->opcode_list;
+
 	for (; list; list = list->next) {
 
 		/* Transform all opcodes detected as useless to real NOPs
@@ -318,12 +320,13 @@ static int lightrec_transform_ops(struct opcode *list)
 	return 0;
 }
 
-static int lightrec_switch_delay_slots(struct opcode *list)
+static int lightrec_switch_delay_slots(struct block *block)
 {
+	struct opcode *list;
 	u8 flags;
 	int ret;
 
-	for (; list->next; list = list->next) {
+	for (list = block->opcode_list; list->next; list = list->next) {
 		union code op = list->c;
 		union code next_op = list->next->c;
 
@@ -445,8 +448,9 @@ static int lightrec_add_unload(struct opcode *op, u8 reg)
 	return 0;
 }
 
-static int lightrec_early_unload(struct opcode *list)
+static int lightrec_early_unload(struct block *block)
 {
+	struct opcode *list = block->opcode_list;
 	u8 i;
 
 	for (i = 1; i < 34; i++) {
@@ -486,13 +490,15 @@ static int lightrec_early_unload(struct opcode *list)
 	return 0;
 }
 
-static int lightrec_flag_stores(struct opcode *list)
+static int lightrec_flag_stores(struct block *block)
 {
+	struct opcode *list;
+
 	/* Mark all store operations that target $sp, $gp, $k0 or $k1 as not
 	 * requiring code invalidation. This is based on the heuristic that
 	 * stores using one of these registers as address will never hit a code
 	 * page. */
-	for (; list; list = list->next) {
+	for (list = block->opcode_list; list; list = list->next) {
 		switch (list->i.op) {
 		case OP_SB:
 		case OP_SH:
@@ -510,19 +516,19 @@ static int lightrec_flag_stores(struct opcode *list)
 	return 0;
 }
 
-static int (*lightrec_optimizers[])(struct opcode *) = {
+static int (*lightrec_optimizers[])(struct block *) = {
 	&lightrec_transform_ops,
 	&lightrec_switch_delay_slots,
 	&lightrec_early_unload,
 	&lightrec_flag_stores,
 };
 
-int lightrec_optimize(struct opcode *list)
+int lightrec_optimize(struct block *block)
 {
 	unsigned int i;
 
 	for (i = 0; i < ARRAY_SIZE(lightrec_optimizers); i++) {
-		int ret = lightrec_optimizers[i](list);
+		int ret = lightrec_optimizers[i](block);
 
 		if (ret)
 			return ret;
