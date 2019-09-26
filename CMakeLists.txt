@@ -73,6 +73,7 @@ if (ENABLE_THREADED_COMPILER)
 	endif (NOT ENABLE_FIRST_PASS)
 endif (ENABLE_THREADED_COMPILER)
 
+option(OPT_APPEND_NEXT_BLOCK "(optimization) Continue block if branch to next opcode" ON)
 option(OPT_REMOVE_DIV_BY_ZERO_SEQ "(optimization) Remove div-by-zero check sequence" ON)
 option(OPT_REPLACE_MEMSET "(optimization) Detect and replace memset with host variant" ON)
 option(OPT_DETECT_IMPOSSIBLE_BRANCHES "(optimization) Detect impossible branches" ON)

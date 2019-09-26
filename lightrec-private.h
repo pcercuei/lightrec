@@ -307,6 +307,10 @@ int lightrec_compile_block(struct lightrec_cstate *cstate, struct block *block);
 void lightrec_free_opcode_list(struct lightrec_state *state,
 			       struct opcode *list);
 
+unsigned int lightrec_get_mips_block_len(const u32 *src);
+struct opcode * lightrec_disassemble(struct lightrec_state *state,
+				     const u32 *src, unsigned int *len);
+
 unsigned int lightrec_cycles_of_opcode(const struct lightrec_state *state,
 				       union code code);
 

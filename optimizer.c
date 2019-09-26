@@ -1331,6 +1331,30 @@ static int lightrec_switch_delay_slots(struct lightrec_state *state, struct bloc
 	return 0;
 }
 
+static int lightrec_realloc_list(struct lightrec_state *state,
+				 struct block *block, u16 new_size)
+{
+	unsigned int size = new_size < block->nb_ops ? new_size : block->nb_ops;
+	struct opcode_list *list, *old_list;
+
+	list = lightrec_malloc(state, MEM_FOR_IR,
+			       sizeof(*list) + sizeof(struct opcode) * new_size);
+	if (!list) {
+		pr_err("Unable to allocate memory\n");
+		return -ENOMEM;
+	}
+
+	old_list = container_of(block->opcode_list, struct opcode_list, ops);
+	memcpy(list->ops, old_list->ops, sizeof(struct opcode) * size);
+
+	lightrec_free_opcode_list(state, block->opcode_list);
+	list->nb_ops = new_size;
+	block->nb_ops = new_size;
+	block->opcode_list = list->ops;
+
+	return 0;
+}
+
 static int lightrec_detect_impossible_branches(struct lightrec_state *state,
 					       struct block *block)
 {
@@ -1509,6 +1533,65 @@ static int lightrec_local_branches(struct lightrec_state *state, struct block *b
 	}
 
 	lightrec_reset_syncs(block);
+
+	return 0;
+}
+
+
+static int lightrec_append_next_block(struct lightrec_state *state,
+				      struct block *block)
+{
+	unsigned int i, nb_ops, length, old_length;
+	struct opcode *list;
+	union code c;
+	void *addr;
+	int ret;
+
+	for (i = 0; i < block->nb_ops; i++) {
+		c = block->opcode_list[i].c;
+
+		switch (c.i.op) {
+		case OP_BEQ:
+		case OP_BNE:
+		case OP_BLEZ:
+		case OP_BGTZ:
+		case OP_REGIMM:
+			if (i + 1 + (s16)c.i.imm == block->nb_ops)
+				break;
+		default: /* fall-through */
+			continue;
+		}
+
+		pr_debug("Branch after EOB at offset 0x%x, appending next "
+			 "block\n", i << 2);
+
+		lightrec_get_map(state, &addr,
+				 kunseg(block->pc) + block->nb_ops * 4);
+
+		old_length = block->nb_ops;
+
+		list = lightrec_disassemble(state, addr, &length);
+		if (!list) {
+			pr_err("Out of memory\n");
+			return -ENOMEM;
+		}
+
+		nb_ops = length / sizeof(u32);
+
+		ret = lightrec_realloc_list(state, block, old_length + nb_ops);
+		if (!ret) {
+			memcpy(&block->opcode_list[old_length], list,
+			       nb_ops * sizeof(*list));
+		}
+
+		lightrec_free_opcode_list(state, list);
+
+		if (ret)
+			return ret;
+
+		/* Re-run algorithm from the beginning */
+		return lightrec_append_next_block(state, block);
+	}
 
 	return 0;
 }
@@ -2338,6 +2421,7 @@ static int lightrec_test_preload_pc(struct lightrec_state *state, struct block *
 }
 
 static int (*lightrec_optimizers[])(struct lightrec_state *state, struct block *) = {
+	IF_OPT(OPT_APPEND_NEXT_BLOCK, &lightrec_append_next_block),
 	IF_OPT(OPT_REMOVE_DIV_BY_ZERO_SEQ, &lightrec_remove_div_by_zero_check_sequence),
 	IF_OPT(OPT_REPLACE_MEMSET, &lightrec_replace_memset),
 	IF_OPT(OPT_DETECT_IMPOSSIBLE_BRANCHES, &lightrec_detect_impossible_branches),

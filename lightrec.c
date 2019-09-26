@@ -1354,7 +1354,7 @@ void lightrec_free_opcode_list(struct lightrec_state *state, struct opcode *ops)
 		      list);
 }
 
-static unsigned int lightrec_get_mips_block_len(const u32 *src)
+unsigned int lightrec_get_mips_block_len(const u32 *src)
 {
 	unsigned int i;
 	union code c;
@@ -1373,8 +1373,8 @@ static unsigned int lightrec_get_mips_block_len(const u32 *src)
 	}
 }
 
-static struct opcode * lightrec_disassemble(struct lightrec_state *state,
-					    const u32 *src, unsigned int *len)
+struct opcode * lightrec_disassemble(struct lightrec_state *state,
+				     const u32 *src, unsigned int *len)
 {
 	struct opcode_list *list;
 	unsigned int i, length;
