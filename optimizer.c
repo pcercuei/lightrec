@@ -798,6 +798,55 @@ static int lightrec_local_branches(struct block *block)
 	return 0;
 }
 
+
+static int lightrec_append_next_block(struct block *block)
+{
+	struct opcode *list, *op;
+	unsigned int length;
+	const u32 *code;
+	for (list = block->opcode_list; list; list = list->next) {
+		switch (list->i.op) {
+		case OP_BEQ:
+		case OP_BNE:
+		case OP_BLEZ:
+		case OP_BGTZ:
+		case OP_REGIMM:
+		case OP_META_BEQZ:
+		case OP_META_BNEZ:
+			if (block->pc + (list->offset + 1) * 4
+			    + ((s16)list->i.imm << 2)
+			    == block->pc + block->nb_ops * 4)
+				break;
+		default: /* fall-through */
+			continue;
+		}
+
+		code = (u32 *)((uintptr_t)block->map->address +
+			       (kunseg(block->pc) - block->map->pc) +
+			       block->nb_ops * 4);
+
+		pr_debug("Branch after EOB at offset 0x%x, appending next "
+			 "block\n", list->offset << 2);
+
+		list = lightrec_disassemble(block->state, code,
+					    &length, block->nb_ops);
+		if (!list) {
+			pr_err("Unable to recompile block: Out of memory\n");
+			return -ENOMEM;
+		}
+
+		for (op = block->opcode_list; op->next; op = op->next);
+
+		op->next = list;
+		block->nb_ops += length / sizeof(u32);
+
+		/* Re-run algorithm from the beginning */
+		return lightrec_append_next_block(block);
+	}
+
+	return 0;
+}
+
 bool has_delay_slot(union code op)
 {
 	switch (op.i.op) {
@@ -1016,6 +1065,7 @@ static int lightrec_flag_mults(struct block *block)
 }
 
 static int (*lightrec_optimizers[])(struct block *) = {
+	&lightrec_append_next_block,
 	&lightrec_detect_impossible_branches,
 	&lightrec_transform_ops,
 	&lightrec_local_branches,
