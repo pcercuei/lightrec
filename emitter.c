@@ -743,6 +743,57 @@ static int rec_io(const struct block *block, const struct opcode *op,
 	return 0;
 }
 
+static int rec_store_direct_no_invalidate(const struct block *block,
+					  const struct opcode *op,
+					  jit_code_t code)
+{
+	struct lightrec_state *state = block->state;
+	struct regcache *reg_cache = state->reg_cache;
+	jit_state_t *_jit = block->_jit;
+	jit_node_t *to_not_ram, *to_end;
+	u8 tmp, tmp2, rs, rt;
+
+	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rs);
+	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
+	tmp2 = lightrec_alloc_reg_temp(reg_cache, _jit);
+
+	/* Convert to KUNSEG and avoid RAM mirrors */
+	if (op->i.imm) {
+		jit_addi(tmp, rs, (s16)op->i.imm);
+		jit_andi(tmp, tmp, 0x1f9fffff);
+	} else {
+		jit_andi(tmp, rs, 0x1f9fffff);
+	}
+
+	lightrec_free_reg(reg_cache, rs);
+
+	if (state->offset_ram != state->offset_scratch) {
+		to_not_ram = jit_bmsi(tmp, BIT(28));
+
+		jit_movi(tmp2, state->offset_ram);
+
+		to_end = jit_jmpi();
+		jit_patch(to_not_ram);
+
+		jit_movi(tmp2, state->offset_scratch);
+	} else if (state->offset_ram) {
+		jit_movi(tmp2, state->offset_ram);
+	}
+
+	if (state->offset_ram || state->offset_scratch)
+		jit_addr(tmp, tmp, tmp2);
+
+	lightrec_free_reg(reg_cache, tmp2);
+
+	rt = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rt);
+	jit_new_node_ww(code, tmp, rt);
+
+	lightrec_free_reg(reg_cache, rt);
+	lightrec_free_reg(reg_cache, tmp);
+
+	return 0;
+}
+
 static int rec_store_direct(const struct block *block, const struct opcode *op,
 			    jit_code_t code)
 {
@@ -815,7 +866,9 @@ static int rec_store_direct(const struct block *block, const struct opcode *op,
 static int rec_store(const struct block *block, const struct opcode *op,
 		     jit_code_t code)
 {
-	if (op->flags & LIGHTREC_DIRECT_IO)
+	if (op->flags & LIGHTREC_NO_INVALIDATE)
+		return rec_store_direct_no_invalidate(block, op, code);
+	else if (op->flags & LIGHTREC_DIRECT_IO)
 		return rec_store_direct(block, op, code);
 	else
 		return rec_io(block, op, true, false);
