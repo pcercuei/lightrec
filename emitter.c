@@ -61,7 +61,7 @@ static int lightrec_emit_end_of_block(const struct block *block, u32 pc,
 	}
 
 	if (reg_new_pc < 0) {
-		reg_new_pc = lightrec_alloc_reg_temp(reg_cache, _jit);
+		reg_new_pc = lightrec_alloc_reg(reg_cache, _jit, JIT_V0);
 		jit_movi(reg_new_pc, imm);
 	}
 
