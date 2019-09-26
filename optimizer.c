@@ -299,9 +299,34 @@ static int lightrec_early_unload(struct opcode *list)
 	return 0;
 }
 
+static int lightrec_flag_stores(struct opcode *list)
+{
+	/* Mark all store operations that target $sp, $gp, $k0 or $k1 as not
+	 * requiring code invalidation. This is based on the heuristic that
+	 * stores using one of these registers as address will never hit a code
+	 * page. */
+	for (; list; list = list->next) {
+		switch (list->i.op) {
+		case OP_SB:
+		case OP_SH:
+		case OP_SW:
+			if (list->i.rs >= 26 && list->i.rs <= 29) {
+				pr_debug("Flaging opcode 0x%08x as not requiring invalidation\n",
+					 list->opcode);
+				list->flags |= LIGHTREC_NO_INVALIDATE;
+			}
+		default: /* fall-through */
+			break;
+		}
+	}
+
+	return 0;
+}
+
 static int (*lightrec_optimizers[])(struct opcode *) = {
 	&lightrec_transform_to_nops,
 	&lightrec_early_unload,
+	&lightrec_flag_stores,
 };
 
 int lightrec_optimize(struct opcode *list)

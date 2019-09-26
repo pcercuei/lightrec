@@ -21,6 +21,7 @@
 #define __packed __attribute__((packed))
 
 #define LIGHTREC_DIRECT_IO	(1 << 0)
+#define LIGHTREC_NO_INVALIDATE	(1 << 1)
 
 struct block;
 
