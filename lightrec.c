@@ -348,6 +348,16 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 	}
 }
 
+static s32 c_function_wrapper(struct lightrec_state *state, s32 cycles_delta,
+			      void (*f)(struct lightrec_state *))
+{
+	state->current_cycle = state->target_cycle - cycles_delta;
+
+	(*f)(state);
+
+	return state->target_cycle - state->current_cycle;
+}
+
 static struct block * generate_wrapper(struct lightrec_state *state,
 				       void (*f)(struct lightrec_state *))
 {
@@ -356,6 +366,7 @@ static struct block * generate_wrapper(struct lightrec_state *state,
 	unsigned int i;
 	int stack_ptr;
 	jit_word_t code_size;
+	jit_node_t *to_tramp, *to_fn_epilog;
 
 	block = lightrec_malloc(MEM_FOR_IR, sizeof(*block));
 	if (!block)
@@ -368,6 +379,7 @@ static struct block * generate_wrapper(struct lightrec_state *state,
 	jit_name("RW wrapper");
 	jit_note(__FILE__, __LINE__);
 
+	/* Wrapper entry point */
 	jit_prolog();
 
 	stack_ptr = jit_allocai(sizeof(uintptr_t) * NUM_TEMPS);
@@ -375,15 +387,37 @@ static struct block * generate_wrapper(struct lightrec_state *state,
 	for (i = 0; i < NUM_TEMPS; i++)
 		jit_stxi(stack_ptr + i * sizeof(uintptr_t), JIT_FP, JIT_R(i));
 
-	jit_prepare();
-	jit_pushargr(LIGHTREC_REG_STATE);
+	/* Jump to the trampoline */
+	to_tramp = jit_jmpi();
 
-	jit_finishi(f);
+	/* The trampoline will jump back here */
+	to_fn_epilog = jit_label();
 
 	for (i = 0; i < NUM_TEMPS; i++)
 		jit_ldxi(JIT_R(i), JIT_FP, stack_ptr + i * sizeof(uintptr_t));
 
 	jit_ret();
+	jit_epilog();
+
+
+	/* Trampoline entry point.
+	 * The sole purpose of the trampoline is to cheese Lightning not to
+	 * save/restore the callee-saved register LIGHTREC_REG_CYCLE, since we
+	 * do want to return to the caller with this register modified. */
+	jit_prolog();
+	jit_patch(to_tramp);
+	jit_tramp(256);
+
+	jit_prepare();
+	jit_pushargr(LIGHTREC_REG_STATE);
+	jit_pushargr(LIGHTREC_REG_CYCLE);
+	jit_pushargi((uintptr_t)f);
+
+	jit_finishi(c_function_wrapper);
+
+	jit_retval(LIGHTREC_REG_CYCLE);
+
+	jit_patch_at(jit_jmpi(), to_fn_epilog);
 	jit_epilog();
 
 	block->state = state;
@@ -437,6 +471,7 @@ static struct block * generate_wrapper_block(struct lightrec_state *state)
 	jit_frame(256);
 
 	jit_getarg(JIT_R0, jit_arg());
+	jit_getarg(LIGHTREC_REG_CYCLE, jit_arg());
 
 	/* Force all callee-saved registers to be pushed on the stack */
 	for (i = 0; i < NUM_REGS; i++)
@@ -451,24 +486,17 @@ static struct block * generate_wrapper_block(struct lightrec_state *state)
 	/* Call the block's code */
 	jit_jmpr(JIT_R0);
 
-	/* The block will jump here, with the number of cycles executed in
-	 * JIT_V1 */
+	/* The block will jump here, with the number of cycles remaining in
+	 * LIGHTREC_REG_CYCLE */
 	addr2 = jit_indirect();
 
 	/* Increment the cycle counter, and jump to end if
 	 * (state->exit_flags != LIGHTREC_EXIT_NORMAL ||
 	 *  state->target_cycle < state->current_cycle) */
-	offset = offsetof(struct lightrec_state, current_cycle);
-	jit_ldxi_i(JIT_R1, LIGHTREC_REG_STATE, offset);
-	jit_ldxi_i(JIT_R0, LIGHTREC_REG_STATE,
-			offsetof(struct lightrec_state, target_cycle));
-	jit_ldxi_i(JIT_R2, LIGHTREC_REG_STATE,
+	jit_ldxi_i(JIT_R1, LIGHTREC_REG_STATE,
 			offsetof(struct lightrec_state, exit_flags));
-	jit_addr(JIT_R1, JIT_R1, JIT_V1);
-	jit_stxi_i(offset, LIGHTREC_REG_STATE, JIT_R1);
-
-	jit_ltr_u(JIT_R0, JIT_R0, JIT_R1);
-	jit_orr(JIT_R0, JIT_R0, JIT_R2);
+	jit_lti(JIT_R0, LIGHTREC_REG_CYCLE, 0);
+	jit_orr(JIT_R0, JIT_R0, JIT_R1);
 	to_end = jit_bnei(JIT_R0, 0);
 
 	/* Convert next PC to KUNSEG and avoid mirrors */
@@ -489,6 +517,15 @@ static struct block * generate_wrapper_block(struct lightrec_state *state)
 	/* Slow path: call C function get_next_block_func() */
 	jit_patch(to_c);
 
+	if (ENABLE_FIRST_PASS) {
+		/* We may call the interpreter - update state->current_cycle */
+		jit_ldxi_i(JIT_R2, LIGHTREC_REG_STATE,
+			   offsetof(struct lightrec_state, target_cycle));
+		jit_subr(JIT_R1, JIT_R2, LIGHTREC_REG_CYCLE);
+		jit_stxi_i(offsetof(struct lightrec_state, current_cycle),
+			   LIGHTREC_REG_STATE, JIT_R1);
+	}
+
 	/* The code LUT will be set to this address when the block at the target
 	 * PC has been preprocessed but not yet compiled by the threaded
 	 * recompiler */
@@ -500,6 +537,16 @@ static struct block * generate_wrapper_block(struct lightrec_state *state)
 	jit_pushargr(JIT_V0);
 	jit_finishi(&get_next_block_func);
 	jit_retval(JIT_R0);
+
+	if (ENABLE_FIRST_PASS) {
+		/* The interpreter may have updated state->current_cycle and
+		 * state->target_cycle - recalc the delta */
+		jit_ldxi_i(JIT_R1, LIGHTREC_REG_STATE,
+			   offsetof(struct lightrec_state, current_cycle));
+		jit_ldxi_i(JIT_R2, LIGHTREC_REG_STATE,
+			   offsetof(struct lightrec_state, target_cycle));
+		jit_subr(LIGHTREC_REG_CYCLE, JIT_R2, JIT_R1);
+	}
 
 	/* If we get non-NULL, loop */
 	jit_patch_at(jit_bnei(JIT_R0, 0), loop);
@@ -515,6 +562,8 @@ static struct block * generate_wrapper_block(struct lightrec_state *state)
 	jit_stxi_i(offset, LIGHTREC_REG_STATE, JIT_V0);
 
 	jit_patch(to_end2);
+
+	jit_retr(LIGHTREC_REG_CYCLE);
 	jit_epilog();
 
 	block->state = state;
@@ -691,8 +740,9 @@ int lightrec_compile_block(struct block *block)
 
 u32 lightrec_execute(struct lightrec_state *state, u32 pc, u32 target_cycle)
 {
-	void (*func)(void *) = (void (*)(void *)) state->wrapper->function;
+	s32 (*func)(void *, s32) = (void *)state->wrapper->function;
 	void *block_trace;
+	s32 cycles_delta;
 
 	state->exit_flags = LIGHTREC_EXIT_NORMAL;
 
@@ -703,8 +753,13 @@ u32 lightrec_execute(struct lightrec_state *state, u32 pc, u32 target_cycle)
 	state->target_cycle = target_cycle;
 
 	block_trace = get_next_block_func(state, pc);
-	if (block_trace)
-		(*func)(block_trace);
+	if (block_trace) {
+		cycles_delta = state->target_cycle - state->current_cycle;
+
+		cycles_delta = (*func)(block_trace, cycles_delta);
+
+		state->current_cycle = state->target_cycle - cycles_delta;
+	}
 
 	return state->next_pc;
 }
@@ -930,9 +985,15 @@ u32 lightrec_current_cycle_count(const struct lightrec_state *state)
 void lightrec_reset_cycle_count(struct lightrec_state *state, u32 cycles)
 {
 	state->current_cycle = cycles;
+
+	if (state->target_cycle < cycles)
+		state->target_cycle = cycles;
 }
 
 void lightrec_set_target_cycle_count(struct lightrec_state *state, u32 cycles)
 {
+	if (cycles < state->current_cycle)
+		cycles = state->current_cycle;
+
 	state->target_cycle = cycles;
 }

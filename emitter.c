@@ -84,7 +84,7 @@ static void lightrec_emit_end_of_block(const struct block *block, u32 pc,
 	lightrec_storeback_regs(reg_cache, _jit);
 
 	jit_movr(JIT_V0, reg_new_pc);
-	jit_movi(JIT_V1, cycles);
+	jit_subi(LIGHTREC_REG_CYCLE, LIGHTREC_REG_CYCLE, cycles);
 
 	jit_jmpr(jmp_reg);
 }
