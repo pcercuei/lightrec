@@ -167,6 +167,16 @@ void lightrec_unload_reg(struct regcache *cache, jit_state_t *_jit, u8 jit_reg)
 			lightning_reg_to_lightrec(cache, jit_reg), jit_reg);
 }
 
+u8 lightrec_alloc_reg(struct regcache *cache, jit_state_t *_jit, u8 jit_reg)
+{
+	struct native_register *reg = lightning_reg_to_lightrec(cache, jit_reg);
+
+	lightrec_unload_nreg(cache, _jit, reg, jit_reg);
+
+	reg->used = true;
+	return jit_reg;
+}
+
 u8 lightrec_alloc_reg_temp(struct regcache *cache, jit_state_t *_jit)
 {
 	u8 jit_reg;
