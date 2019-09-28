@@ -652,8 +652,8 @@ int lightrec_compile_block(struct block *block)
 			skip_next = false;
 		} else if (elm->opcode) {
 			next_pc = block->pc + elm->offset * sizeof(u32);
-			ret = lightrec_rec_opcode(block, elm, next_pc);
-			skip_next = ret == SKIP_DELAY_SLOT;
+			lightrec_rec_opcode(block, elm, next_pc);
+			skip_next = has_delay_slot(elm->c);
 		}
 	}
 

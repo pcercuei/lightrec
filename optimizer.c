@@ -217,7 +217,7 @@ static int lightrec_transform_to_nops(struct opcode *list)
 	return 0;
 }
 
-static bool has_delay_slot(union code op)
+bool has_delay_slot(union code op)
 {
 	switch (op.i.op) {
 	case OP_SPECIAL:
