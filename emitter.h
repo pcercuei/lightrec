@@ -15,12 +15,10 @@
 #ifndef __EMITTER_H__
 #define __EMITTER_H__
 
-#define SKIP_DELAY_SLOT 1
-
 struct block;
 struct opcode;
 
-int lightrec_rec_opcode(const struct block *block,
-			const struct opcode *op, u32 pc);
+void lightrec_rec_opcode(const struct block *block,
+			 const struct opcode *op, u32 pc);
 
 #endif /* __EMITTER_H__ */
