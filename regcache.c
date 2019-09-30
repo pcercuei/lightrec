@@ -279,8 +279,10 @@ u8 lightrec_request_reg_in(struct regcache *cache, jit_state_t *_jit,
 	u16 offset;
 
 	nreg = find_mapped_reg(cache, reg);
-	if (nreg)
+	if (nreg) {
+		nreg->used = true;
 		return lightrec_reg_to_lightning(cache, nreg);
+	}
 
 	nreg = lightning_reg_to_lightrec(cache, jit_reg);
 	lightrec_unload_nreg(cache, _jit, nreg, jit_reg);
