@@ -280,6 +280,16 @@ static void lightrec_cp_cb(struct lightrec_state *state)
 	(*func)(state, opdata->op.opcode);
 }
 
+static void lightrec_syscall_cb(struct lightrec_state *state)
+{
+	lightrec_set_exit_flags(state, LIGHTREC_EXIT_SYSCALL);
+}
+
+static void lightrec_break_cb(struct lightrec_state *state)
+{
+	lightrec_set_exit_flags(state, LIGHTREC_EXIT_BREAK);
+}
+
 struct block * lightrec_get_block(struct lightrec_state *state, u32 pc)
 {
 	struct block *block = lightrec_find_block(state->block_cache, pc);
@@ -863,11 +873,21 @@ struct lightrec_state * lightrec_init(char *argv0,
 	if (!state->cp_wrapper)
 		goto err_free_rfe_wrapper;
 
+	state->syscall_wrapper = generate_wrapper(state, lightrec_syscall_cb);
+	if (!state->syscall_wrapper)
+		goto err_free_cp_wrapper;
+
+	state->break_wrapper = generate_wrapper(state, lightrec_break_cb);
+	if (!state->break_wrapper)
+		goto err_free_syscall_wrapper;
+
 	state->rw_func = state->rw_wrapper->function;
 	state->mfc_func = state->mfc_wrapper->function;
 	state->mtc_func = state->mtc_wrapper->function;
 	state->rfe_func = state->rfe_wrapper->function;
 	state->cp_func = state->cp_wrapper->function;
+	state->syscall_func = state->syscall_wrapper->function;
+	state->break_func = state->break_wrapper->function;
 
 	map = &state->maps[PSX_MAP_BIOS];
 	state->offset_bios = (uintptr_t)map->address - map->pc;
@@ -885,6 +905,10 @@ struct lightrec_state * lightrec_init(char *argv0,
 
 	return state;
 
+err_free_syscall_wrapper:
+	lightrec_free_block(state->syscall_wrapper);
+err_free_cp_wrapper:
+	lightrec_free_block(state->cp_wrapper);
 err_free_rfe_wrapper:
 	lightrec_free_block(state->rfe_wrapper);
 err_free_mtc_wrapper:
@@ -923,6 +947,8 @@ void lightrec_destroy(struct lightrec_state *state)
 	lightrec_free_block(state->mtc_wrapper);
 	lightrec_free_block(state->rfe_wrapper);
 	lightrec_free_block(state->cp_wrapper);
+	lightrec_free_block(state->syscall_wrapper);
+	lightrec_free_block(state->break_wrapper);
 	finish_jit();
 
 	lightrec_free(MEM_FOR_LIGHTREC, sizeof(*state) +
