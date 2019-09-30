@@ -311,7 +311,7 @@ struct block * lightrec_get_block(struct lightrec_state *state, u32 pc)
 		block = lightrec_precompile_block(state, pc);
 		if (!block) {
 			pr_err("Unable to recompile block at PC 0x%x\n", pc);
-			state->exit_flags = LIGHTREC_EXIT_SEGFAULT;
+			lightrec_set_exit_flags(state, LIGHTREC_EXIT_SEGFAULT);
 			return NULL;
 		}
 
@@ -500,14 +500,8 @@ static struct block * generate_wrapper_block(struct lightrec_state *state)
 	 * LIGHTREC_REG_CYCLE */
 	addr2 = jit_indirect();
 
-	/* Increment the cycle counter, and jump to end if
-	 * (state->exit_flags != LIGHTREC_EXIT_NORMAL ||
-	 *  state->target_cycle < state->current_cycle) */
-	jit_ldxi_i(JIT_R1, LIGHTREC_REG_STATE,
-			offsetof(struct lightrec_state, exit_flags));
-	jit_lti(JIT_R0, LIGHTREC_REG_CYCLE, 0);
-	jit_orr(JIT_R0, JIT_R0, JIT_R1);
-	to_end = jit_bnei(JIT_R0, 0);
+	/* Jump to end if state->target_cycle < state->current_cycle */
+	to_end = jit_blei(LIGHTREC_REG_CYCLE, 0);
 
 	/* Convert next PC to KUNSEG and avoid mirrors */
 	ram_len = state->maps[PSX_MAP_KERNEL_USER_RAM].length;
@@ -985,7 +979,10 @@ void lightrec_invalidate_all(struct lightrec_state *state)
 
 void lightrec_set_exit_flags(struct lightrec_state *state, u32 flags)
 {
-	state->exit_flags |= flags;
+	if (flags != LIGHTREC_EXIT_NORMAL) {
+		state->exit_flags |= flags;
+		state->target_cycle = state->current_cycle;
+	}
 }
 
 u32 lightrec_exit_flags(struct lightrec_state *state)
@@ -1018,8 +1015,10 @@ void lightrec_reset_cycle_count(struct lightrec_state *state, u32 cycles)
 
 void lightrec_set_target_cycle_count(struct lightrec_state *state, u32 cycles)
 {
-	if (cycles < state->current_cycle)
-		cycles = state->current_cycle;
+	if (state->exit_flags == LIGHTREC_EXIT_NORMAL) {
+		if (cycles < state->current_cycle)
+			cycles = state->current_cycle;
 
-	state->target_cycle = cycles;
+		state->target_cycle = cycles;
+	}
 }
