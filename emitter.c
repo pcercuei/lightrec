@@ -1033,16 +1033,24 @@ static void rec_LWC2(const struct block *block, const struct opcode *op, u32 pc)
 	rec_io(block, op, false, false);
 }
 
-static void rec_break_syscall(const struct block *block, u32 pc, u32 exit_flags)
+static void rec_break_syscall(const struct block *block, u32 pc, bool is_break)
 {
 	struct regcache *reg_cache = block->state->reg_cache;
 	jit_state_t *_jit = block->_jit;
-	u8 tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
-	u32 offset = offsetof(struct lightrec_state, exit_flags);
+	u32 offset;
+	u8 tmp;
 
-	jit_movi(tmp, exit_flags);
-	jit_stxi_i(offset, LIGHTREC_REG_STATE, tmp);
+	if (is_break)
+		offset = offsetof(struct lightrec_state, break_func);
+	else
+		offset = offsetof(struct lightrec_state, syscall_func);
+
+	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
+	jit_ldxi(tmp, LIGHTREC_REG_STATE, offset);
+	jit_callr(tmp);
 	lightrec_free_reg(reg_cache, tmp);
+
+	lightrec_regcache_mark_live(reg_cache, _jit);
 
 	/* TODO: the return address should be "pc - 4" if we're a delay slot */
 	lightrec_emit_end_of_block(block, pc, -1, pc, 31, 0, NULL);
@@ -1052,14 +1060,14 @@ static void rec_special_SYSCALL(const struct block *block,
 				const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_break_syscall(block, pc, LIGHTREC_EXIT_SYSCALL);
+	rec_break_syscall(block, pc, false);
 }
 
 static void rec_special_BREAK(const struct block *block,
 			      const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_break_syscall(block, pc, LIGHTREC_EXIT_BREAK);
+	rec_break_syscall(block, pc, true);
 }
 
 static void rec_mfc(const struct block *block, const struct opcode *op)
