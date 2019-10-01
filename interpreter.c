@@ -56,6 +56,8 @@ struct interpreter {
 
 #define JUMP_AFTER_BRANCH(inter) do {					\
 	inter->cycles += lightrec_cycles_of_opcode(inter->op->c);	\
+	if (unlikely(inter->delay_slot))				\
+		return 0;						\
 	inter->op = inter->op->next->next;				\
 	EXECUTE(int_standard[inter->op->i.op], inter);			\
 } while (0)
@@ -113,24 +115,40 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 		.block = NULL,
 	};
 	bool run_first_op = false, dummy_ld = false, save_rs = false,
-	     load_in_ds;
+	     load_in_ds, branch_in_ds = false;
 	u32 old_rs, new_rs, new_rt;
-	u32 next_pc;
+	u32 next_pc, ds_next_pc;
+
+	if (inter->delay_slot) {
+		/* The branch opcode was in a delay slot of another branch
+		 * opcode. Just return the target address of the second
+		 * branch. */
+		return pc;
+	}
 
 	/* An opcode located in the delay slot performing a delayed read
 	 * requires special handling; we will always resort to using the
-	 * interpreter in that case. */
+	 * interpreter in that case.
+	 * Same goes for when we have a branch in a delay slot of another
+	 * branch. */
 	load_in_ds = load_in_delay_slot(op);
-	if (load_in_ds)
+	branch_in_ds = has_delay_slot(op->c);
+	if (load_in_ds || branch_in_ds)
 		inter->block->flags |= BLOCK_NEVER_COMPILE;
 
 	if (branch) {
-		if (load_in_ds) {
+		if (load_in_ds || branch_in_ds)
 			op_next = lightrec_read_opcode(inter->state, pc);
 
+		if (load_in_ds) {
 			/* Verify that the next block actually reads the
 			 * destination register of the delay slot opcode. */
 			run_first_op = opcode_reads_register(op_next, op->r.rt);
+		}
+
+		if (branch_in_ds) {
+			run_first_op = true;
+			next_pc = pc + 4;
 		}
 
 		if (load_in_ds && run_first_op) {
@@ -151,7 +169,9 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 			 * value written by the delay slot opcode is
 			 * discarded. */
 			dummy_ld = opcode_writes_register(op_next, op->r.rt);
+		}
 
+		if (run_first_op) {
 			new_op.c = op_next;
 			new_op.flags = 0;
 			new_op.offset = 0;
@@ -183,7 +203,10 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 		new_rt = reg_cache[op->r.rt];
 
 	/* Execute delay slot opcode */
-	(*int_standard[inter2.op->i.op])(&inter2);
+	ds_next_pc = (*int_standard[inter2.op->i.op])(&inter2);
+
+	if (!branch && branch_in_ds)
+		next_pc = ds_next_pc;
 
 	if (save_rs)
 		reg_cache[op->r.rs] = new_rs;
