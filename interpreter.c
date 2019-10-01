@@ -847,6 +847,8 @@ static const lightrec_int_func_t int_standard[64] = {
 	[OP_SWC2]		= int_store,
 
 	[OP_META_REG_UNLOAD]	= int_META_UNLOAD,
+	[OP_META_BEQZ]		= int_BEQ,
+	[OP_META_BNEZ]		= int_BNE,
 };
 
 static const lightrec_int_func_t int_special[64] = {

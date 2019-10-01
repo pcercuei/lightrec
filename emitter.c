@@ -1248,6 +1248,20 @@ static void rec_meta_unload(const struct block *block,
 	lightrec_unload_reg(reg_cache, _jit, reg);
 }
 
+static void rec_meta_BEQZ(const struct block *block,
+			  const struct opcode *op, u32 pc)
+{
+	_jit_name(block->_jit, __func__);
+	rec_b(block, op, pc, jit_code_bnei, 0, false, true);
+}
+
+static void rec_meta_BNEZ(const struct block *block,
+			  const struct opcode *op, u32 pc)
+{
+	_jit_name(block->_jit, __func__);
+	rec_b(block, op, pc, jit_code_beqi, 0, false, true);
+}
+
 static const lightrec_rec_func_t rec_standard[64] = {
 	[OP_SPECIAL]		= rec_SPECIAL,
 	[OP_REGIMM]		= rec_REGIMM,
@@ -1283,6 +1297,8 @@ static const lightrec_rec_func_t rec_standard[64] = {
 	[OP_SWC2]		= rec_SWC2,
 
 	[OP_META_REG_UNLOAD]	= rec_meta_unload,
+	[OP_META_BEQZ]		= rec_meta_BEQZ,
+	[OP_META_BNEZ]		= rec_meta_BNEZ,
 };
 
 static const lightrec_rec_func_t rec_special[64] = {

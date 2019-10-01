@@ -202,15 +202,42 @@ static bool is_nop(union code op)
 	}
 }
 
-static int lightrec_transform_to_nops(struct opcode *list)
+static int lightrec_transform_ops(struct opcode *list)
 {
-	/* Transform all opcodes detected as useless to real NOPs
-	 * (0x0: SLL r0, r0, #0) */
 	for (; list; list = list->next) {
+
+		/* Transform all opcodes detected as useless to real NOPs
+		 * (0x0: SLL r0, r0, #0) */
 		if (list->opcode != 0 && is_nop(list->c)) {
 			pr_debug("Converting useless opcode 0x%08x to NOP\n",
 					list->opcode);
 			list->opcode = 0x0;
+			continue;
+		}
+
+		/* Transform BEQ / BNE to BEQZ / BNEZ meta-opcodes if one of the
+		 * two registers is zero. */
+		switch (list->i.op) {
+		case OP_BEQ:
+			if ((list->i.rs == 0) ^ (list->i.rt == 0)) {
+				list->i.op = OP_META_BEQZ;
+				if (list->i.rs == 0) {
+					list->i.rs = list->i.rt;
+					list->i.rt = 0;
+				}
+			}
+			break;
+		case OP_BNE:
+			if (list->i.rs == 0) {
+				list->i.op = OP_META_BNEZ;
+				list->i.rs = list->i.rt;
+				list->i.rt = 0;
+			} else if (list->i.rt == 0) {
+				list->i.op = OP_META_BNEZ;
+			}
+			break;
+		default:
+			break;
 		}
 	}
 
@@ -235,6 +262,8 @@ bool has_delay_slot(union code op)
 	case OP_BLEZ:
 	case OP_BGTZ:
 	case OP_REGIMM:
+	case OP_META_BEQZ:
+	case OP_META_BNEZ:
 		return true;
 	default:
 		return false;
@@ -324,7 +353,7 @@ static int lightrec_flag_stores(struct opcode *list)
 }
 
 static int (*lightrec_optimizers[])(struct opcode *) = {
-	&lightrec_transform_to_nops,
+	&lightrec_transform_ops,
 	&lightrec_early_unload,
 	&lightrec_flag_stores,
 };
