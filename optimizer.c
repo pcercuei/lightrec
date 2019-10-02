@@ -285,6 +285,90 @@ static int lightrec_transform_ops(struct opcode *list)
 	return 0;
 }
 
+static int lightrec_switch_delay_slots(struct opcode *list)
+{
+	u8 flags;
+	int ret;
+
+	for (; list->next; list = list->next) {
+		union code op = list->c;
+		union code next_op = list->next->c;
+
+		if (!has_delay_slot(op) ||
+		    (list->flags & LIGHTREC_NO_DS) ||
+		    next_op.opcode == 0 ||
+		    load_in_delay_slot(next_op) ||
+		    has_delay_slot(next_op))
+			continue;
+
+		switch (list->i.op) {
+		case OP_SPECIAL:
+			switch (op.r.op) {
+			case OP_SPECIAL_JALR:
+				if (opcode_reads_register(next_op, op.r.rd) ||
+				    opcode_writes_register(next_op, op.r.rd))
+					continue;
+			case OP_SPECIAL_JR: /* fall-through */
+				if (opcode_writes_register(next_op, op.r.rs))
+					continue;
+			default: /* fall-through */
+				break;
+			}
+		case OP_J: /* fall-through */
+			break;
+		case OP_JAL:
+			if (opcode_reads_register(next_op, 31) ||
+			    opcode_writes_register(next_op, 31))
+				continue;
+			else
+				break;
+		case OP_BEQ:
+		case OP_BNE:
+			if (opcode_writes_register(next_op, op.i.rt))
+				continue;
+		case OP_BLEZ: /* fall-through */
+		case OP_BGTZ:
+			if (opcode_writes_register(next_op, op.i.rs))
+				continue;
+			break;
+		case OP_REGIMM:
+			switch (op.r.rt) {
+			case OP_REGIMM_BLTZAL:
+			case OP_REGIMM_BGEZAL:
+				if (opcode_reads_register(next_op, 31) ||
+				    opcode_writes_register(next_op, 31))
+					continue;
+			case OP_REGIMM_BLTZ: /* fall-through */
+			case OP_REGIMM_BGEZ:
+				if (opcode_writes_register(next_op, op.i.rs))
+					continue;
+				break;
+			}
+			break;
+		case OP_META_BEQZ:
+		case OP_META_BNEZ:
+			if (opcode_writes_register(next_op, op.i.rs))
+				continue;
+		default: /* fall-through */
+			break;
+		}
+
+		pr_debug("Swap branch and delay slot opcodes "
+			 "at offsets 0x%x / 0x%x\n", list->offset << 2,
+			 list->next->offset << 2);
+
+		flags = list->next->flags;
+		list->c = next_op;
+		list->next->c = op;
+		list->next->flags = list->flags | LIGHTREC_NO_DS;
+		list->flags = flags;
+		list->offset++;
+		list->next->offset--;
+	}
+
+	return 0;
+}
+
 bool has_delay_slot(union code op)
 {
 	switch (op.i.op) {
@@ -395,6 +479,7 @@ static int lightrec_flag_stores(struct opcode *list)
 
 static int (*lightrec_optimizers[])(struct opcode *) = {
 	&lightrec_transform_ops,
+	&lightrec_switch_delay_slots,
 	&lightrec_early_unload,
 	&lightrec_flag_stores,
 };

@@ -193,6 +193,9 @@ static u32 int_jump(struct interpreter *inter, bool link)
 	if (link)
 		state->native_reg_cache[31] = old_pc + 8;
 
+	if (inter->op->flags & LIGHTREC_NO_DS)
+		return pc;
+
 	return int_delay_slot(inter, pc, true);
 }
 
@@ -216,6 +219,9 @@ static u32 int_jumpr(struct interpreter *inter, u8 link_reg)
 		state->native_reg_cache[link_reg] = old_pc + 8;
 	}
 
+	if (inter->op->flags & LIGHTREC_NO_DS)
+		return next_pc;
+
 	return int_delay_slot(inter, next_pc, true);
 }
 
@@ -238,6 +244,13 @@ static u32 int_beq(struct interpreter *inter, bool bne)
 	rs = inter->state->native_reg_cache[inter->op->i.rs];
 	rt = inter->state->native_reg_cache[inter->op->i.rt];
 	branch = (rs == rt) ^ bne;
+
+	if (inter->op->flags & LIGHTREC_NO_DS) {
+		if (branch)
+			return next_pc;
+
+		JUMP_NEXT(inter);
+	}
 
 	next_pc = int_delay_slot(inter, next_pc, branch);
 
@@ -269,6 +282,13 @@ static u32 int_bgez(struct interpreter *inter, bool link, bool lt, bool regimm)
 
 	rs = (s32)inter->state->native_reg_cache[inter->op->i.rs];
 	branch = ((regimm && !rs) || rs > 0) ^ lt;
+
+	if (inter->op->flags & LIGHTREC_NO_DS) {
+		if (branch)
+			return next_pc;
+
+		JUMP_NEXT(inter);
+	}
 
 	next_pc = int_delay_slot(inter, next_pc, branch);
 

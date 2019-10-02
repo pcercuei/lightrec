@@ -22,6 +22,7 @@
 
 #define LIGHTREC_DIRECT_IO	(1 << 0)
 #define LIGHTREC_NO_INVALIDATE	(1 << 1)
+#define LIGHTREC_NO_DS		(1 << 2)
 
 struct block;
 
