@@ -62,47 +62,6 @@ struct interpreter {
 	EXECUTE(int_standard[inter->op->i.op], inter);			\
 } while (0)
 
-static bool load_in_delay_slot(const struct opcode *op)
-{
-	switch (op->i.op) {
-	case OP_CP0:
-		switch (op->r.rs) {
-		case OP_CP0_MFC0:
-		case OP_CP0_CFC0:
-			return true;
-		default:
-			break;
-		}
-
-		break;
-	case OP_CP2:
-		if (op->r.op == OP_CP2_BASIC) {
-			switch (op->r.rs) {
-			case OP_CP2_BASIC_MFC2:
-			case OP_CP2_BASIC_CFC2:
-				return true;
-			default:
-				break;
-			}
-		}
-
-		break;
-	case OP_LWC2:
-	case OP_LB:
-	case OP_LH:
-	case OP_LW:
-	case OP_LWL:
-	case OP_LWR:
-	case OP_LBU:
-	case OP_LHU:
-		return true;
-	default:
-		break;
-	}
-
-	return false;
-}
-
 static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 {
 	u32 *reg_cache = inter->state->native_reg_cache;
@@ -131,7 +90,7 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 	 * interpreter in that case.
 	 * Same goes for when we have a branch in a delay slot of another
 	 * branch. */
-	load_in_ds = load_in_delay_slot(op);
+	load_in_ds = load_in_delay_slot(op->c);
 	branch_in_ds = has_delay_slot(op->c);
 	if (load_in_ds || branch_in_ds)
 		inter->block->flags |= BLOCK_NEVER_COMPILE;

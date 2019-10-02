@@ -202,6 +202,47 @@ static bool is_nop(union code op)
 	}
 }
 
+bool load_in_delay_slot(union code op)
+{
+	switch (op.i.op) {
+	case OP_CP0:
+		switch (op.r.rs) {
+		case OP_CP0_MFC0:
+		case OP_CP0_CFC0:
+			return true;
+		default:
+			break;
+		}
+
+		break;
+	case OP_CP2:
+		if (op.r.op == OP_CP2_BASIC) {
+			switch (op.r.rs) {
+			case OP_CP2_BASIC_MFC2:
+			case OP_CP2_BASIC_CFC2:
+				return true;
+			default:
+				break;
+			}
+		}
+
+		break;
+	case OP_LWC2:
+	case OP_LB:
+	case OP_LH:
+	case OP_LW:
+	case OP_LWL:
+	case OP_LWR:
+	case OP_LBU:
+	case OP_LHU:
+		return true;
+	default:
+		break;
+	}
+
+	return false;
+}
+
 static int lightrec_transform_ops(struct opcode *list)
 {
 	for (; list; list = list->next) {
