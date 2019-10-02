@@ -758,6 +758,7 @@ static void rec_store_direct_no_invalidate(const struct block *block,
 		jit_patch(to_not_ram);
 
 		jit_movi(tmp2, state->offset_scratch);
+		jit_patch(to_end);
 	} else if (state->offset_ram) {
 		jit_movi(tmp2, state->offset_ram);
 	}
