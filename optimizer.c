@@ -467,6 +467,30 @@ static u32 lightrec_propagate_consts(union code c, u32 known, u32 *v)
 	return known;
 }
 
+static int lightrec_add_meta(struct block *block,
+			     struct opcode *op, union code code)
+{
+	struct opcode *meta = lightrec_malloc(MEM_FOR_IR, sizeof(*meta));
+
+	if (!meta)
+		return -ENOMEM;
+
+	meta->c = code;
+	meta->flags = 0;
+
+	if (op) {
+		meta->offset = op->offset;
+		meta->next = op->next;
+		op->next = meta;
+	} else {
+		meta->offset = 0;
+		meta->next = block->opcode_list;
+		block->opcode_list = meta;
+	}
+
+	return 0;
+}
+
 static int lightrec_transform_ops(struct block *block)
 {
 	struct opcode *list = block->opcode_list;
@@ -675,21 +699,12 @@ bool has_delay_slot(union code op)
 	}
 }
 
-static int lightrec_add_unload(struct opcode *op, u8 reg)
+static int lightrec_add_unload(struct block *block, struct opcode *op, u8 reg)
 {
-	struct opcode *meta = lightrec_malloc(MEM_FOR_IR, sizeof(*meta));
-
-	if (!meta)
-		return -ENOMEM;
-
-	meta->i.op = OP_META_REG_UNLOAD;
-	meta->i.rs = reg;
-	meta->flags = 0;
-	meta->offset = op->offset;
-	meta->next = op->next;
-	op->next = meta;
-
-	return 0;
+	return lightrec_add_meta(block, op, (union code){
+				 .i.op = OP_META_REG_UNLOAD,
+				 .i.rs = reg,
+				 });
 }
 
 static int lightrec_early_unload(struct block *block)
@@ -720,7 +735,7 @@ static int lightrec_early_unload(struct block *block)
 				last_w = last_w->next;
 
 			if (last_w->next) {
-				ret = lightrec_add_unload(last_w, i);
+				ret = lightrec_add_unload(block, last_w, i);
 				if (ret)
 					return ret;
 			}
@@ -730,7 +745,7 @@ static int lightrec_early_unload(struct block *block)
 				last_r = last_r->next;
 
 			if (last_r->next) {
-				ret = lightrec_add_unload(last_r, i);
+				ret = lightrec_add_unload(block, last_r, i);
 				if (ret)
 					return ret;
 			}
