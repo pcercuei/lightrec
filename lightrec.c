@@ -655,7 +655,6 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 	block->_jit = NULL;
 	block->function = NULL;
 	block->opcode_list = list;
-	block->cycles = 0;
 	block->map = map;
 	block->next = NULL;
 	block->flags = 0;
@@ -679,6 +678,7 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 
 int lightrec_compile_block(struct block *block)
 {
+	struct lightrec_state *state = block->state;
 	bool op_list_freed = false;
 	struct opcode *elm;
 	jit_state_t *_jit;
@@ -693,13 +693,14 @@ int lightrec_compile_block(struct block *block)
 
 	block->_jit = _jit;
 
-	lightrec_regcache_reset(block->state->reg_cache);
+	lightrec_regcache_reset(state->reg_cache);
+	state->cycles = 0;
 
 	jit_prolog();
 	jit_tramp(256);
 
 	for (elm = block->opcode_list; elm; elm = elm->next) {
-		block->cycles += lightrec_cycles_of_opcode(elm->c);
+		state->cycles += lightrec_cycles_of_opcode(elm->c);
 
 		if (skip_next) {
 			skip_next = false;

@@ -67,10 +67,9 @@ struct block {
 #if ENABLE_THREADED_COMPILER
 	atomic_flag op_list_freed;
 #endif
+	unsigned int code_size;
 	u16 flags;
 	u16 nb_ops;
-	unsigned int cycles;
-	unsigned int code_size;
 	const struct lightrec_mem_map *map;
 	struct block *next;
 };
@@ -99,6 +98,7 @@ struct lightrec_state {
 	void (*eob_wrapper_func)(void);
 	void (*get_next_block)(void);
 	struct lightrec_ops ops;
+	unsigned int cycles;
 	unsigned int nb_maps;
 	const struct lightrec_mem_map *maps;
 	uintptr_t offset_ram, offset_bios, offset_scratch;

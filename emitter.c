@@ -45,7 +45,7 @@ static void lightrec_emit_end_of_block(const struct block *block, u32 pc,
 				       u32 link, struct opcode *delay_slot)
 {
 	struct regcache *reg_cache = block->state->reg_cache;
-	u32 cycles = block->cycles;
+	u32 cycles = block->state->cycles;
 	jit_state_t *_jit = block->_jit;
 	u8 jmp_reg;
 
