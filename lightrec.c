@@ -695,6 +695,7 @@ int lightrec_compile_block(struct block *block)
 
 	lightrec_regcache_reset(state->reg_cache);
 	state->cycles = 0;
+	state->nb_branches = 0;
 
 	jit_prolog();
 	jit_tramp(256);
