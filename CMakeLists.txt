@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0)
-project(lightrec LANGUAGES C VERSION 0.1)
+project(lightrec LANGUAGES C VERSION 0.2)
 
 set(BUILD_SHARED_LIBS ON CACHE BOOL "Build shared libraries")
 
