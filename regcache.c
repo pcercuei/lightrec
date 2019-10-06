@@ -21,7 +21,7 @@
 #include <stddef.h>
 
 struct native_register {
-	bool used, loaded, dirty, output, extended;
+	bool used, loaded, dirty, output, extend, extended;
 	s8 emulated_register;
 };
 
@@ -227,6 +227,7 @@ u8 lightrec_alloc_reg_out(struct regcache *cache, jit_state_t *_jit, u8 reg)
 	if (nreg->emulated_register != reg)
 		lightrec_unload_nreg(cache, _jit, nreg, jit_reg);
 
+	nreg->extend = false;
 	nreg->used = true;
 	nreg->output = true;
 	nreg->emulated_register = reg;
@@ -272,6 +273,19 @@ u8 lightrec_alloc_reg_in(struct regcache *cache, jit_state_t *_jit, u8 reg)
 	nreg->used = true;
 	nreg->output = false;
 	nreg->emulated_register = reg;
+	return jit_reg;
+}
+
+u8 lightrec_alloc_reg_out_ext(struct regcache *cache, jit_state_t *_jit, u8 reg)
+{
+	struct native_register *nreg;
+	u8 jit_reg;
+
+	jit_reg = lightrec_alloc_reg_out(cache, _jit, reg);
+	nreg = lightning_reg_to_lightrec(cache, jit_reg);
+
+	nreg->extend = true;
+
 	return jit_reg;
 }
 
@@ -327,7 +341,8 @@ static void free_reg(struct native_register *nreg)
 	/* Set output registers as dirty */
 	if (nreg->used && nreg->output && nreg->emulated_register > 0)
 		nreg->dirty = true;
-	nreg->extended &= !nreg->output;
+	if (nreg->output)
+		nreg->extended = nreg->extend;
 	nreg->used = false;
 }
 
