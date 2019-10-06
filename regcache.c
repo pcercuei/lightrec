@@ -21,7 +21,7 @@
 #include <stddef.h>
 
 struct native_register {
-	bool used, loaded, dirty, output;
+	bool used, loaded, dirty, output, extended;
 	s8 emulated_register;
 };
 
@@ -152,6 +152,7 @@ static struct native_register * alloc_in_out(struct regcache *cache, u8 reg)
 
 static void lightrec_discard_nreg(struct native_register *nreg)
 {
+	nreg->extended = false;
 	nreg->loaded = false;
 	nreg->output = false;
 	nreg->dirty = false;
@@ -259,15 +260,36 @@ u8 lightrec_alloc_reg_in(struct regcache *cache, jit_state_t *_jit, u8 reg)
 		/* Load previous value from register cache */
 		jit_ldxi_i(jit_reg, LIGHTREC_REG_STATE, offset);
 		nreg->loaded = true;
+		nreg->extended = true;
 	}
 
 	/* Clear register r0 before use */
-	if (reg == 0)
+	if (reg == 0) {
 		jit_movi(jit_reg, 0);
+		nreg->extended = true;
+	}
 
 	nreg->used = true;
 	nreg->output = false;
 	nreg->emulated_register = reg;
+	return jit_reg;
+}
+
+u8 lightrec_alloc_reg_in_ext(struct regcache *cache, jit_state_t *_jit, u8 reg)
+{
+	struct native_register *nreg;
+	u8 jit_reg;
+
+	jit_reg = lightrec_alloc_reg_in(cache, _jit, reg);
+	nreg = lightning_reg_to_lightrec(cache, jit_reg);
+
+#if __WORDSIZE == 64
+	if (!nreg->extended) {
+		nreg->extended = true;
+		jit_extr_i(jit_reg, jit_reg);
+	}
+#endif
+
 	return jit_reg;
 }
 
@@ -280,8 +302,9 @@ u8 lightrec_request_reg_in(struct regcache *cache, jit_state_t *_jit,
 
 	nreg = find_mapped_reg(cache, reg);
 	if (nreg) {
+		jit_reg = lightrec_reg_to_lightning(cache, nreg);
 		nreg->used = true;
-		return lightrec_reg_to_lightning(cache, nreg);
+		return jit_reg;
 	}
 
 	nreg = lightning_reg_to_lightrec(cache, jit_reg);
@@ -291,6 +314,7 @@ u8 lightrec_request_reg_in(struct regcache *cache, jit_state_t *_jit,
 	offset = offsetof(struct lightrec_state, native_reg_cache) + (reg << 2);
 	jit_ldxi_i(jit_reg, LIGHTREC_REG_STATE, offset);
 
+	nreg->extended = true;
 	nreg->used = true;
 	nreg->loaded = true;
 	nreg->emulated_register = reg;
@@ -303,6 +327,7 @@ static void free_reg(struct native_register *nreg)
 	/* Set output registers as dirty */
 	if (nreg->used && nreg->output && nreg->emulated_register > 0)
 		nreg->dirty = true;
+	nreg->extended &= !nreg->output;
 	nreg->used = false;
 }
 
