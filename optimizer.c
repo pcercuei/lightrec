@@ -136,6 +136,8 @@ bool opcode_writes_register(union code op, u8 reg)
 		default:
 			return false;
 		}
+	case OP_META_MOV:
+		return op.r.rd == reg;
 	default:
 		return false;
 	}
@@ -256,9 +258,9 @@ static int lightrec_transform_ops(struct opcode *list)
 			continue;
 		}
 
+		switch (list->i.op) {
 		/* Transform BEQ / BNE to BEQZ / BNEZ meta-opcodes if one of the
 		 * two registers is zero. */
-		switch (list->i.op) {
 		case OP_BEQ:
 			if ((list->i.rs == 0) ^ (list->i.rt == 0)) {
 				list->i.op = OP_META_BEQZ;
@@ -277,7 +279,38 @@ static int lightrec_transform_ops(struct opcode *list)
 				list->i.op = OP_META_BNEZ;
 			}
 			break;
-		default:
+
+		/* Transform ORI/ADDI/ADDIU with imm #0 or ORR/ADD/ADDU/SUB/SUBU
+		 * with register $zero to the MOV meta-opcode */
+		case OP_ORI:
+		case OP_ADDI:
+		case OP_ADDIU:
+			if (list->i.imm == 0) {
+				pr_debug("Convert ORI/ADDI/ADDIU #0 to MOV\n");
+				list->i.op = OP_META_MOV;
+				list->r.rd = list->i.rt;
+			}
+			break;
+		case OP_SPECIAL:
+			switch (list->r.op) {
+			case OP_SPECIAL_OR:
+			case OP_SPECIAL_ADD:
+			case OP_SPECIAL_ADDU:
+				if (list->r.rs == 0) {
+					pr_debug("Convert OR/ADD $zero to MOV\n");
+					list->i.op = OP_META_MOV;
+					list->r.rs = list->r.rt;
+				}
+			case OP_SPECIAL_SUB: /* fall-through */
+			case OP_SPECIAL_SUBU:
+				if (list->r.rt == 0) {
+					pr_debug("Convert OR/ADD/SUB $zero to MOV\n");
+					list->i.op = OP_META_MOV;
+				}
+			default: /* fall-through */
+				break;
+			}
+		default: /* fall-through */
 			break;
 		}
 	}

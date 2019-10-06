@@ -791,6 +791,17 @@ static u32 int_META_UNLOAD(struct interpreter *inter)
 	JUMP_SKIP(inter);
 }
 
+static u32 int_META_MOV(struct interpreter *inter)
+{
+	u32 *reg_cache = inter->state->native_reg_cache;
+	struct opcode_r *op = &inter->op->r;
+
+	if (likely(op->rd))
+		reg_cache[op->rd] = reg_cache[op->rs];
+
+	JUMP_NEXT(inter);
+}
+
 static const lightrec_int_func_t int_standard[64] = {
 	[OP_SPECIAL]		= int_SPECIAL,
 	[OP_REGIMM]		= int_REGIMM,
@@ -828,6 +839,7 @@ static const lightrec_int_func_t int_standard[64] = {
 	[OP_META_REG_UNLOAD]	= int_META_UNLOAD,
 	[OP_META_BEQZ]		= int_BEQ,
 	[OP_META_BNEZ]		= int_BNE,
+	[OP_META_MOV]		= int_META_MOV,
 };
 
 static const lightrec_int_func_t int_special[64] = {

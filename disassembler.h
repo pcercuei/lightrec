@@ -64,6 +64,8 @@ enum standard_opcodes {
 
 	OP_META_BEQZ		= 0x14,
 	OP_META_BNEZ		= 0x15,
+
+	OP_META_MOV		= 0x16,
 };
 
 enum special_opcodes {

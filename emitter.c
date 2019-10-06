@@ -1315,6 +1315,29 @@ static void rec_meta_BNEZ(const struct block *block,
 	rec_b(block, op, pc, jit_code_beqi, 0, false, true);
 }
 
+static void rec_meta_MOV(const struct block *block,
+			 const struct opcode *op, u32 pc)
+{
+	struct lightrec_state *state = block->state;
+	struct regcache *reg_cache = state->reg_cache;
+	jit_state_t *_jit = block->_jit;
+	u8 rs = op->r.rs ? lightrec_alloc_reg_in(reg_cache, _jit, op->r.rs) : 0;
+	u8 rd = lightrec_alloc_reg_out_ext(reg_cache, _jit, op->r.rd);
+
+	if (op->r.rs == 0) {
+		jit_movi(rd, 0);
+	} else {
+#if __WORDSIZE == 32
+		jit_movr(rd, rs);
+#else
+		jit_extr_i(rd, rs);
+#endif
+	}
+
+	lightrec_free_reg(state->reg_cache, rs);
+	lightrec_free_reg(state->reg_cache, rd);
+}
+
 static const lightrec_rec_func_t rec_standard[64] = {
 	[OP_SPECIAL]		= rec_SPECIAL,
 	[OP_REGIMM]		= rec_REGIMM,
@@ -1352,6 +1375,7 @@ static const lightrec_rec_func_t rec_standard[64] = {
 	[OP_META_REG_UNLOAD]	= rec_meta_unload,
 	[OP_META_BEQZ]		= rec_meta_BEQZ,
 	[OP_META_BNEZ]		= rec_meta_BNEZ,
+	[OP_META_MOV]		= rec_meta_MOV,
 };
 
 static const lightrec_rec_func_t rec_special[64] = {
