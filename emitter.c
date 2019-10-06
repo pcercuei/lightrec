@@ -150,15 +150,9 @@ static void rec_b(const struct block *block, const struct opcode *op, u32 pc,
 	jit_note(__FILE__, __LINE__);
 
 	if (!unconditional) {
-		u8 rs = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rs),
-		   rt = bz ? 0 : lightrec_alloc_reg_in(
-				   reg_cache, _jit, op->i.rt);
-
-#if __WORDSIZE == 64
-		jit_extr_i(rs, rs);
-		if (rt)
-			jit_extr_i(rt, rt);
-#endif
+		u8 rs = lightrec_alloc_reg_in_ext(reg_cache, _jit, op->i.rs),
+		   rt = bz ? 0 : lightrec_alloc_reg_in_ext(reg_cache,
+							   _jit, op->i.rt);
 
 		/* Generate the branch opcode */
 		addr = jit_new_node_pww(code, NULL, rs, rt);
@@ -244,19 +238,15 @@ static void rec_alu_imm(const struct block *block, const struct opcode *op,
 {
 	struct regcache *reg_cache = block->state->reg_cache;
 	jit_state_t *_jit = block->_jit;
-	u8 rs = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rs),
+	u8 rs = lightrec_alloc_reg_in_ext(reg_cache, _jit, op->i.rs),
 	   rt = lightrec_alloc_reg_out(reg_cache, _jit, op->i.rt);
 
 	jit_note(__FILE__, __LINE__);
 
-	if (sign_extend) {
-#if __WORDSIZE == 64
-		jit_extr_i(rt, rt);
-#endif
+	if (sign_extend)
 		jit_new_node_www(code, rt, rs, (s32)(s16) op->i.imm);
-	} else {
+	else
 		jit_new_node_www(code, rt, rs, (u32)(u16) op->i.imm);
-	}
 
 	lightrec_free_reg(reg_cache, rs);
 	lightrec_free_reg(reg_cache, rt);
@@ -267,29 +257,31 @@ static void rec_alu_special(const struct block *block, const struct opcode *op,
 {
 	struct regcache *reg_cache = block->state->reg_cache;
 	jit_state_t *_jit = block->_jit;
-	u8 rs = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rs),
-	   rt = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rt),
-	   rd = lightrec_alloc_reg_out(reg_cache, _jit, op->r.rd);
+	u8 rs = lightrec_alloc_reg_in_ext(reg_cache, _jit, op->r.rs),
+	   rt = lightrec_alloc_reg_in_ext(reg_cache, _jit, op->r.rt),
+	   rd = lightrec_alloc_reg_out(reg_cache, _jit, op->r.rd),
+	   temp, temp2;
 
 	jit_note(__FILE__, __LINE__);
 	if (!is_reg_shift) {
-#if __WORDSIZE == 64
-		jit_extr_i(rs, rs);
-		jit_extr_i(rt, rt);
-#endif
 		jit_new_node_www(code, rd, rs, rt);
 	} else {
-		u8 temp = lightrec_alloc_reg_temp(reg_cache, _jit);
+		temp = lightrec_alloc_reg_temp(reg_cache, _jit);
 
 		jit_andi(temp, rs, 0x1f);
 
 #if __WORDSIZE == 64
-		if (code == jit_code_rshr)
-			jit_extr_i(rt, rt);
-		else if (code == jit_code_rshr_u)
-			jit_extr_ui(rt, rt);
-#endif
+		if (code == jit_code_rshr_u) {
+			temp2 = lightrec_alloc_reg_temp(reg_cache, _jit);
+			jit_extr_ui(temp2, rt);
+			jit_new_node_www(code, rd, temp2, temp);
+			lightrec_free_reg(reg_cache, temp2);
+		} else {
+			jit_new_node_www(code, rd, rt, temp);
+		}
+#else
 		jit_new_node_www(code, rd, rt, temp);
+#endif
 
 		lightrec_free_reg(reg_cache, temp);
 	}
@@ -484,17 +476,22 @@ static void rec_alu_shift(const struct block *block,
 {
 	struct regcache *reg_cache = block->state->reg_cache;
 	jit_state_t *_jit = block->_jit;
-	u8 rt = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rt),
+	u8 rt = lightrec_alloc_reg_in_ext(reg_cache, _jit, op->r.rt),
 	   rd = lightrec_alloc_reg_out(reg_cache, _jit, op->r.rd);
 
 	jit_note(__FILE__, __LINE__);
 #if __WORDSIZE == 64
-	if (code == jit_code_rshi_u)
-		jit_extr_ui(rt, rt);
-	else if (code == jit_code_rshi)
-		jit_extr_i(rt, rt);
+	if (code == jit_code_rshi_u) {
+		u8 tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
+
+		jit_extr_ui(tmp, rt);
+		jit_new_node_www(code, rd, tmp, op->r.imm);
+
+		lightrec_free_reg(reg_cache, tmp);
+	}
 #endif
-	jit_new_node_www(code, rd, rt, op->r.imm);
+	if (__WORDSIZE == 32 || code != jit_code_rshi_u)
+		jit_new_node_www(code, rd, rt, op->r.imm);
 
 	lightrec_free_reg(reg_cache, rt);
 	lightrec_free_reg(reg_cache, rd);
@@ -526,10 +523,17 @@ static void rec_alu_mult(const struct block *block,
 {
 	struct regcache *reg_cache = block->state->reg_cache;
 	jit_state_t *_jit = block->_jit;
-	u8 rs = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rs),
-	   rt = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rt),
-	   lo = lightrec_alloc_reg_out(reg_cache, _jit, REG_LO),
+	u8 lo = lightrec_alloc_reg_out(reg_cache, _jit, REG_LO),
 	   hi = lightrec_alloc_reg_out(reg_cache, _jit, REG_HI);
+	u8 rs, rt;
+
+	if (__WORDSIZE == 32 || !is_signed) {
+		rs = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rs);
+		rt = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rt);
+	} else {
+		rs = lightrec_alloc_reg_in_ext(reg_cache, _jit, op->r.rs);
+		rt = lightrec_alloc_reg_in_ext(reg_cache, _jit, op->r.rt);
+	}
 
 	jit_note(__FILE__, __LINE__);
 #if __WORDSIZE == 32
@@ -543,13 +547,12 @@ static void rec_alu_mult(const struct block *block,
 	 * The input registers must be 32 bits, so we first sign-extend (if
 	 * mult) or clear (if multu) the input registers. */
 	if (is_signed) {
-		jit_extr_i(lo, rt);
-		jit_extr_i(hi, rs);
+		jit_mulr(lo, rs, rt);
 	} else {
 		jit_extr_ui(lo, rt);
 		jit_extr_ui(hi, rs);
+		jit_mulr(lo, hi, lo);
 	}
-	jit_mulr(lo, hi, lo);
 
 	/* The 64-bit output value is in $lo, store the upper 32 bits in $hi */
 	jit_rshi_u(hi, lo, 32);
@@ -566,11 +569,18 @@ static void rec_alu_div(const struct block *block,
 {
 	struct regcache *reg_cache = block->state->reg_cache;
 	jit_state_t *_jit = block->_jit;
-	u8 rs = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rs),
-	   rt = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rt),
-	   lo = lightrec_alloc_reg_out(reg_cache, _jit, REG_LO),
-	   hi = lightrec_alloc_reg_out(reg_cache, _jit, REG_HI);
 	jit_node_t *branch, *to_end;
+	u8 lo = lightrec_alloc_reg_out(reg_cache, _jit, REG_LO),
+	   hi = lightrec_alloc_reg_out(reg_cache, _jit, REG_HI);
+	u8 rs, rt;
+
+	if (__WORDSIZE == 32 || !is_signed) {
+		rs = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rs);
+		rt = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rt);
+	} else {
+		rs = lightrec_alloc_reg_in_ext(reg_cache, _jit, op->r.rs);
+		rt = lightrec_alloc_reg_in_ext(reg_cache, _jit, op->r.rt);
+	}
 
 	jit_note(__FILE__, __LINE__);
 
@@ -586,9 +596,7 @@ static void rec_alu_div(const struct block *block,
 	/* On 64-bit systems, the input registers must be 32 bits, so we first sign-extend
 	 * (if div) or clear (if divu) the input registers. */
 	if (is_signed) {
-		jit_extr_i(lo, rt);
-		jit_extr_i(hi, rs);
-		jit_qdivr(lo, hi, hi, lo);
+		jit_qdivr(lo, hi, rs, rt);
 	} else {
 		jit_extr_ui(lo, rt);
 		jit_extr_ui(hi, rs);
