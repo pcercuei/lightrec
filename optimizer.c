@@ -421,7 +421,7 @@ static int lightrec_early_unload(struct opcode *list)
 		unsigned int last_r_id = 0, last_w_id = 0, id = 0;
 		int ret;
 
-		for (op = list; op; last = op, op = op->next, id++) {
+		for (op = list; op->next; last = op, op = op->next, id++) {
 			if (has_delay_slot(op->c) ||
 			    (last && has_delay_slot(last->c)))
 				continue;
