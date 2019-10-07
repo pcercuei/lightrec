@@ -415,8 +415,8 @@ static struct block * generate_wrapper(struct lightrec_state *state,
 	 * save/restore the callee-saved register LIGHTREC_REG_CYCLE, since we
 	 * do want to return to the caller with this register modified. */
 	jit_prolog();
-	jit_patch(to_tramp);
 	jit_tramp(256);
+	jit_patch(to_tramp);
 
 	jit_prepare();
 	jit_pushargr(LIGHTREC_REG_STATE);
