@@ -16,6 +16,7 @@
 #include "debug.h"
 #include "disassembler.h"
 #include "emitter.h"
+#include "optimizer.h"
 #include "regcache.h"
 
 #include <lightning.h>
@@ -40,19 +41,28 @@ static void unknown_opcode(const struct block *block,
 	pr_warn("Unknown opcode: 0x%08x at PC 0x%08x\n", op->opcode, pc);
 }
 
-static void lightrec_emit_end_of_block(const struct block *block, u32 pc,
+static void lightrec_emit_end_of_block(const struct block *block,
+				       const struct opcode *op, u32 pc,
 				       s8 reg_new_pc, u32 imm, u8 ra_reg,
-				       u32 link,
-				       const struct opcode *delay_slot)
+				       u32 link)
 {
 	struct lightrec_state *state = block->state;
 	struct regcache *reg_cache = state->reg_cache;
-	bool is_last_eob = !delay_slot || !delay_slot->next;
 	u32 cycles = state->cycles;
 	jit_state_t *_jit = block->_jit;
+	const struct opcode *delay_slot;
+	bool is_last_eob;
 	unsigned int i;
 
 	jit_note(__FILE__, __LINE__);
+
+	if ((op->flags & LIGHTREC_NO_DS) || !has_delay_slot(op->c)) {
+		delay_slot = NULL;
+		is_last_eob = !op->next;
+	} else {
+		delay_slot = op->next;
+		is_last_eob = !delay_slot->next;
+	}
 
 	if (link) {
 		/* Update the $ra register */
@@ -98,10 +108,9 @@ static void rec_special_JR(const struct block *block,
 {
 	u8 rs = lightrec_request_reg_in(block->state->reg_cache,
 					block->_jit, op->r.rs, JIT_V0);
-	const struct opcode *ds = op->flags & LIGHTREC_NO_DS ? NULL : op->next;
 
 	_jit_name(block->_jit, __func__);
-	lightrec_emit_end_of_block(block, pc, rs, 0, 31, 0, ds);
+	lightrec_emit_end_of_block(block, op, pc, rs, 0, 31, 0);
 }
 
 static void rec_special_JALR(const struct block *block,
@@ -109,37 +118,30 @@ static void rec_special_JALR(const struct block *block,
 {
 	u8 rs = lightrec_request_reg_in(block->state->reg_cache,
 					block->_jit, op->r.rs, JIT_V0);
-	const struct opcode *ds = op->flags & LIGHTREC_NO_DS ? NULL : op->next;
 
 	_jit_name(block->_jit, __func__);
-	lightrec_emit_end_of_block(block, pc, rs, 0, op->r.rd, pc + 8, ds);
+	lightrec_emit_end_of_block(block, op, pc, rs, 0, op->r.rd, pc + 8);
 }
 
 static void rec_J(const struct block *block, const struct opcode *op, u32 pc)
 {
-	const struct opcode *ds = op->flags & LIGHTREC_NO_DS ? NULL : op->next;
-
 	_jit_name(block->_jit, __func__);
-	lightrec_emit_end_of_block(block, pc, -1,
-				   (pc & 0xf0000000) | (op->j.imm << 2),
-				   31, 0, ds);
+	lightrec_emit_end_of_block(block, op, pc, -1,
+				   (pc & 0xf0000000) | (op->j.imm << 2), 31, 0);
 }
 
 static void rec_JAL(const struct block *block, const struct opcode *op, u32 pc)
 {
-	const struct opcode *ds = op->flags & LIGHTREC_NO_DS ? NULL : op->next;
-
 	_jit_name(block->_jit, __func__);
-	lightrec_emit_end_of_block(block, pc, -1,
+	lightrec_emit_end_of_block(block, op, pc, -1,
 				   (pc & 0xf0000000) | (op->j.imm << 2),
-				   31, pc + 8, ds);
+				   31, pc + 8);
 }
 
 static void rec_b(const struct block *block, const struct opcode *op, u32 pc,
 		  jit_code_t code, u32 link, bool unconditional, bool bz)
 {
 	struct regcache *reg_cache = block->state->reg_cache;
-	const struct opcode *ds = op->flags & LIGHTREC_NO_DS ? NULL : op->next;
 	struct native_register *regs_backup;
 	jit_state_t *_jit = block->_jit;
 	jit_node_t *addr;
@@ -165,8 +167,8 @@ static void rec_b(const struct block *block, const struct opcode *op, u32 pc,
 		regs_backup = lightrec_regcache_enter_branch(reg_cache);
 	}
 
-	lightrec_emit_end_of_block(block, pc, -1,
-			pc + 4 + ((s16)op->i.imm << 2), 31, link, ds);
+	lightrec_emit_end_of_block(block, op, pc, -1,
+			pc + 4 + ((s16)op->i.imm << 2), 31, link);
 
 	if (!unconditional) {
 		jit_patch(addr);
@@ -179,8 +181,8 @@ static void rec_b(const struct block *block, const struct opcode *op, u32 pc,
 			lightrec_free_reg(reg_cache, link_reg);
 		}
 
-		if (ds && ds->opcode)
-			lightrec_rec_opcode(block, ds, pc + 4);
+		if (!(op->flags & LIGHTREC_NO_DS) && op->next->opcode)
+			lightrec_rec_opcode(block, op->next, pc + 4);
 	}
 }
 
@@ -1042,7 +1044,8 @@ static void rec_LWC2(const struct block *block, const struct opcode *op, u32 pc)
 	rec_io(block, op, false, false);
 }
 
-static void rec_break_syscall(const struct block *block, u32 pc, bool is_break)
+static void rec_break_syscall(const struct block *block,
+			      const struct opcode *op, u32 pc, bool is_break)
 {
 	struct regcache *reg_cache = block->state->reg_cache;
 	jit_state_t *_jit = block->_jit;
@@ -1062,21 +1065,21 @@ static void rec_break_syscall(const struct block *block, u32 pc, bool is_break)
 	lightrec_regcache_mark_live(reg_cache, _jit);
 
 	/* TODO: the return address should be "pc - 4" if we're a delay slot */
-	lightrec_emit_end_of_block(block, pc, -1, pc, 31, 0, NULL);
+	lightrec_emit_end_of_block(block, op, pc, -1, pc, 31, 0);
 }
 
 static void rec_special_SYSCALL(const struct block *block,
 				const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_break_syscall(block, pc, false);
+	rec_break_syscall(block, op, pc, false);
 }
 
 static void rec_special_BREAK(const struct block *block,
 			      const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_break_syscall(block, pc, true);
+	rec_break_syscall(block, op, pc, true);
 }
 
 static void rec_mfc(const struct block *block, const struct opcode *op)
@@ -1141,7 +1144,7 @@ static void rec_mtc(const struct block *block, const struct opcode *op, u32 pc)
 	lightrec_regcache_mark_live(reg_cache, _jit);
 
 	if (op->i.op == OP_CP0 && (op->r.rd == 12 || op->r.rd == 13))
-		lightrec_emit_end_of_block(block, pc, -1, pc + 4, 0, 0, NULL);
+		lightrec_emit_end_of_block(block, op, pc, -1, pc + 4, 0, 0);
 }
 
 static void rec_cp0_MFC0(const struct block *block,
