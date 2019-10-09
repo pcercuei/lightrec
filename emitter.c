@@ -507,7 +507,12 @@ static void rec_alu_shift(const struct block *block,
 {
 	struct regcache *reg_cache = block->state->reg_cache;
 	jit_state_t *_jit = block->_jit;
-	u8 rd, rt = lightrec_alloc_reg_in_ext(reg_cache, _jit, op->r.rt);
+	u8 rd, rt;
+
+	if (code == jit_code_rshi_u)
+		rt = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rt);
+	else
+		rt = lightrec_alloc_reg_in_ext(reg_cache, _jit, op->r.rt);
 
 	if (code == jit_code_rshi)
 		rd = lightrec_alloc_reg_out_ext(reg_cache, _jit, op->r.rd);
