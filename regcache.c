@@ -21,7 +21,7 @@
 #include <stddef.h>
 
 struct native_register {
-	bool used, loaded, dirty, output, extend, extended;
+	bool used, loaded, dirty, output, extend, extended, locked;
 	s8 emulated_register;
 };
 
@@ -101,27 +101,30 @@ static struct native_register * alloc_temp(struct regcache *cache)
 	return NULL;
 }
 
-static struct native_register * find_mapped_reg(struct regcache *cache, u8 reg)
+static struct native_register * find_mapped_reg(struct regcache *cache,
+						u8 reg, bool out)
 {
 	unsigned int i;
 
 	for (i = 0; i < ARRAY_SIZE(cache->lightrec_regs); i++) {
 		struct native_register *nreg = &cache->lightrec_regs[i];
 		if ((!reg || nreg->loaded || nreg->dirty) &&
-				nreg->emulated_register == reg)
+				nreg->emulated_register == reg &&
+				(!out || !nreg->locked))
 			return nreg;
 	}
 
 	return NULL;
 }
 
-static struct native_register * alloc_in_out(struct regcache *cache, u8 reg)
+static struct native_register * alloc_in_out(struct regcache *cache,
+					     u8 reg, bool out)
 {
 	struct native_register *nreg;
 	unsigned int i;
 
 	/* Try to find if the register is already mapped somewhere */
-	nreg = find_mapped_reg(cache, reg);
+	nreg = find_mapped_reg(cache, reg, out);
 	if (nreg)
 		return nreg;
 
@@ -157,6 +160,7 @@ static void lightrec_discard_nreg(struct native_register *nreg)
 	nreg->output = false;
 	nreg->dirty = false;
 	nreg->used = false;
+	nreg->locked = false;
 	nreg->emulated_register = -1;
 }
 
@@ -178,6 +182,17 @@ void lightrec_unload_reg(struct regcache *cache, jit_state_t *_jit, u8 jit_reg)
 {
 	lightrec_unload_nreg(cache, _jit,
 			lightning_reg_to_lightrec(cache, jit_reg), jit_reg);
+}
+
+/* lightrec_lock_reg: the register will be cleaned if dirty, then locked.
+ * A locked register cannot only be used as input, not output. */
+void lightrec_lock_reg(struct regcache *cache, jit_state_t *_jit, u8 jit_reg)
+{
+	struct native_register *reg = lightning_reg_to_lightrec(cache, jit_reg);
+
+	lightrec_clean_reg(cache, _jit, jit_reg);
+
+	reg->locked = true;
 }
 
 u8 lightrec_alloc_reg(struct regcache *cache, jit_state_t *_jit, u8 jit_reg)
@@ -212,7 +227,7 @@ u8 lightrec_alloc_reg_temp(struct regcache *cache, jit_state_t *_jit)
 u8 lightrec_alloc_reg_out(struct regcache *cache, jit_state_t *_jit, u8 reg)
 {
 	u8 jit_reg;
-	struct native_register *nreg = alloc_in_out(cache, reg);
+	struct native_register *nreg = alloc_in_out(cache, reg, true);
 	if (!nreg) {
 		/* No free register, no dirty register to free. */
 		pr_err("No more registers! Abandon ship!\n");
@@ -238,7 +253,7 @@ u8 lightrec_alloc_reg_in(struct regcache *cache, jit_state_t *_jit, u8 reg)
 {
 	u8 jit_reg;
 	bool reg_changed;
-	struct native_register *nreg = alloc_in_out(cache, reg);
+	struct native_register *nreg = alloc_in_out(cache, reg, false);
 	if (!nreg) {
 		/* No free register, no dirty register to free. */
 		pr_err("No more registers! Abandon ship!\n");
@@ -314,7 +329,7 @@ u8 lightrec_request_reg_in(struct regcache *cache, jit_state_t *_jit,
 	unsigned int i;
 	u16 offset;
 
-	nreg = find_mapped_reg(cache, reg);
+	nreg = find_mapped_reg(cache, reg, false);
 	if (nreg) {
 		jit_reg = lightrec_reg_to_lightning(cache, nreg);
 		nreg->used = true;

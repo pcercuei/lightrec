@@ -46,6 +46,7 @@ u8 lightrec_request_reg_in(struct regcache *cache, jit_state_t *_jit,
 
 void lightrec_regcache_reset(struct regcache *cache);
 
+void lightrec_lock_reg(struct regcache *cache, jit_state_t *_jit, u8 jit_reg);
 void lightrec_free_reg(struct regcache *cache, u8 jit_reg);
 void lightrec_free_regs(struct regcache *cache);
 void lightrec_clean_reg(struct regcache *cache, jit_state_t *_jit, u8 jit_reg);
