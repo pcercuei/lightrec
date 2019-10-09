@@ -241,16 +241,12 @@ static void rec_regimm_BGEZAL(const struct block *block,
 }
 
 static void rec_alu_imm(const struct block *block, const struct opcode *op,
-			jit_code_t code, bool sign_extend, bool out_ext)
+			jit_code_t code, bool sign_extend)
 {
 	struct regcache *reg_cache = block->state->reg_cache;
 	jit_state_t *_jit = block->_jit;
-	u8 rt, rs = lightrec_alloc_reg_in_ext(reg_cache, _jit, op->i.rs);
-
-	if (out_ext)
-		rt = lightrec_alloc_reg_out_ext(reg_cache, _jit, op->i.rt);
-	else
-		rt = lightrec_alloc_reg_out(reg_cache, _jit, op->i.rt);
+	u8 rs = lightrec_alloc_reg_in_ext(reg_cache, _jit, op->i.rs),
+	   rt = lightrec_alloc_reg_out_ext(reg_cache, _jit, op->i.rt);
 
 	jit_note(__FILE__, __LINE__);
 
@@ -326,27 +322,27 @@ static void rec_ADDIU(const struct block *block,
 		      const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_alu_imm(block, op, jit_code_addi, true, false);
+	rec_alu_imm(block, op, jit_code_addi, true);
 }
 
 static void rec_ADDI(const struct block *block, const struct opcode *op, u32 pc)
 {
 	/* TODO: Handle the exception? */
 	_jit_name(block->_jit, __func__);
-	rec_alu_imm(block, op, jit_code_addi, true, false);
+	rec_alu_imm(block, op, jit_code_addi, true);
 }
 
 static void rec_SLTIU(const struct block *block,
 		      const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_alu_imm(block, op, jit_code_lti_u, true, true);
+	rec_alu_imm(block, op, jit_code_lti_u, true);
 }
 
 static void rec_SLTI(const struct block *block, const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_alu_imm(block, op, jit_code_lti, true, true);
+	rec_alu_imm(block, op, jit_code_lti, true);
 }
 
 static void rec_ANDI(const struct block *block, const struct opcode *op, u32 pc)
@@ -375,13 +371,13 @@ static void rec_ANDI(const struct block *block, const struct opcode *op, u32 pc)
 static void rec_ORI(const struct block *block, const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_alu_imm(block, op, jit_code_ori, false, true);
+	rec_alu_imm(block, op, jit_code_ori, false);
 }
 
 static void rec_XORI(const struct block *block, const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_alu_imm(block, op, jit_code_xori, false, true);
+	rec_alu_imm(block, op, jit_code_xori, false);
 }
 
 static void rec_LUI(const struct block *block, const struct opcode *op, u32 pc)
