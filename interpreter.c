@@ -489,7 +489,22 @@ static u32 int_load(struct interpreter *inter)
 
 static u32 int_store(struct interpreter *inter)
 {
-	return int_io(inter, false);
+	u32 next_pc;
+
+	if (likely(!(inter->op->flags & LIGHTREC_SMC)))
+		return int_io(inter, false);
+
+	lightrec_rw(inter->state, inter->op->c,
+		    inter->state->native_reg_cache[inter->op->i.rs],
+		    inter->state->native_reg_cache[inter->op->i.rt],
+		    &inter->op->flags);
+
+	next_pc = inter->block->pc + (inter->op->offset + 1) * 4;
+
+	/* Invalidate next PC, to force the rest of the block to be rebuilt */
+	lightrec_invalidate(inter->state, next_pc, 4);
+
+	return next_pc;
 }
 
 static u32 int_LWC2(struct interpreter *inter)
