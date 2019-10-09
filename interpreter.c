@@ -489,7 +489,15 @@ static u32 int_load(struct interpreter *inter)
 
 static u32 int_store(struct interpreter *inter)
 {
-	return int_io(inter, false);
+	if (likely(!(inter->op->flags & LIGHTREC_SMC)))
+		return int_io(inter, false);
+
+	lightrec_rw(inter->state, inter->op->c,
+		    inter->state->native_reg_cache[inter->op->i.rs],
+		    inter->state->native_reg_cache[inter->op->i.rt],
+		    &inter->op->flags);
+
+	return inter->block->pc + (inter->op->offset + 1) * 4;
 }
 
 static u32 int_LWC2(struct interpreter *inter)
