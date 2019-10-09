@@ -73,6 +73,8 @@ static void lightrec_emit_end_of_block(const struct block *block,
 
 	if (reg_new_pc < 0) {
 		reg_new_pc = lightrec_alloc_reg(reg_cache, _jit, JIT_V0);
+		lightrec_lock_reg(reg_cache, _jit, reg_new_pc);
+
 		jit_movi(reg_new_pc, imm);
 	}
 
@@ -106,20 +108,24 @@ static void lightrec_emit_end_of_block(const struct block *block,
 static void rec_special_JR(const struct block *block,
 			   const struct opcode *op, u32 pc)
 {
-	u8 rs = lightrec_request_reg_in(block->state->reg_cache,
-					block->_jit, op->r.rs, JIT_V0);
+	struct regcache *reg_cache = block->state->reg_cache;
+	jit_state_t *_jit = block->_jit;
+	u8 rs = lightrec_request_reg_in(reg_cache, _jit, op->r.rs, JIT_V0);
 
 	_jit_name(block->_jit, __func__);
+	lightrec_lock_reg(reg_cache, _jit, rs);
 	lightrec_emit_end_of_block(block, op, pc, rs, 0, 31, 0);
 }
 
 static void rec_special_JALR(const struct block *block,
 			     const struct opcode *op, u32 pc)
 {
-	u8 rs = lightrec_request_reg_in(block->state->reg_cache,
-					block->_jit, op->r.rs, JIT_V0);
+	struct regcache *reg_cache = block->state->reg_cache;
+	jit_state_t *_jit = block->_jit;
+	u8 rs = lightrec_request_reg_in(reg_cache, _jit, op->r.rs, JIT_V0);
 
 	_jit_name(block->_jit, __func__);
+	lightrec_lock_reg(reg_cache, _jit, rs);
 	lightrec_emit_end_of_block(block, op, pc, rs, 0, op->r.rd, pc + 8);
 }
 
