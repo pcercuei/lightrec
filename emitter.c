@@ -522,12 +522,8 @@ static void rec_alu_shift(const struct block *block,
 	jit_note(__FILE__, __LINE__);
 #if __WORDSIZE == 64
 	if (code == jit_code_rshi_u) {
-		u8 tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
-
-		jit_extr_ui(tmp, rt);
-		jit_new_node_www(code, rd, tmp, op->r.imm);
-
-		lightrec_free_reg(reg_cache, tmp);
+		jit_extr_ui(rd, rt);
+		jit_new_node_www(code, rd, rd, op->r.imm);
 	}
 #endif
 	if (__WORDSIZE == 32 || code != jit_code_rshi_u)
