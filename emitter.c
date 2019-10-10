@@ -849,9 +849,7 @@ static void rec_store_direct(const struct block *block, const struct opcode *op,
 
 	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rs);
 	tmp2 = lightrec_alloc_reg_temp(reg_cache, _jit);
-	tmp3 = lightrec_alloc_reg_temp(reg_cache, _jit);
-
-	jit_movi(tmp3, 0);
+	tmp3 = lightrec_alloc_reg_in(reg_cache, _jit, 0);
 
 	/* Convert to KUNSEG and avoid RAM mirrors */
 	if (op->i.imm) {
@@ -879,7 +877,7 @@ static void rec_store_direct(const struct block *block, const struct opcode *op,
 
 	if (state->offset_ram != state->offset_scratch) {
 		if (state->offset_ram)
-			jit_movi(tmp3, state->offset_ram);
+			jit_movi(tmp, state->offset_ram);
 
 		to_end = jit_jmpi();
 	}
@@ -887,13 +885,13 @@ static void rec_store_direct(const struct block *block, const struct opcode *op,
 	jit_patch(to_not_ram);
 
 	if (state->offset_scratch)
-		jit_movi(tmp3, state->offset_scratch);
+		jit_movi(tmp, state->offset_scratch);
 
 	if (state->offset_ram != state->offset_scratch)
 		jit_patch(to_end);
 
 	if (state->offset_ram || state->offset_scratch)
-		jit_addr(tmp2, tmp2, tmp3);
+		jit_addr(tmp2, tmp2, tmp);
 
 	lightrec_free_reg(reg_cache, tmp);
 	lightrec_free_reg(reg_cache, tmp3);
