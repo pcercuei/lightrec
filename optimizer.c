@@ -452,6 +452,14 @@ static u32 lightrec_propagate_consts(union code c, u32 known, u32 *v)
 	case OP_LWC2:
 		known &= ~BIT(c.i.rt);
 		break;
+	case OP_META_MOV:
+		if (known & BIT(c.r.rs)) {
+			known |= BIT(c.r.rd);
+			v[c.r.rd] = v[c.r.rs];
+		} else {
+			known &= ~BIT(c.r.rd);
+		}
+		break;
 	default:
 		break;
 	}
