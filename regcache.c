@@ -216,8 +216,6 @@ u8 lightrec_alloc_reg_temp(struct regcache *cache, jit_state_t *_jit)
 	}
 
 	jit_reg = lightrec_reg_to_lightning(cache, nreg);
-	jit_note(__FILE__, __LINE__);
-
 	lightrec_unload_nreg(cache, _jit, nreg, jit_reg);
 
 	nreg->used = true;
@@ -235,7 +233,6 @@ u8 lightrec_alloc_reg_out(struct regcache *cache, jit_state_t *_jit, u8 reg)
 	}
 
 	jit_reg = lightrec_reg_to_lightning(cache, nreg);
-	jit_note(__FILE__, __LINE__);
 
 	/* If we get a dirty register that doesn't correspond to the one
 	 * we're requesting, store back the old value */
@@ -261,7 +258,6 @@ u8 lightrec_alloc_reg_in(struct regcache *cache, jit_state_t *_jit, u8 reg)
 	}
 
 	jit_reg = lightrec_reg_to_lightning(cache, nreg);
-	jit_note(__FILE__, __LINE__);
 
 	/* If we get a dirty register that doesn't correspond to the one
 	 * we're requesting, store back the old value */
