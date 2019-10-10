@@ -717,11 +717,8 @@ static int lightrec_flag_stores(struct block *block)
 	struct opcode *list;
 	u32 known = BIT(0);
 	u32 values[32] = { 0 };
-	int ret;
 
 	for (list = block->opcode_list; list; list = list->next) {
-		known = lightrec_propagate_consts(list->c, known, values);
-
 		/* Register $zero is always, well, zero */
 		known |= BIT(0);
 		values[0] = 0;
@@ -754,6 +751,8 @@ static int lightrec_flag_stores(struct block *block)
 		default: /* fall-through */
 			break;
 		}
+
+		known = lightrec_propagate_consts(list->c, known, values);
 	}
 
 	return 0;
