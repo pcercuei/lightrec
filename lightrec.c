@@ -684,6 +684,7 @@ int lightrec_compile_block(struct block *block)
 	jit_state_t *_jit;
 	bool skip_next = false;
 	jit_word_t code_size;
+	unsigned int i;
 	u32 next_pc;
 	int ret;
 
@@ -712,6 +713,14 @@ int lightrec_compile_block(struct block *block)
 				!(elm->flags & LIGHTREC_NO_DS);
 		}
 	}
+
+	for (i = 0; i < state->nb_branches; i++)
+		jit_patch(state->branches[i]);
+
+	jit_ldxi(JIT_R0, LIGHTREC_REG_STATE,
+		 offsetof(struct lightrec_state, eob_wrapper_func));
+
+	jit_jmpr(JIT_R0);
 
 	jit_ret();
 	jit_epilog();

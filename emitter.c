@@ -50,19 +50,9 @@ static void lightrec_emit_end_of_block(const struct block *block,
 	struct regcache *reg_cache = state->reg_cache;
 	u32 cycles = state->cycles;
 	jit_state_t *_jit = block->_jit;
-	const struct opcode *delay_slot;
-	bool is_last_eob;
 	unsigned int i;
 
 	jit_note(__FILE__, __LINE__);
-
-	if ((op->flags & LIGHTREC_NO_DS) || !has_delay_slot(op->c)) {
-		delay_slot = NULL;
-		is_last_eob = !op->next;
-	} else {
-		delay_slot = op->next;
-		is_last_eob = !delay_slot->next;
-	}
 
 	if (link) {
 		/* Update the $ra register */
@@ -78,12 +68,12 @@ static void lightrec_emit_end_of_block(const struct block *block,
 		jit_movi(reg_new_pc, imm);
 	}
 
-	if (delay_slot) {
-		cycles += lightrec_cycles_of_opcode(delay_slot->c);
+	if (has_delay_slot(op->c) && !(op->flags & LIGHTREC_NO_DS)) {
+		cycles += lightrec_cycles_of_opcode(op->next->c);
 
 		/* Recompile the delay slot */
-		if (delay_slot->opcode)
-			lightrec_rec_opcode(block, delay_slot, pc + 4);
+		if (op->next->c.opcode)
+			lightrec_rec_opcode(block, op->next, pc + 4);
 	}
 
 	/* Store back remaining registers */
@@ -92,17 +82,7 @@ static void lightrec_emit_end_of_block(const struct block *block,
 	jit_movr(JIT_V0, reg_new_pc);
 	jit_subi(LIGHTREC_REG_CYCLE, LIGHTREC_REG_CYCLE, cycles);
 
-	if (is_last_eob) {
-		for (i = 0; i < state->nb_branches; i++)
-			jit_patch(state->branches[i]);
-
-		jit_ldxi(JIT_R0, LIGHTREC_REG_STATE,
-			 offsetof(struct lightrec_state, eob_wrapper_func));
-
-		jit_jmpr(JIT_R0);
-	} else {
-		state->branches[state->nb_branches++] = jit_jmpi();
-	}
+	state->branches[state->nb_branches++] = jit_jmpi();
 }
 
 static void rec_special_JR(const struct block *block,
