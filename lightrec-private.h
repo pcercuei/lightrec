@@ -75,19 +75,12 @@ struct block {
 	struct block *next;
 };
 
-struct lightrec_op_data {
-	union code op;
-	u32 addr;
-	u32 data;
-};
-
 struct lightrec_state {
 	u32 native_reg_cache[34];
 	u32 next_pc;
 	u32 current_cycle;
 	u32 target_cycle;
 	u32 exit_flags;
-	struct lightrec_op_data op_data;
 	struct block *wrapper, *rw_wrapper, *mfc_wrapper, *mtc_wrapper,
 		     *rfe_wrapper, *cp_wrapper, *syscall_wrapper,
 		     *break_wrapper;

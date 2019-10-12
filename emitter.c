@@ -726,43 +726,29 @@ static void rec_io(const struct block *block, const struct opcode *op,
 {
 	struct regcache *reg_cache = block->state->reg_cache;
 	jit_state_t *_jit = block->_jit;
-	u8 rt, rs, tmp, tmp2;
+	u8 rt, tmp, tmp2;
 
 	jit_note(__FILE__, __LINE__);
 
-	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rs);
-	jit_stxi_i(offsetof(struct lightrec_state, op_data.addr),
-		   LIGHTREC_REG_STATE, rs);
-	lightrec_free_reg(reg_cache, rs);
-
-	if (load_rt) {
-		rt = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rt);
-		jit_stxi_i(offsetof(struct lightrec_state, op_data.data),
-			   LIGHTREC_REG_STATE, rt);
-		lightrec_free_reg(reg_cache, rt);
-	}
-
-	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
+	tmp = lightrec_alloc_reg(reg_cache, _jit, JIT_R0);
 	tmp2 = lightrec_alloc_reg_temp(reg_cache, _jit);
+
 	jit_ldxi(tmp2, LIGHTREC_REG_STATE,
 		 offsetof(struct lightrec_state, rw_func));
 
-	jit_movi(tmp, op->opcode);
-	jit_stxi_i(offsetof(struct lightrec_state, op_data.op),
-		   LIGHTREC_REG_STATE, tmp);
+	lightrec_clean_reg_if_loaded(reg_cache, _jit, op->i.rs, false);
 
+	if (read_rt && likely(op->i.rt))
+		lightrec_clean_reg_if_loaded(reg_cache, _jit, op->i.rt, true);
+	else if (load_rt)
+		lightrec_clean_reg_if_loaded(reg_cache, _jit, op->i.rt, false);
+
+	jit_movi(tmp, op->opcode);
 	jit_callr(tmp2);
+
 	lightrec_free_reg(reg_cache, tmp);
 	lightrec_free_reg(reg_cache, tmp2);
-
 	lightrec_regcache_mark_live(reg_cache, _jit);
-
-	if (read_rt && likely(op->i.rt)) {
-		rt = lightrec_alloc_reg_out_ext(reg_cache, _jit, op->i.rt);
-		jit_ldxi_i(rt, LIGHTREC_REG_STATE,
-			   offsetof(struct lightrec_state, op_data.data));
-		lightrec_free_reg(reg_cache, rt);
-	}
 }
 
 static void rec_store_direct_no_invalidate(const struct block *block,
@@ -1125,26 +1111,20 @@ static void rec_mfc(const struct block *block, const struct opcode *op)
 
 	jit_note(__FILE__, __LINE__);
 
-	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
+	tmp = lightrec_alloc_reg(reg_cache, _jit, JIT_R0);
 	tmp2 = lightrec_alloc_reg_temp(reg_cache, _jit);
 
 	jit_ldxi(tmp2, LIGHTREC_REG_STATE,
 		 offsetof(struct lightrec_state, mfc_func));
 
-	jit_movi(tmp, op->opcode);
-	jit_stxi_i(offsetof(struct lightrec_state, op_data.op),
-		   LIGHTREC_REG_STATE, tmp);
+	lightrec_clean_reg_if_loaded(reg_cache, _jit, op->i.rt, true);
 
+	jit_movi(tmp, op->opcode);
 	jit_callr(tmp2);
 	lightrec_free_reg(reg_cache, tmp);
 	lightrec_free_reg(reg_cache, tmp2);
 
 	lightrec_regcache_mark_live(reg_cache, _jit);
-
-	rt = lightrec_alloc_reg_out_ext(reg_cache, _jit, op->r.rt);
-	jit_ldxi_i(rt, LIGHTREC_REG_STATE,
-		   offsetof(struct lightrec_state, op_data.data));
-	lightrec_free_reg(reg_cache, rt);
 }
 
 static void rec_mtc(const struct block *block, const struct opcode *op, u32 pc)
@@ -1156,21 +1136,15 @@ static void rec_mtc(const struct block *block, const struct opcode *op, u32 pc)
 
 	jit_note(__FILE__, __LINE__);
 
-	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
+	tmp = lightrec_alloc_reg(reg_cache, _jit, JIT_R0);
 	tmp2 = lightrec_alloc_reg_temp(reg_cache, _jit);
-	rt = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rt);
-
 	jit_ldxi(tmp2, LIGHTREC_REG_STATE,
 		 offsetof(struct lightrec_state, mtc_func));
 
+	lightrec_clean_reg_if_loaded(reg_cache, _jit, op->i.rs, false);
+	lightrec_clean_reg_if_loaded(reg_cache, _jit, op->i.rt, false);
+
 	jit_movi(tmp, op->opcode);
-	jit_stxi_i(offsetof(struct lightrec_state, op_data.op),
-		   LIGHTREC_REG_STATE, tmp);
-
-	jit_stxi_i(offsetof(struct lightrec_state, op_data.data),
-		   LIGHTREC_REG_STATE, rt);
-	lightrec_free_reg(reg_cache, rt);
-
 	jit_callr(tmp2);
 	lightrec_free_reg(reg_cache, tmp);
 	lightrec_free_reg(reg_cache, tmp2);
@@ -1258,28 +1232,25 @@ static void rec_cp0_RFE(const struct block *block,
 
 static void rec_CP(const struct block *block, const struct opcode *op, u32 pc)
 {
-	struct lightrec_state *state = block->state;
+	struct regcache *reg_cache = block->state->reg_cache;
 	jit_state_t *_jit = block->_jit;
 	u8 tmp, tmp2;
 
 	jit_name(__func__);
 	jit_note(__FILE__, __LINE__);
 
-	tmp = lightrec_alloc_reg_temp(state->reg_cache, _jit);
-	tmp2 = lightrec_alloc_reg_temp(state->reg_cache, _jit);
+	tmp = lightrec_alloc_reg(reg_cache, _jit, JIT_R0);
+	tmp2 = lightrec_alloc_reg_temp(reg_cache, _jit);
 
 	jit_ldxi(tmp2, LIGHTREC_REG_STATE,
 		 offsetof(struct lightrec_state, cp_func));
 
 	jit_movi(tmp, op->opcode);
-	jit_stxi_i(offsetof(struct lightrec_state, op_data.op),
-		   LIGHTREC_REG_STATE, tmp);
-
 	jit_callr(tmp2);
-	lightrec_free_reg(state->reg_cache, tmp);
-	lightrec_free_reg(state->reg_cache, tmp2);
+	lightrec_free_reg(reg_cache, tmp);
+	lightrec_free_reg(reg_cache, tmp2);
 
-	lightrec_regcache_mark_live(state->reg_cache, _jit);
+	lightrec_regcache_mark_live(reg_cache, _jit);
 }
 
 static void rec_meta_unload(const struct block *block,

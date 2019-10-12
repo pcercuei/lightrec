@@ -195,12 +195,27 @@ u32 lightrec_rw(struct lightrec_state *state, union code op,
 	}
 }
 
-static void lightrec_rw_cb(struct lightrec_state *state)
+static void lightrec_rw_cb(struct lightrec_state *state, union code op)
 {
-	struct lightrec_op_data *opdata = &state->op_data;
+	u32 ret;
 
-	opdata->data = lightrec_rw(state, opdata->op, opdata->addr,
-				   opdata->data, NULL);
+	ret = lightrec_rw(state, op,
+			  state->native_reg_cache[op.i.rs],
+			  state->native_reg_cache[op.i.rt], NULL);
+
+	switch (op.i.op) {
+	case OP_LB:
+	case OP_LBU:
+	case OP_LH:
+	case OP_LHU:
+	case OP_LWL:
+	case OP_LWR:
+	case OP_LW:
+		if (op.i.rt)
+			state->native_reg_cache[op.i.rt] = ret;
+	default: /* fall-through */
+		break;
+	}
 }
 
 u32 lightrec_mfc(struct lightrec_state *state, union code op)
@@ -223,9 +238,12 @@ u32 lightrec_mfc(struct lightrec_state *state, union code op)
 	return (*func)(state, op.r.rd);
 }
 
-static void lightrec_mfc_cb(struct lightrec_state *state)
+static void lightrec_mfc_cb(struct lightrec_state *state, union code op)
 {
-	state->op_data.data = lightrec_mfc(state, state->op_data.op);
+	u32 rt = lightrec_mfc(state, op);
+
+	if (op.r.rt)
+		state->native_reg_cache[op.r.rt] = rt;
 }
 
 void lightrec_mtc(struct lightrec_state *state, union code op, u32 data)
@@ -248,12 +266,12 @@ void lightrec_mtc(struct lightrec_state *state, union code op, u32 data)
 	(*func)(state, op.r.rd, data);
 }
 
-static void lightrec_mtc_cb(struct lightrec_state *state)
+static void lightrec_mtc_cb(struct lightrec_state *state, union code op)
 {
-	lightrec_mtc(state, state->op_data.op, state->op_data.data);
+	lightrec_mtc(state, op, state->native_reg_cache[op.r.rt]);
 }
 
-static void lightrec_rfe_cb(struct lightrec_state *state)
+static void lightrec_rfe_cb(struct lightrec_state *state, union code op)
 {
 	u32 status;
 
@@ -267,25 +285,24 @@ static void lightrec_rfe_cb(struct lightrec_state *state)
 	state->ops.cop0_ops.ctc(state, 12, status);
 }
 
-static void lightrec_cp_cb(struct lightrec_state *state)
+static void lightrec_cp_cb(struct lightrec_state *state, union code op)
 {
 	void (*func)(struct lightrec_state *, u32);
-	struct lightrec_op_data *opdata = &state->op_data;
 
-	if ((opdata->op.opcode >> 25) & 1)
+	if ((op.opcode >> 25) & 1)
 		func = state->ops.cop2_ops.op;
 	else
 		func = state->ops.cop0_ops.op;
 
-	(*func)(state, opdata->op.opcode);
+	(*func)(state, op.opcode);
 }
 
-static void lightrec_syscall_cb(struct lightrec_state *state)
+static void lightrec_syscall_cb(struct lightrec_state *state, union code op)
 {
 	lightrec_set_exit_flags(state, LIGHTREC_EXIT_SYSCALL);
 }
 
-static void lightrec_break_cb(struct lightrec_state *state)
+static void lightrec_break_cb(struct lightrec_state *state, union code op)
 {
 	lightrec_set_exit_flags(state, LIGHTREC_EXIT_BREAK);
 }
@@ -359,17 +376,19 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 }
 
 static s32 c_function_wrapper(struct lightrec_state *state, s32 cycles_delta,
-			      void (*f)(struct lightrec_state *))
+			      void (*f)(struct lightrec_state *, union code),
+			      union code op)
 {
 	state->current_cycle = state->target_cycle - cycles_delta;
 
-	(*f)(state);
+	(*f)(state, op);
 
 	return state->target_cycle - state->current_cycle;
 }
 
 static struct block * generate_wrapper(struct lightrec_state *state,
-				       void (*f)(struct lightrec_state *))
+				       void (*f)(struct lightrec_state *,
+						 union code))
 {
 	struct block *block;
 	jit_state_t *_jit;
@@ -409,7 +428,6 @@ static struct block * generate_wrapper(struct lightrec_state *state,
 	jit_ret();
 	jit_epilog();
 
-
 	/* Trampoline entry point.
 	 * The sole purpose of the trampoline is to cheese Lightning not to
 	 * save/restore the callee-saved register LIGHTREC_REG_CYCLE, since we
@@ -422,6 +440,7 @@ static struct block * generate_wrapper(struct lightrec_state *state,
 	jit_pushargr(LIGHTREC_REG_STATE);
 	jit_pushargr(LIGHTREC_REG_CYCLE);
 	jit_pushargi((uintptr_t)f);
+	jit_pushargr(JIT_R0);
 
 	jit_finishi(c_function_wrapper);
 
