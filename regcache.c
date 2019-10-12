@@ -411,6 +411,23 @@ void lightrec_clean_reg(struct regcache *cache, jit_state_t *_jit, u8 jit_reg)
 	clean_reg(_jit, reg, jit_reg, true);
 }
 
+void lightrec_clean_reg_if_loaded(struct regcache *cache, jit_state_t *_jit,
+				  u8 reg, bool unload)
+{
+	struct native_register *nreg;
+	u8 jit_reg;
+
+	nreg = find_mapped_reg(cache, reg, false);
+	if (nreg) {
+		jit_reg = lightrec_reg_to_lightning(cache, nreg);
+
+		if (unload)
+			lightrec_unload_nreg(cache, _jit, nreg, jit_reg);
+		else
+			clean_reg(_jit, nreg, jit_reg, true);
+	}
+}
+
 struct native_register * lightrec_regcache_enter_branch(struct regcache *cache)
 {
 	struct native_register *backup = lightrec_malloc(MEM_FOR_LIGHTREC,

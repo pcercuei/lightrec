@@ -54,6 +54,9 @@ void lightrec_clean_regs(struct regcache *cache, jit_state_t *_jit);
 void lightrec_unload_reg(struct regcache *cache, jit_state_t *_jit, u8 jit_reg);
 void lightrec_storeback_regs(struct regcache *cache, jit_state_t *_jit);
 
+void lightrec_clean_reg_if_loaded(struct regcache *cache, jit_state_t *_jit,
+				  u8 reg, _Bool unload);
+
 u8 lightrec_alloc_reg_in_address(struct regcache *cache,
 		jit_state_t *_jit, u8 reg, s16 offset);
 
