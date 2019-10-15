@@ -749,14 +749,17 @@ int lightrec_compile_block(struct block *block)
 	for (elm = block->opcode_list; elm; elm = elm->next) {
 		next_pc = block->pc + elm->offset * sizeof(u32);
 
+		if (skip_next) {
+			skip_next = false;
+			continue;
+		}
+
 		state->cycles += lightrec_cycles_of_opcode(elm->c);
 
 		if (elm->flags & LIGHTREC_EMULATE_BRANCH) {
 			pr_debug("Branch at offset 0x%x will be emulated\n",
 				 elm->offset << 2);
 			lightrec_emit_eob(block, elm, next_pc);
-		} else if (skip_next) {
-			skip_next = false;
 		} else if (elm->opcode) {
 			lightrec_rec_opcode(block, elm, next_pc);
 			skip_next = has_delay_slot(elm->c) &&
