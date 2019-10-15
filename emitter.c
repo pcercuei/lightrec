@@ -67,7 +67,8 @@ static void lightrec_emit_end_of_block(const struct block *block,
 		jit_movi(reg_new_pc, imm);
 	}
 
-	if (has_delay_slot(op->c) && !(op->flags & LIGHTREC_NO_DS)) {
+	if (has_delay_slot(op->c) &&
+	    !(op->flags & (LIGHTREC_NO_DS | LIGHTREC_LOCAL_BRANCH))) {
 		cycles += lightrec_cycles_of_opcode(op->next->c);
 
 		/* Recompile the delay slot */
@@ -149,9 +150,11 @@ static void rec_b(const struct block *block, const struct opcode *op, u32 pc,
 	struct regcache *reg_cache = block->state->reg_cache;
 	struct native_register *regs_backup;
 	jit_state_t *_jit = block->_jit;
+	struct lightrec_branch *branch;
 	jit_node_t *addr;
 	u8 link_reg;
 	u32 offset, cycles = block->state->cycles;
+	bool is_forward = (s16)op->i.imm >= -1;
 
 	jit_note(__FILE__, __LINE__);
 
@@ -175,9 +178,33 @@ static void rec_b(const struct block *block, const struct opcode *op, u32 pc,
 		regs_backup = lightrec_regcache_enter_branch(reg_cache);
 	}
 
-	lightrec_emit_end_of_block(block, op, pc, -1,
-				   pc + 4 + ((s16)op->i.imm << 2),
-				   31, link, false);
+	if (op->flags & LIGHTREC_LOCAL_BRANCH) {
+		if (op->next && !(op->flags & LIGHTREC_NO_DS)) {
+			/* Recompile the delay slot */
+			if (op->next->opcode)
+				lightrec_rec_opcode(block, op->next, pc + 4);
+		}
+
+		/* Store back remaining registers */
+		lightrec_storeback_regs(reg_cache, _jit);
+
+		offset = op->offset + 1 + (s16)op->i.imm;
+		pr_debug("Adding local branch to offset 0x%x\n", offset << 2);
+		branch = &block->state->local_branches[
+			block->state->nb_local_branches++];
+
+		branch->target = offset;
+		if (is_forward)
+			branch->branch = jit_jmpi();
+		else
+			branch->branch = jit_bgti(LIGHTREC_REG_CYCLE, 0);
+	}
+
+	if (!(op->flags & LIGHTREC_LOCAL_BRANCH) || !is_forward) {
+		lightrec_emit_end_of_block(block, op, pc, -1,
+					   pc + 4 + ((s16)op->i.imm << 2),
+					   31, link, false);
+	}
 
 	if (!unconditional) {
 		jit_patch(addr);
@@ -1343,6 +1370,24 @@ static void rec_meta_MOV(const struct block *block,
 static void rec_meta_sync(const struct block *block,
 			  const struct opcode *op, u32 pc)
 {
+	struct lightrec_state *state = block->state;
+	struct lightrec_branch_target *target;
+	jit_state_t *_jit = block->_jit;
+
+	jit_name(__func__);
+	jit_note(__FILE__, __LINE__);
+
+	jit_subi(LIGHTREC_REG_CYCLE, LIGHTREC_REG_CYCLE, state->cycles);
+	state->cycles = 0;
+
+	lightrec_storeback_regs(state->reg_cache, _jit);
+	lightrec_regcache_reset(state->reg_cache);
+
+	pr_debug("Adding branch target at offset 0x%x\n",
+		 op->offset << 2);
+	target = &state->targets[state->nb_targets++];
+	target->offset = op->offset;
+	target->label = jit_label();
 }
 
 static const lightrec_rec_func_t rec_standard[64] = {

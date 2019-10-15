@@ -730,7 +730,7 @@ int lightrec_compile_block(struct block *block)
 	jit_state_t *_jit;
 	bool skip_next = false;
 	jit_word_t code_size;
-	unsigned int i;
+	unsigned int i, j;
 	u32 next_pc;
 
 	_jit = jit_new_state();
@@ -742,6 +742,8 @@ int lightrec_compile_block(struct block *block)
 	lightrec_regcache_reset(state->reg_cache);
 	state->cycles = 0;
 	state->nb_branches = 0;
+	state->nb_local_branches = 0;
+	state->nb_targets = 0;
 
 	jit_prolog();
 	jit_tramp(256);
@@ -769,6 +771,24 @@ int lightrec_compile_block(struct block *block)
 
 	for (i = 0; i < state->nb_branches; i++)
 		jit_patch(state->branches[i]);
+
+	for (i = 0; i < state->nb_local_branches; i++) {
+		struct lightrec_branch *branch = &state->local_branches[i];
+
+		pr_debug("Patch local branch to offset 0x%x\n",
+			 branch->target << 2);
+
+		for (j = 0; j < state->nb_targets; j++) {
+			if (state->targets[j].offset == branch->target) {
+				jit_patch_at(branch->branch,
+					     state->targets[j].label);
+				break;
+			}
+		}
+
+		if (j == state->nb_targets)
+			pr_err("Unable to find branch target\n");
+	}
 
 	jit_ldxi(JIT_R0, LIGHTREC_REG_STATE,
 		 offsetof(struct lightrec_state, eob_wrapper_func));
