@@ -444,7 +444,11 @@ static struct block * generate_wrapper(struct lightrec_state *state,
 
 	jit_finishi(c_function_wrapper);
 
+#if __WORDSIZE == 64
+	jit_retval_i(LIGHTREC_REG_CYCLE);
+#else
 	jit_retval(LIGHTREC_REG_CYCLE);
+#endif
 
 	jit_patch_at(jit_jmpi(), to_fn_epilog);
 	jit_epilog();
@@ -500,7 +504,11 @@ static struct block * generate_wrapper_block(struct lightrec_state *state)
 	jit_frame(256);
 
 	jit_getarg(JIT_R0, jit_arg());
+#if __WORDSIZE == 64
+	jit_getarg_i(LIGHTREC_REG_CYCLE, jit_arg());
+#else
 	jit_getarg(LIGHTREC_REG_CYCLE, jit_arg());
+#endif
 
 	/* Force all callee-saved registers to be pushed on the stack */
 	for (i = 0; i < NUM_REGS; i++)
