@@ -832,7 +832,7 @@ static int lightrec_early_unload(struct block *block)
 	return 0;
 }
 
-static int lightrec_constant_folding(struct block *block)
+static int lightrec_flag_stores(struct block *block)
 {
 	struct opcode *list;
 	u32 known = BIT(0);
@@ -844,13 +844,6 @@ static int lightrec_constant_folding(struct block *block)
 		values[0] = 0;
 
 		switch (list->i.op) {
-		case OP_LUI:
-			if ((known & BIT(list->i.rt)) &&
-			    values[list->i.rt] == (list->i.imm << 16)) {
-				pr_debug("Remove duplicated LUI opcode\n");
-				list->opcode = 0; /* NOP */
-			}
-			break;
 		case OP_SB:
 		case OP_SH:
 		case OP_SW:
@@ -890,7 +883,7 @@ static int (*lightrec_optimizers[])(struct block *) = {
 	&lightrec_transform_ops,
 	&lightrec_local_branches,
 	&lightrec_switch_delay_slots,
-	&lightrec_constant_folding,
+	&lightrec_flag_stores,
 	&lightrec_early_unload,
 };
 
