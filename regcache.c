@@ -322,7 +322,6 @@ u8 lightrec_request_reg_in(struct regcache *cache, jit_state_t *_jit,
 			   u8 reg, u8 jit_reg)
 {
 	struct native_register *nreg;
-	unsigned int i;
 	u16 offset;
 
 	nreg = find_mapped_reg(cache, reg, false);

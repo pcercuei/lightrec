@@ -713,7 +713,6 @@ int lightrec_compile_block(struct block *block)
 	jit_word_t code_size;
 	unsigned int i;
 	u32 next_pc;
-	int ret;
 
 	_jit = jit_new_state();
 	if (!_jit)

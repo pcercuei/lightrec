@@ -546,7 +546,6 @@ static int lightrec_switch_delay_slots(struct block *block)
 {
 	struct opcode *list;
 	u8 flags;
-	int ret;
 
 	for (list = block->opcode_list; list->next; list = list->next) {
 		union code op = list->c;
@@ -676,11 +675,11 @@ static int lightrec_early_unload(struct block *block)
 	u8 i;
 
 	for (i = 1; i < 34; i++) {
-		struct opcode *op, *last = NULL, *last_r = NULL, *last_w = NULL;
+		struct opcode *op, *last_r = NULL, *last_w = NULL;
 		unsigned int last_r_id = 0, last_w_id = 0, id = 0;
 		int ret;
 
-		for (op = list; op->next; last = op, op = op->next, id++) {
+		for (op = list; op->next; op = op->next, id++) {
 			if (opcode_reads_register(op->c, i)) {
 				last_r = op;
 				last_r_id = id;

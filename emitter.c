@@ -50,7 +50,6 @@ static void lightrec_emit_end_of_block(const struct block *block,
 	struct regcache *reg_cache = state->reg_cache;
 	u32 cycles = state->cycles;
 	jit_state_t *_jit = block->_jit;
-	unsigned int i;
 
 	jit_note(__FILE__, __LINE__);
 
@@ -726,7 +725,7 @@ static void rec_io(const struct block *block, const struct opcode *op,
 {
 	struct regcache *reg_cache = block->state->reg_cache;
 	jit_state_t *_jit = block->_jit;
-	u8 rt, tmp, tmp2;
+	u8 tmp, tmp2;
 
 	jit_note(__FILE__, __LINE__);
 
@@ -1104,7 +1103,7 @@ static void rec_special_BREAK(const struct block *block,
 
 static void rec_mfc(const struct block *block, const struct opcode *op)
 {
-	u8 rt, tmp, tmp2;
+	u8 tmp, tmp2;
 	struct lightrec_state *state = block->state;
 	struct regcache *reg_cache = state->reg_cache;
 	jit_state_t *_jit = block->_jit;
@@ -1132,7 +1131,7 @@ static void rec_mtc(const struct block *block, const struct opcode *op, u32 pc)
 	struct lightrec_state *state = block->state;
 	struct regcache *reg_cache = state->reg_cache;
 	jit_state_t *_jit = block->_jit;
-	u8 rt, tmp, tmp2;
+	u8 tmp, tmp2;
 
 	jit_note(__FILE__, __LINE__);
 
