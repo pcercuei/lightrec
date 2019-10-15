@@ -102,10 +102,13 @@ struct opcode * lightrec_disassemble(const u32 *src, unsigned int *len)
 
 unsigned int lightrec_cycles_of_opcode(union code code)
 {
-	if (code.i.op == OP_META_REG_UNLOAD)
+	switch (code.i.op) {
+	case OP_META_REG_UNLOAD:
+	case OP_META_SYNC:
 		return 0;
-	else
+	default:
 		return 2;
+	}
 }
 
 #if ENABLE_DISASSEMBLER

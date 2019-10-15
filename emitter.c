@@ -1326,6 +1326,11 @@ static void rec_meta_MOV(const struct block *block,
 	lightrec_free_reg(state->reg_cache, rd);
 }
 
+static void rec_meta_sync(const struct block *block,
+			  const struct opcode *op, u32 pc)
+{
+}
+
 static const lightrec_rec_func_t rec_standard[64] = {
 	[OP_SPECIAL]		= rec_SPECIAL,
 	[OP_REGIMM]		= rec_REGIMM,
@@ -1364,6 +1369,7 @@ static const lightrec_rec_func_t rec_standard[64] = {
 	[OP_META_BEQZ]		= rec_meta_BEQZ,
 	[OP_META_BNEZ]		= rec_meta_BNEZ,
 	[OP_META_MOV]		= rec_meta_MOV,
+	[OP_META_SYNC]		= rec_meta_sync,
 };
 
 static const lightrec_rec_func_t rec_special[64] = {

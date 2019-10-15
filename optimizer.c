@@ -491,6 +491,13 @@ static int lightrec_add_meta(struct block *block,
 	return 0;
 }
 
+static int lightrec_add_sync(struct block *block, struct opcode *prev)
+{
+	return lightrec_add_meta(block, prev, (union code){
+				 .j.op = OP_META_SYNC,
+				 });
+}
+
 static int lightrec_transform_ops(struct block *block)
 {
 	struct opcode *list = block->opcode_list;
@@ -568,16 +575,20 @@ static int lightrec_transform_ops(struct block *block)
 
 static int lightrec_switch_delay_slots(struct block *block)
 {
-	struct opcode *list;
+	struct opcode *list, *prev;
 	u8 flags;
 
-	for (list = block->opcode_list; list->next; list = list->next) {
+	for (list = block->opcode_list, prev = NULL; list->next;
+	     prev = list, list = list->next) {
 		union code op = list->c;
 		union code next_op = list->next->c;
 
 		if (!has_delay_slot(op) ||
 		    list->flags & (LIGHTREC_NO_DS | LIGHTREC_EMULATE_BRANCH) ||
 		    op.opcode == 0)
+			continue;
+
+		if (prev && prev->c.i.op == OP_META_SYNC)
 			continue;
 
 		switch (list->i.op) {
@@ -668,6 +679,72 @@ static int lightrec_detect_impossible_branches(struct block *block)
 		}
 
 		list->flags |= LIGHTREC_EMULATE_BRANCH;
+	}
+
+	return 0;
+}
+
+static int lightrec_local_branches(struct block *block)
+{
+	struct opcode *list, *target, *prev;
+	s32 offset;
+	int ret;
+
+	for (list = block->opcode_list; list; list = list->next) {
+		if (list->flags & LIGHTREC_EMULATE_BRANCH)
+			continue;
+
+		switch (list->i.op) {
+		case OP_BEQ:
+		case OP_BNE:
+		case OP_BLEZ:
+		case OP_BGTZ:
+		case OP_REGIMM:
+		case OP_META_BEQZ:
+		case OP_META_BNEZ:
+			offset = list->offset + 1 + (s16)list->i.imm;
+			if (offset >= 0 && offset < block->nb_ops)
+				break;
+		default: /* fall-through */
+			continue;
+		}
+
+		pr_debug("Found local branch to offset 0x%x\n", offset << 2);
+
+		for (target = block->opcode_list, prev = NULL;
+		     target; prev = target, target = target->next) {
+			if (target->offset != offset ||
+			    target->j.op == OP_META_SYNC)
+				continue;
+
+			if (target->flags & LIGHTREC_EMULATE_BRANCH) {
+				pr_debug("Branch target must be emulated"
+					 " - skip\n");
+				break;
+			}
+
+			if (prev && has_delay_slot(prev->c)) {
+				pr_debug("Branch target is a delay slot"
+					 " - skip\n");
+				break;
+			}
+
+			if (!prev || prev->j.op != OP_META_SYNC) {
+				pr_debug("Adding sync before offset "
+					 "0x%x\n", offset << 2);
+				ret = lightrec_add_sync(block, prev);
+				if (ret)
+					return ret;
+
+				if (!prev)
+					prev = block->opcode_list;
+
+				prev->next->offset = target->offset;
+			}
+
+			list->flags |= LIGHTREC_LOCAL_BRANCH;
+			break;
+		}
 	}
 
 	return 0;
@@ -811,6 +888,7 @@ static int lightrec_constant_folding(struct block *block)
 static int (*lightrec_optimizers[])(struct block *) = {
 	&lightrec_detect_impossible_branches,
 	&lightrec_transform_ops,
+	&lightrec_local_branches,
 	&lightrec_switch_delay_slots,
 	&lightrec_constant_folding,
 	&lightrec_early_unload,

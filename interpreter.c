@@ -805,7 +805,7 @@ static u32 int_special_SLTU(struct interpreter *inter)
 	JUMP_NEXT(inter);
 }
 
-static u32 int_META_UNLOAD(struct interpreter *inter)
+static u32 int_META_SKIP(struct interpreter *inter)
 {
 	JUMP_SKIP(inter);
 }
@@ -855,10 +855,11 @@ static const lightrec_int_func_t int_standard[64] = {
 	[OP_LWC2]		= int_LWC2,
 	[OP_SWC2]		= int_store,
 
-	[OP_META_REG_UNLOAD]	= int_META_UNLOAD,
+	[OP_META_REG_UNLOAD]	= int_META_SKIP,
 	[OP_META_BEQZ]		= int_BEQ,
 	[OP_META_BNEZ]		= int_BNE,
 	[OP_META_MOV]		= int_META_MOV,
+	[OP_META_SYNC]		= int_META_SKIP,
 };
 
 static const lightrec_int_func_t int_special[64] = {
