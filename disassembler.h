@@ -26,6 +26,7 @@
 #define LIGHTREC_SMC		(1 << 3)
 #define LIGHTREC_EMULATE_BRANCH	(1 << 4)
 #define LIGHTREC_LOCAL_BRANCH	(1 << 5)
+#define LIGHTREC_HW_IO		(1 << 6)
 
 struct block;
 
