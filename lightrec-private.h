@@ -49,6 +49,7 @@
 /* Flags for (struct block *)->flags */
 #define BLOCK_NEVER_COMPILE	BIT(0)
 #define BLOCK_SHOULD_RECOMPILE	BIT(1)
+#define BLOCK_FULLY_TAGGED	BIT(2)
 
 /* Definition of jit_state_t (avoids inclusion of <lightning.h>) */
 struct jit_node;

@@ -726,16 +726,54 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 	return block;
 }
 
+static bool lightrec_block_is_fully_tagged(struct block *block)
+{
+	struct opcode *op;
+
+	for (op = block->opcode_list; op; op = op->next) {
+		/* Verify that all load/stores of the opcode list
+		 * Check all loads/stores of the opcode list and mark the
+		 * block as fully compiled if they all have been tagged. */
+		switch (op->c.i.op) {
+		case OP_LB:
+		case OP_LH:
+		case OP_LWL:
+		case OP_LW:
+		case OP_LBU:
+		case OP_LHU:
+		case OP_LWR:
+		case OP_SB:
+		case OP_SH:
+		case OP_SWL:
+		case OP_SW:
+		case OP_SWR:
+		case OP_LWC2:
+		case OP_SWC2:
+			if (!(op->flags & (LIGHTREC_DIRECT_IO |
+					   LIGHTREC_HW_IO)))
+				return false;
+		default: /* fall-through */
+			continue;
+		}
+	}
+
+	return true;
+}
+
 int lightrec_compile_block(struct block *block)
 {
 	struct lightrec_state *state = block->state;
-	bool op_list_freed = false;
+	bool op_list_freed = false, fully_tagged = false;
 	struct opcode *elm;
 	jit_state_t *_jit;
 	bool skip_next = false;
 	jit_word_t code_size;
 	unsigned int i, j;
 	u32 next_pc;
+
+	fully_tagged = lightrec_block_is_fully_tagged(block);
+	if (fully_tagged)
+		block->flags |= BLOCK_FULLY_TAGGED;
 
 	_jit = jit_new_state();
 	if (!_jit)
