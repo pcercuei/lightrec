@@ -199,13 +199,12 @@ u32 lightrec_rw(struct lightrec_state *state, union code op,
 	}
 }
 
-static void lightrec_rw_cb(struct lightrec_state *state, union code op)
+static void lightrec_rw_helper(struct lightrec_state *state,
+			       union code op, u16 *flags)
 {
-	u32 ret;
-
-	ret = lightrec_rw(state, op,
+	u32 ret = lightrec_rw(state, op,
 			  state->native_reg_cache[op.i.rs],
-			  state->native_reg_cache[op.i.rt], NULL);
+			  state->native_reg_cache[op.i.rt], flags);
 
 	switch (op.i.op) {
 	case OP_LB:
@@ -219,6 +218,27 @@ static void lightrec_rw_cb(struct lightrec_state *state, union code op)
 			state->native_reg_cache[op.i.rt] = ret;
 	default: /* fall-through */
 		break;
+	}
+}
+
+static void lightrec_rw_cb(struct lightrec_state *state, union code op)
+{
+	lightrec_rw_helper(state, op, NULL);
+}
+
+static void lightrec_rw_generic_cb(struct lightrec_state *state,
+				   struct opcode *op, struct block *block)
+{
+	bool was_tagged = op->flags & (LIGHTREC_HW_IO | LIGHTREC_DIRECT_IO);
+
+	lightrec_rw_helper(state, op->c, &op->flags);
+
+	if (!was_tagged) {
+		pr_debug("Opcode of block at PC 0x%08x offset 0x%x has been "
+			 "tagged - flag for recompilation\n",
+			 block->pc, op->offset << 2);
+
+		lightrec_mark_for_recompilation(state->block_cache, block);
 	}
 }
 
@@ -391,6 +411,20 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 	}
 }
 
+static s32 c_generic_function_wrapper(struct lightrec_state *state,
+				      s32 cycles_delta,
+				      void (*f)(struct lightrec_state *,
+						struct opcode *,
+						struct block *),
+				      struct opcode *op, struct block *block)
+{
+	state->current_cycle = state->target_cycle - cycles_delta;
+
+	(*f)(state, op, block);
+
+	return state->target_cycle - state->current_cycle;
+}
+
 static s32 c_function_wrapper(struct lightrec_state *state, s32 cycles_delta,
 			      void (*f)(struct lightrec_state *, union code),
 			      union code op)
@@ -403,8 +437,7 @@ static s32 c_function_wrapper(struct lightrec_state *state, s32 cycles_delta,
 }
 
 static struct block * generate_wrapper(struct lightrec_state *state,
-				       void (*f)(struct lightrec_state *,
-						 union code))
+				       void *f, bool generic)
 {
 	struct block *block;
 	jit_state_t *_jit;
@@ -457,8 +490,12 @@ static struct block * generate_wrapper(struct lightrec_state *state,
 	jit_pushargr(LIGHTREC_REG_CYCLE);
 	jit_pushargi((uintptr_t)f);
 	jit_pushargr(JIT_R0);
-
-	jit_finishi(c_function_wrapper);
+	if (generic) {
+		jit_pushargr(JIT_R1);
+		jit_finishi(c_generic_function_wrapper);
+	} else {
+		jit_finishi(c_function_wrapper);
+	}
 
 #if __WORDSIZE == 64
 	jit_retval_i(LIGHTREC_REG_CYCLE);
@@ -977,34 +1014,43 @@ struct lightrec_state * lightrec_init(char *argv0,
 	if (!state->wrapper)
 		goto err_free_recompiler;
 
-	state->rw_wrapper = generate_wrapper(state, lightrec_rw_cb);
-	if (!state->rw_wrapper)
+	state->rw_generic_wrapper = generate_wrapper(state,
+						     lightrec_rw_generic_cb,
+						     true);
+	if (!state->rw_generic_wrapper)
 		goto err_free_wrapper;
 
-	state->mfc_wrapper = generate_wrapper(state, lightrec_mfc_cb);
+	state->rw_wrapper = generate_wrapper(state, lightrec_rw_cb, false);
+	if (!state->rw_wrapper)
+		goto err_free_generic_rw_wrapper;
+
+	state->mfc_wrapper = generate_wrapper(state, lightrec_mfc_cb, false);
 	if (!state->mfc_wrapper)
 		goto err_free_rw_wrapper;
 
-	state->mtc_wrapper = generate_wrapper(state, lightrec_mtc_cb);
+	state->mtc_wrapper = generate_wrapper(state, lightrec_mtc_cb, false);
 	if (!state->mtc_wrapper)
 		goto err_free_mfc_wrapper;
 
-	state->rfe_wrapper = generate_wrapper(state, lightrec_rfe_cb);
+	state->rfe_wrapper = generate_wrapper(state, lightrec_rfe_cb, false);
 	if (!state->rfe_wrapper)
 		goto err_free_mtc_wrapper;
 
-	state->cp_wrapper = generate_wrapper(state, lightrec_cp_cb);
+	state->cp_wrapper = generate_wrapper(state, lightrec_cp_cb, false);
 	if (!state->cp_wrapper)
 		goto err_free_rfe_wrapper;
 
-	state->syscall_wrapper = generate_wrapper(state, lightrec_syscall_cb);
+	state->syscall_wrapper = generate_wrapper(state, lightrec_syscall_cb,
+						  false);
 	if (!state->syscall_wrapper)
 		goto err_free_cp_wrapper;
 
-	state->break_wrapper = generate_wrapper(state, lightrec_break_cb);
+	state->break_wrapper = generate_wrapper(state, lightrec_break_cb,
+						false);
 	if (!state->break_wrapper)
 		goto err_free_syscall_wrapper;
 
+	state->rw_generic_func = state->rw_generic_wrapper->function;
 	state->rw_func = state->rw_wrapper->function;
 	state->mfc_func = state->mfc_wrapper->function;
 	state->mtc_func = state->mtc_wrapper->function;
@@ -1041,6 +1087,8 @@ err_free_mfc_wrapper:
 	lightrec_free_block(state->mfc_wrapper);
 err_free_rw_wrapper:
 	lightrec_free_block(state->rw_wrapper);
+err_free_generic_rw_wrapper:
+	lightrec_free_block(state->rw_generic_wrapper);
 err_free_wrapper:
 	lightrec_free_block(state->wrapper);
 err_free_recompiler:
@@ -1066,6 +1114,7 @@ void lightrec_destroy(struct lightrec_state *state)
 	lightrec_free_regcache(state->reg_cache);
 	lightrec_free_block_cache(state->block_cache);
 	lightrec_free_block(state->wrapper);
+	lightrec_free_block(state->rw_generic_wrapper);
 	lightrec_free_block(state->rw_wrapper);
 	lightrec_free_block(state->mfc_wrapper);
 	lightrec_free_block(state->mtc_wrapper);
