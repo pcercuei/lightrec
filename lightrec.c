@@ -366,6 +366,7 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 {
 	const struct lightrec_mem_map *map;
 	struct block *block;
+	bool should_recompile;
 	void *func;
 
 	for (;;) {
@@ -381,7 +382,24 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 		if (unlikely(!block))
 			return NULL;
 
-		if (ENABLE_FIRST_PASS && ENABLE_THREADED_COMPILER)
+		should_recompile = block->flags & BLOCK_SHOULD_RECOMPILE;
+
+		if (unlikely(should_recompile)) {
+			pr_debug("Block at PC 0x%08x should recompile"
+				 " - freeing old code\n", pc);
+
+			if (ENABLE_THREADED_COMPILER)
+				lightrec_recompiler_remove(state->rec, block);
+
+			lightrec_unregister(MEM_FOR_CODE, block->code_size);
+			if (block->_jit)
+				_jit_destroy_state(block->_jit);
+			block->_jit = NULL;
+			block->function = NULL;
+			block->flags &= ~BLOCK_SHOULD_RECOMPILE;
+		}
+
+		if (ENABLE_THREADED_COMPILER && likely(!should_recompile))
 			func = lightrec_recompiler_run_first_pass(block, &pc);
 		else
 			func = block->function;
@@ -391,7 +409,7 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 
 		/* Block wasn't compiled yet - run the interpreter */
 		if (!ENABLE_THREADED_COMPILER &&
-		    (ENABLE_FIRST_PASS ||
+		    ((ENABLE_FIRST_PASS && likely(!should_recompile)) ||
 		     unlikely(block->flags & BLOCK_NEVER_COMPILE)))
 			pc = lightrec_emulate_block(block);
 
