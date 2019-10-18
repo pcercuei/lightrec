@@ -859,9 +859,12 @@ int lightrec_compile_block(struct block *block)
 	jit_clear_state();
 
 #if ENABLE_THREADED_COMPILER
-	op_list_freed = atomic_flag_test_and_set(&block->op_list_freed);
+	if (fully_tagged)
+		op_list_freed = atomic_flag_test_and_set(&block->op_list_freed);
 #endif
-	if (!op_list_freed) {
+	if (fully_tagged && !op_list_freed) {
+		pr_debug("Block PC 0x%08x is fully tagged"
+			 " - free opcode list\n", block->pc);
 		lightrec_free_opcode_list(block->opcode_list);
 		block->opcode_list = NULL;
 	}
