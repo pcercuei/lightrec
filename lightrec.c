@@ -366,7 +366,9 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 			return func;
 
 		/* Block wasn't compiled yet - run the interpreter */
-		if (ENABLE_FIRST_PASS && !ENABLE_THREADED_COMPILER)
+		if (!ENABLE_THREADED_COMPILER &&
+		    (ENABLE_FIRST_PASS ||
+		     unlikely(block->flags & BLOCK_NEVER_COMPILE)))
 			pc = lightrec_emulate_block(block);
 
 		if (likely(!(block->flags & BLOCK_NEVER_COMPILE))) {
@@ -743,12 +745,17 @@ int lightrec_compile_block(struct block *block)
 	jit_tramp(256);
 
 	for (elm = block->opcode_list; elm; elm = elm->next) {
+		next_pc = block->pc + elm->offset * sizeof(u32);
+
 		state->cycles += lightrec_cycles_of_opcode(elm->c);
 
-		if (skip_next) {
+		if (elm->flags & LIGHTREC_EMULATE_BRANCH) {
+			pr_debug("Branch at offset 0x%x will be emulated\n",
+				 elm->offset << 2);
+			lightrec_emit_eob(block, elm, next_pc);
+		} else if (skip_next) {
 			skip_next = false;
 		} else if (elm->opcode) {
-			next_pc = block->pc + elm->offset * sizeof(u32);
 			lightrec_rec_opcode(block, elm, next_pc);
 			skip_next = has_delay_slot(elm->c) &&
 				!(elm->flags & LIGHTREC_NO_DS);
