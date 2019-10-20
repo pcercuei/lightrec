@@ -710,6 +710,11 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 		lightrec_print_disassembly(block, code, length);
 	}
 
+	/* If the first opcode is an 'impossible' branch, never compile the
+	 * block */
+	if (list->flags & LIGHTREC_EMULATE_BRANCH)
+		block->flags |= BLOCK_NEVER_COMPILE;
+
 	return block;
 }
 
