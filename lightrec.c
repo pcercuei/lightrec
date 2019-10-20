@@ -705,6 +705,8 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 
 	lightrec_optimize(block);
 
+	length = block->nb_ops * sizeof(u32);
+
 	lightrec_register(MEM_FOR_MIPS_CODE, length);
 
 	if (ENABLE_DISASSEMBLER) {

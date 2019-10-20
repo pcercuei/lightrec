@@ -255,7 +255,10 @@ static u32 int_beq(struct interpreter *inter, bool bne)
 	if (branch)
 		return next_pc;
 
-	JUMP_AFTER_BRANCH(inter);
+	if (inter->op->flags & LIGHTREC_EMULATE_BRANCH)
+		return old_pc + 8;
+	else
+		JUMP_AFTER_BRANCH(inter);
 }
 
 static u32 int_BEQ(struct interpreter *inter)
@@ -293,7 +296,10 @@ static u32 int_bgez(struct interpreter *inter, bool link, bool lt, bool regimm)
 	if (branch)
 		return next_pc;
 
-	JUMP_AFTER_BRANCH(inter);
+	if (inter->op->flags & LIGHTREC_EMULATE_BRANCH)
+		return old_pc + 8;
+	else
+		JUMP_AFTER_BRANCH(inter);
 }
 
 static u32 int_regimm_BLTZ(struct interpreter *inter)
