@@ -86,7 +86,7 @@ struct lightrec_state {
 		     *break_wrapper;
 	void *rw_func, *mfc_func, *mtc_func, *rfe_func, *cp_func, *syscall_func,
 	     *break_func;
-	struct jit_node *branches[256];
+	struct jit_node *branches[512];
 	unsigned int nb_branches;
 	struct blockcache *block_cache;
 	struct regcache *reg_cache;
