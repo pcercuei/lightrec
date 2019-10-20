@@ -1427,7 +1427,7 @@ static void rec_meta_sync(const struct block *block,
 		 op->offset << 2);
 	target = &state->targets[state->nb_targets++];
 	target->offset = op->offset;
-	target->label = jit_label();
+	target->label = jit_indirect();
 }
 
 static const lightrec_rec_func_t rec_standard[64] = {

@@ -831,6 +831,7 @@ static void lightrec_reap_jit(void *data)
 int lightrec_compile_block(struct block *block)
 {
 	struct lightrec_state *state = block->state;
+	struct lightrec_branch_target *target;
 	bool op_list_freed = false, fully_tagged = false;
 	struct opcode *elm;
 	jit_state_t *_jit, *oldjit;
@@ -838,7 +839,7 @@ int lightrec_compile_block(struct block *block)
 	bool skip_next = false;
 	jit_word_t code_size;
 	unsigned int i, j;
-	u32 next_pc;
+	u32 next_pc, offset;
 
 	fully_tagged = lightrec_block_is_fully_tagged(block);
 	if (fully_tagged)
@@ -930,6 +931,16 @@ int lightrec_compile_block(struct block *block)
 
 	/* Add compiled function to the LUT */
 	state->code_lut[lut_offset(block->pc)] = block->function;
+
+	/* Fill code LUT with the block's entry points */
+	for (i = 0; i < state->nb_targets; i++) {
+		target = &state->targets[i];
+
+		if (target->offset) {
+			offset = lut_offset(block->pc) + target->offset;
+			state->code_lut[offset] = jit_address(target->label);
+		}
+	}
 
 	jit_get_code(&code_size);
 	lightrec_register(MEM_FOR_CODE, code_size);
