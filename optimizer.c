@@ -686,6 +686,7 @@ static int lightrec_switch_delay_slots(struct block *block)
 static int lightrec_detect_impossible_branches(struct block *block)
 {
 	struct opcode *op, *next;
+	int ret;
 
 	for (op = block->opcode_list, next = op->next; next;
 	     op = next, next = op->next) {
@@ -712,6 +713,23 @@ static int lightrec_detect_impossible_branches(struct block *block)
 		}
 
 		op->flags |= LIGHTREC_EMULATE_BRANCH;
+	}
+
+	for (op = block->opcode_list, next = op->next; next;
+	     op = next, next = op->next) {
+		if ((op->flags & LIGHTREC_EMULATE_BRANCH) &&
+		    next->next &&
+		    !(next->next->flags & LIGHTREC_EMULATE_BRANCH)) {
+			/* Add a SYNC opcode after the 'impossible' branch + its
+			 * delay slot, so we can jump back into the block */
+			pr_debug("Adding sync after impossible branch at "
+				 "offset 0x%x\n", op->offset << 2);
+			ret = lightrec_add_sync(block, next);
+			if (ret)
+				return ret;
+
+			next->next->offset = op->offset + 2;
+		}
 	}
 
 	return 0;
