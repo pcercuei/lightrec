@@ -84,6 +84,22 @@ static void lightrec_emit_end_of_block(const struct block *block,
 	state->branches[state->nb_branches++] = jit_jmpi();
 }
 
+void lightrec_emit_eob(const struct block *block,
+		       const struct opcode *op, u32 pc)
+{
+	struct lightrec_state *state = block->state;
+	struct regcache *reg_cache = state->reg_cache;
+	jit_state_t *_jit = block->_jit;
+
+	lightrec_storeback_regs(reg_cache, _jit);
+
+	jit_movi(JIT_V0, pc);
+	jit_subi(LIGHTREC_REG_CYCLE, LIGHTREC_REG_CYCLE,
+		 state->cycles - lightrec_cycles_of_opcode(op->c));
+
+	state->branches[state->nb_branches++] = jit_jmpi();
+}
+
 static void rec_special_JR(const struct block *block,
 			   const struct opcode *op, u32 pc)
 {
