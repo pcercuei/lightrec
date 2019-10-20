@@ -24,6 +24,7 @@
 #define LIGHTREC_NO_INVALIDATE	(1 << 1)
 #define LIGHTREC_NO_DS		(1 << 2)
 #define LIGHTREC_SMC		(1 << 3)
+#define LIGHTREC_EMULATE_BRANCH	(1 << 4)
 
 struct block;
 

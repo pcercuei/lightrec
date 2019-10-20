@@ -552,10 +552,8 @@ static int lightrec_switch_delay_slots(struct block *block)
 		union code next_op = list->next->c;
 
 		if (!has_delay_slot(op) ||
-		    (list->flags & LIGHTREC_NO_DS) ||
-		    next_op.opcode == 0 ||
-		    load_in_delay_slot(next_op) ||
-		    has_delay_slot(next_op))
+		    list->flags & (LIGHTREC_NO_DS | LIGHTREC_EMULATE_BRANCH) ||
+		    op.opcode == 0)
 			continue;
 
 		switch (list->i.op) {
@@ -621,6 +619,22 @@ static int lightrec_switch_delay_slots(struct block *block)
 		list->flags = flags;
 		list->offset++;
 		list->next->offset--;
+	}
+
+	return 0;
+}
+
+static int lightrec_detect_impossible_branches(struct block *block)
+{
+	struct opcode *list;
+
+	for (list = block->opcode_list; list->next; list = list->next) {
+		if (!has_delay_slot(list->c) ||
+		    (!load_in_delay_slot(list->next->c) &&
+		     !has_delay_slot(list->next->c)))
+			continue;
+
+		list->flags |= LIGHTREC_EMULATE_BRANCH;
 	}
 
 	return 0;
@@ -771,6 +785,7 @@ static int lightrec_constant_folding(struct block *block)
 }
 
 static int (*lightrec_optimizers[])(struct block *) = {
+	&lightrec_detect_impossible_branches,
 	&lightrec_transform_ops,
 	&lightrec_switch_delay_slots,
 	&lightrec_constant_folding,
