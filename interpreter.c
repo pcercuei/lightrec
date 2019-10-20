@@ -92,8 +92,6 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 	 * branch. */
 	load_in_ds = load_in_delay_slot(op->c);
 	branch_in_ds = has_delay_slot(op->c);
-	if (load_in_ds || branch_in_ds)
-		inter->block->flags |= BLOCK_NEVER_COMPILE;
 
 	if (branch) {
 		if (load_in_ds || branch_in_ds)
