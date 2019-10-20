@@ -340,9 +340,19 @@ struct block * lightrec_get_block(struct lightrec_state *state, u32 pc)
 
 static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 {
+	const struct lightrec_mem_map *map;
+	struct block *block;
+	void *func;
+
 	for (;;) {
-		struct block *block = lightrec_get_block(state, pc);
-		void *func;
+		map = lightrec_get_map(state, kunseg(pc));
+		if (map == &state->maps[PSX_MAP_KERNEL_USER_RAM]) {
+			func = state->code_lut[kunseg(pc) >> 2];
+			if (func && func != state->get_next_block)
+				return func;
+		}
+
+		block = lightrec_get_block(state, pc);
 
 		if (unlikely(!block))
 			return NULL;
