@@ -77,7 +77,8 @@ void lightrec_unregister_block(struct blockcache *cache, struct block *block)
 	u32 pc = block->kunseg_pc;
 	struct block *old = cache->lut[(pc >> 2) & (LUT_SIZE - 1)];
 
-	block->state->code_lut[pc >> 2] = NULL;
+	if (block->map == &block->state->maps[PSX_MAP_KERNEL_USER_RAM])
+		block->state->code_lut[pc >> 2] = NULL;
 
 	cache->tiny_lut[(pc >> 2) & (TINY_LUT_SIZE - 1)] = NULL;
 
