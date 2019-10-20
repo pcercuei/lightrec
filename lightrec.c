@@ -354,6 +354,7 @@ struct block * lightrec_get_block(struct lightrec_state *state, u32 pc)
 			lightrec_recompiler_remove(state->rec, block);
 
 		lightrec_unregister_block(state->block_cache, block);
+		remove_from_code_lut(state->block_cache, block);
 		lightrec_free_block(block);
 		block = NULL;
 	}
@@ -823,6 +824,14 @@ static bool lightrec_block_is_fully_tagged(struct block *block)
 	return true;
 }
 
+static void lightrec_reap_block(void *data)
+{
+	struct block *block = data;
+
+	pr_debug("Reap dead block at PC 0x%08x\n", block->pc);
+	lightrec_free_block(block);
+}
+
 static void lightrec_reap_jit(void *data)
 {
 	_jit_destroy_state(data);
@@ -833,6 +842,7 @@ int lightrec_compile_block(struct block *block)
 	struct lightrec_state *state = block->state;
 	struct lightrec_branch_target *target;
 	bool op_list_freed = false, fully_tagged = false;
+	struct block *block2;
 	struct opcode *elm;
 	jit_state_t *_jit, *oldjit;
 	jit_node_t *start_of_block;
@@ -939,6 +949,37 @@ int lightrec_compile_block(struct block *block)
 		if (target->offset) {
 			offset = lut_offset(block->pc) + target->offset;
 			state->code_lut[offset] = jit_address(target->label);
+		}
+	}
+
+	/* Detect old blocks that have been covered by the new one */
+	for (i = 0; i < state->nb_targets; i++) {
+		target = &state->targets[i];
+
+		if (!target->offset)
+			continue;
+
+		offset = block->pc + target->offset * sizeof(u32);
+		block2 = lightrec_find_block(state->block_cache, offset);
+		if (block2) {
+			/* No need to check if block2 is compilable - it must
+			 * be, otherwise block wouldn't be compilable either */
+
+			block2->flags |= BLOCK_IS_DEAD;
+
+			pr_debug("Reap block 0x%08x as it's covered by block "
+				 "0x%08x\n", block2->pc, block->pc);
+
+			lightrec_unregister_block(state->block_cache, block2);
+
+			if (ENABLE_THREADED_COMPILER) {
+				lightrec_recompiler_remove(state->rec, block2);
+				lightrec_reaper_add(state->reaper,
+						    lightrec_reap_block,
+						    block2);
+			} else {
+				lightrec_free_block(block2);
+			}
 		}
 	}
 

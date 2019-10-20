@@ -79,8 +79,6 @@ void lightrec_unregister_block(struct blockcache *cache, struct block *block)
 	u32 pc = kunseg(block->pc);
 	struct block *old = cache->lut[(pc >> 2) & (LUT_SIZE - 1)];
 
-	remove_from_code_lut(cache, block);
-
 	if (old == block) {
 		cache->lut[(pc >> 2) & (LUT_SIZE - 1)] = old->next;
 		return;
