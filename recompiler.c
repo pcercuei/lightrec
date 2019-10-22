@@ -264,7 +264,7 @@ void * lightrec_recompiler_run_first_pass(struct block *block, u32 *pc)
 	freed = atomic_flag_test_and_set(&block->op_list_freed);
 
 	/* Block wasn't compiled yet - run the interpreter */
-	*pc = lightrec_emulate_block(block);
+	*pc = lightrec_emulate_block(block, *pc);
 
 	if (!freed)
 		atomic_flag_clear(&block->op_list_freed);

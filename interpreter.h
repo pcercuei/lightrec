@@ -19,6 +19,6 @@
 
 struct block;
 
-u32 lightrec_emulate_block(struct block *block);
+u32 lightrec_emulate_block(struct block *block, u32 pc);
 
 #endif /* __LIGHTREC_INTERPRETER_H__ */

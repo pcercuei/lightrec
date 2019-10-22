@@ -987,14 +987,14 @@ static u32 lightrec_int_op(struct interpreter *inter)
 	EXECUTE(int_standard[inter->op->i.op], inter);
 }
 
-u32 lightrec_emulate_block(struct block *block)
+static u32 lightrec_emulate_block_list(struct block *block, struct opcode *op)
 {
 	struct interpreter inter;
 	u32 pc;
 
 	inter.block = block;
 	inter.state = block->state;
-	inter.op = block->opcode_list;
+	inter.op = op;
 	inter.cycles = 0;
 	inter.delay_slot = false;
 
@@ -1006,4 +1006,19 @@ u32 lightrec_emulate_block(struct block *block)
 	block->state->current_cycle += inter.cycles;
 
 	return pc;
+}
+
+u32 lightrec_emulate_block(struct block *block, u32 pc)
+{
+	u32 offset = (kunseg(pc) - block->kunseg_pc) >> 2;
+	struct opcode *op;
+
+	for (op = block->opcode_list;
+	     op && (op->offset < offset); op = op->next);
+	if (op)
+		return lightrec_emulate_block_list(block, op);
+
+	pr_err("PC 0x%x is outside block at PC 0x%x\n", pc, block->pc);
+
+	return 0;
 }

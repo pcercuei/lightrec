@@ -411,7 +411,7 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 		if (!ENABLE_THREADED_COMPILER &&
 		    ((ENABLE_FIRST_PASS && likely(!should_recompile)) ||
 		     unlikely(block->flags & BLOCK_NEVER_COMPILE)))
-			pc = lightrec_emulate_block(block);
+			pc = lightrec_emulate_block(block, pc);
 
 		if (likely(!(block->flags & BLOCK_NEVER_COMPILE))) {
 			/* Then compile it using the profiled data */
@@ -966,7 +966,7 @@ u32 lightrec_run_interpreter(struct lightrec_state *state, u32 pc)
 
 	state->exit_flags = LIGHTREC_EXIT_NORMAL;
 
-	return lightrec_emulate_block(block);
+	return lightrec_emulate_block(block, pc);
 }
 
 void lightrec_free_block(struct block *block)
