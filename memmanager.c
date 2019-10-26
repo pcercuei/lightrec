@@ -67,7 +67,8 @@ unsigned int lightrec_get_total_mem_usage(void)
 	return count;
 }
 
-void * lightrec_malloc(enum mem_type type, unsigned int len)
+void * lightrec_malloc(struct lightrec_state *state,
+		       enum mem_type type, unsigned int len)
 {
 	void *ptr;
 
@@ -80,7 +81,8 @@ void * lightrec_malloc(enum mem_type type, unsigned int len)
 	return ptr;
 }
 
-void * lightrec_calloc(enum mem_type type, unsigned int len)
+void * lightrec_calloc(struct lightrec_state *state,
+		       enum mem_type type, unsigned int len)
 {
 	void *ptr;
 
@@ -93,7 +95,8 @@ void * lightrec_calloc(enum mem_type type, unsigned int len)
 	return ptr;
 }
 
-void lightrec_free(enum mem_type type, unsigned int len, void *ptr)
+void lightrec_free(struct lightrec_state *state,
+		   enum mem_type type, unsigned int len, void *ptr)
 {
 	lightrec_unregister(type, len);
 	free(ptr);

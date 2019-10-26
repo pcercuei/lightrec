@@ -17,9 +17,12 @@
 
 #include "lightrec.h"
 
-void * lightrec_malloc(enum mem_type type, unsigned int len);
-void * lightrec_calloc(enum mem_type type, unsigned int len);
-void lightrec_free(enum mem_type type, unsigned int len, void *ptr);
+void * lightrec_malloc(struct lightrec_state *state,
+		       enum mem_type type, unsigned int len);
+void * lightrec_calloc(struct lightrec_state *state,
+		       enum mem_type type, unsigned int len);
+void lightrec_free(struct lightrec_state *state,
+		   enum mem_type type, unsigned int len, void *ptr);
 
 void lightrec_register(enum mem_type type, unsigned int len);
 void lightrec_unregister(enum mem_type type, unsigned int len);

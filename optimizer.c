@@ -470,8 +470,9 @@ static u32 lightrec_propagate_consts(union code c, u32 known, u32 *v)
 static int lightrec_add_meta(struct block *block,
 			     struct opcode *op, union code code)
 {
-	struct opcode *meta = lightrec_malloc(MEM_FOR_IR, sizeof(*meta));
+	struct opcode *meta;
 
+	meta = lightrec_malloc(block->state, MEM_FOR_IR, sizeof(*meta));
 	if (!meta)
 		return -ENOMEM;
 
@@ -673,7 +674,8 @@ static int lightrec_detect_impossible_branches(struct block *block)
 			/* If the first opcode is an 'impossible' branch, we
 			 * only keep the first two opcodes of the block (the
 			 * branch itself + its delay slot) */
-			lightrec_free_opcode_list(list->next->next);
+			lightrec_free_opcode_list(block->state,
+						  list->next->next);
 			list->next->next = NULL;
 			block->nb_ops = 2;
 		}

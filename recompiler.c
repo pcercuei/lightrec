@@ -29,6 +29,7 @@ struct block_rec {
 };
 
 struct recompiler {
+	struct lightrec_state *state;
 	pthread_t thd;
 	pthread_cond_t cond;
 	pthread_mutex_t mutex;
@@ -72,7 +73,8 @@ static void lightrec_compile_list(struct recompiler *rec)
 		pthread_mutex_lock(&rec->mutex);
 
 		slist_remove(rec, next);
-		lightrec_free(MEM_FOR_LIGHTREC, sizeof(*next), next);
+		lightrec_free(rec->state, MEM_FOR_LIGHTREC,
+			      sizeof(*next), next);
 		pthread_cond_signal(&rec->cond);
 	}
 
@@ -100,17 +102,18 @@ static void * lightrec_recompiler_thd(void *d)
 	}
 }
 
-struct recompiler *lightrec_recompiler_init(void)
+struct recompiler *lightrec_recompiler_init(struct lightrec_state *state)
 {
 	struct recompiler *rec;
 	int ret;
 
-	rec = lightrec_malloc(MEM_FOR_LIGHTREC, sizeof(*rec));
+	rec = lightrec_malloc(state, MEM_FOR_LIGHTREC, sizeof(*rec));
 	if (!rec) {
 		pr_err("Cannot create recompiler: Out of memory\n");
 		return NULL;
 	}
 
+	rec->state = state;
 	rec->stop = false;
 	rec->current_block = NULL;
 	rec->list = NULL;
@@ -140,7 +143,7 @@ err_mtx_destroy:
 err_cnd_destroy:
 	pthread_cond_destroy(&rec->cond);
 err_free_rec:
-	lightrec_free(MEM_FOR_LIGHTREC, sizeof(*rec), rec);
+	lightrec_free(state, MEM_FOR_LIGHTREC, sizeof(*rec), rec);
 	return NULL;
 }
 
@@ -156,7 +159,7 @@ void lightrec_free_recompiler(struct recompiler *rec)
 
 	pthread_mutex_destroy(&rec->mutex);
 	pthread_cond_destroy(&rec->cond);
-	lightrec_free(MEM_FOR_LIGHTREC, sizeof(*rec), rec);
+	lightrec_free(rec->state, MEM_FOR_LIGHTREC, sizeof(*rec), rec);
 }
 
 int lightrec_recompiler_add(struct recompiler *rec, struct block *block)
@@ -188,7 +191,8 @@ int lightrec_recompiler_add(struct recompiler *rec, struct block *block)
 		return 0;
 	}
 
-	block_rec = lightrec_malloc(MEM_FOR_LIGHTREC, sizeof(*block_rec));
+	block_rec = lightrec_malloc(rec->state, MEM_FOR_LIGHTREC,
+				    sizeof(*block_rec));
 	if (!block_rec) {
 		pthread_mutex_unlock(&rec->mutex);
 		return -ENOMEM;
@@ -226,7 +230,7 @@ void lightrec_recompiler_remove(struct recompiler *rec, struct block *block)
 				/* Block is not yet being processed - remove it
 				 * from the list */
 				slist_remove(rec, block_rec);
-				lightrec_free(MEM_FOR_LIGHTREC,
+				lightrec_free(rec->state, MEM_FOR_LIGHTREC,
 					      sizeof(*block_rec), block_rec);
 			}
 
@@ -251,7 +255,8 @@ void * lightrec_recompiler_run_first_pass(struct block *block, u32 *pc)
 
 				/* The block was already compiled but the opcode list
 				 * didn't get freed yet - do it now */
-				lightrec_free_opcode_list(block->opcode_list);
+				lightrec_free_opcode_list(block->state,
+							  block->opcode_list);
 				block->opcode_list = NULL;
 			}
 		}
@@ -276,7 +281,7 @@ void * lightrec_recompiler_run_first_pass(struct block *block, u32 *pc)
 		pr_debug("Block PC 0x%08x is fully tagged"
 			 " - free opcode list\n", block->pc);
 
-		lightrec_free_opcode_list(block->opcode_list);
+		lightrec_free_opcode_list(block->state, block->opcode_list);
 		block->opcode_list = NULL;
 	}
 

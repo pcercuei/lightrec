@@ -464,7 +464,7 @@ static struct block * generate_wrapper(struct lightrec_state *state,
 	jit_word_t code_size;
 	jit_node_t *to_tramp, *to_fn_epilog;
 
-	block = lightrec_malloc(MEM_FOR_IR, sizeof(*block));
+	block = lightrec_malloc(state, MEM_FOR_IR, sizeof(*block));
 	if (!block)
 		goto err_no_mem;
 
@@ -545,7 +545,7 @@ static struct block * generate_wrapper(struct lightrec_state *state,
 	return block;
 
 err_free_block:
-	lightrec_free(MEM_FOR_IR, sizeof(*block), block);
+	lightrec_free(state, MEM_FOR_IR, sizeof(*block), block);
 err_no_mem:
 	pr_err("Unable to compile wrapper: Out of memory\n");
 	return NULL;
@@ -560,7 +560,7 @@ static struct block * generate_wrapper_block(struct lightrec_state *state)
 	u32 offset, ram_len;
 	jit_word_t code_size;
 
-	block = lightrec_malloc(MEM_FOR_IR, sizeof(*block));
+	block = lightrec_malloc(state, MEM_FOR_IR, sizeof(*block));
 	if (!block)
 		goto err_no_mem;
 
@@ -693,7 +693,7 @@ static struct block * generate_wrapper_block(struct lightrec_state *state)
 	return block;
 
 err_free_block:
-	lightrec_free(MEM_FOR_IR, sizeof(*block), block);
+	lightrec_free(state, MEM_FOR_IR, sizeof(*block), block);
 err_no_mem:
 	pr_err("Unable to compile wrapper: Out of memory\n");
 	return NULL;
@@ -735,15 +735,15 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 
 	code = map->address + addr;
 
-	block = lightrec_malloc(MEM_FOR_IR, sizeof(*block));
+	block = lightrec_malloc(state, MEM_FOR_IR, sizeof(*block));
 	if (!block) {
 		pr_err("Unable to recompile block: Out of memory\n");
 		return NULL;
 	}
 
-	list = lightrec_disassemble(code, &length);
+	list = lightrec_disassemble(state, code, &length);
 	if (!list) {
-		lightrec_free(MEM_FOR_IR, sizeof(*block), block);
+		lightrec_free(state, MEM_FOR_IR, sizeof(*block), block);
 		return NULL;
 	}
 
@@ -920,7 +920,7 @@ int lightrec_compile_block(struct block *block)
 	if (fully_tagged && !op_list_freed) {
 		pr_debug("Block PC 0x%08x is fully tagged"
 			 " - free opcode list\n", block->pc);
-		lightrec_free_opcode_list(block->opcode_list);
+		lightrec_free_opcode_list(state, block->opcode_list);
 		block->opcode_list = NULL;
 	}
 
@@ -973,11 +973,11 @@ void lightrec_free_block(struct block *block)
 {
 	lightrec_unregister(MEM_FOR_MIPS_CODE, block->nb_ops * sizeof(u32));
 	if (block->opcode_list)
-		lightrec_free_opcode_list(block->opcode_list);
+		lightrec_free_opcode_list(block->state, block->opcode_list);
 	if (block->_jit)
 		_jit_destroy_state(block->_jit);
 	lightrec_unregister(MEM_FOR_CODE, block->code_size);
-	lightrec_free(MEM_FOR_IR, sizeof(*block), block);
+	lightrec_free(block->state, MEM_FOR_IR, sizeof(*block), block);
 }
 
 struct lightrec_state * lightrec_init(char *argv0,
@@ -1002,23 +1002,25 @@ struct lightrec_state * lightrec_init(char *argv0,
 
 	lut_size = map[PSX_MAP_KERNEL_USER_RAM].length >> 2;
 
-	state = lightrec_calloc(MEM_FOR_LIGHTREC, sizeof(*state) +
-				sizeof(*state->code_lut) * lut_size);
+	state = calloc(1, sizeof(*state) + sizeof(*state->code_lut) * lut_size);
 	if (!state)
 		goto err_finish_jit;
 
+	lightrec_register(MEM_FOR_LIGHTREC, sizeof(*state) +
+			  sizeof(*state->code_lut) * lut_size);
+
 	state->lut_size = lut_size;
 
-	state->block_cache = lightrec_blockcache_init();
+	state->block_cache = lightrec_blockcache_init(state);
 	if (!state->block_cache)
 		goto err_free_state;
 
-	state->reg_cache = lightrec_regcache_init();
+	state->reg_cache = lightrec_regcache_init(state);
 	if (!state->reg_cache)
 		goto err_free_block_cache;
 
 	if (ENABLE_THREADED_COMPILER) {
-		state->rec = lightrec_recompiler_init();
+		state->rec = lightrec_recompiler_init(state);
 		if (!state->rec)
 			goto err_free_reg_cache;
 	}
@@ -1117,8 +1119,9 @@ err_free_reg_cache:
 err_free_block_cache:
 	lightrec_free_block_cache(state->block_cache);
 err_free_state:
-	lightrec_free(MEM_FOR_LIGHTREC, sizeof(*state) +
-		      sizeof(*state->code_lut) * state->lut_size, state);
+	lightrec_unregister(MEM_FOR_LIGHTREC, sizeof(*state) +
+			    sizeof(*state->code_lut) * state->lut_size);
+	free(state);
 err_finish_jit:
 	finish_jit();
 	return NULL;
@@ -1142,8 +1145,9 @@ void lightrec_destroy(struct lightrec_state *state)
 	lightrec_free_block(state->break_wrapper);
 	finish_jit();
 
-	lightrec_free(MEM_FOR_LIGHTREC, sizeof(*state) +
-		      sizeof(*state->code_lut) * state->lut_size, state);
+	lightrec_unregister(MEM_FOR_LIGHTREC, sizeof(*state) +
+			    sizeof(*state->code_lut) * state->lut_size);
+	free(state);
 }
 
 void lightrec_invalidate(struct lightrec_state *state, u32 addr, u32 len)

@@ -16,9 +16,10 @@
 #define __LIGHTREC_RECOMPILER_H__
 
 struct block;
+struct lightrec_state;
 struct recompiler;
 
-struct recompiler *lightrec_recompiler_init(void);
+struct recompiler *lightrec_recompiler_init(struct lightrec_state *state);
 void lightrec_free_recompiler(struct recompiler *rec);
 int lightrec_recompiler_add(struct recompiler *rec, struct block *block);
 void lightrec_recompiler_remove(struct recompiler *rec, struct block *block);

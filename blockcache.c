@@ -25,6 +25,7 @@
 #define LUT_SIZE 0x4000
 
 struct blockcache {
+	struct lightrec_state *state;
 	struct block * tiny_lut[TINY_LUT_SIZE];
 	struct block * lut[LUT_SIZE];
 };
@@ -123,12 +124,20 @@ void lightrec_free_block_cache(struct blockcache *cache)
 		}
 	}
 
-	lightrec_free(MEM_FOR_LIGHTREC, sizeof(*cache), cache);
+	lightrec_free(cache->state, MEM_FOR_LIGHTREC, sizeof(*cache), cache);
 }
 
-struct blockcache * lightrec_blockcache_init(void)
+struct blockcache * lightrec_blockcache_init(struct lightrec_state *state)
 {
-	return lightrec_calloc(MEM_FOR_LIGHTREC, sizeof(struct blockcache));
+	struct blockcache *cache;
+
+	cache = lightrec_calloc(state, MEM_FOR_LIGHTREC, sizeof(*cache));
+	if (!cache)
+		return NULL;
+
+	cache->state = state;
+
+	return cache;
 }
 
 bool lightrec_block_is_outdated(struct block *block)

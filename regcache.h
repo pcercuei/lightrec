@@ -64,7 +64,7 @@ struct native_register * lightrec_regcache_enter_branch(struct regcache *cache);
 void lightrec_regcache_leave_branch(struct regcache *cache,
 			struct native_register *regs);
 
-struct regcache * lightrec_regcache_init(void);
+struct regcache * lightrec_regcache_init(struct lightrec_state *state);
 void lightrec_free_regcache(struct regcache *cache);
 
 const char * lightrec_reg_name(u8 reg);

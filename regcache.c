@@ -26,6 +26,7 @@ struct native_register {
 };
 
 struct regcache {
+	struct lightrec_state *state;
 	struct native_register lightrec_regs[NUM_REGS + NUM_TEMPS];
 };
 
@@ -429,9 +430,10 @@ void lightrec_clean_reg_if_loaded(struct regcache *cache, jit_state_t *_jit,
 
 struct native_register * lightrec_regcache_enter_branch(struct regcache *cache)
 {
-	struct native_register *backup = lightrec_malloc(MEM_FOR_LIGHTREC,
-							 sizeof(cache->lightrec_regs));
+	struct native_register *backup;
 
+	backup = lightrec_malloc(cache->state, MEM_FOR_LIGHTREC,
+				 sizeof(cache->lightrec_regs));
 	memcpy(backup, &cache->lightrec_regs, sizeof(cache->lightrec_regs));
 
 	return backup;
@@ -441,7 +443,8 @@ void lightrec_regcache_leave_branch(struct regcache *cache,
 			struct native_register *regs)
 {
 	memcpy(&cache->lightrec_regs, regs, sizeof(cache->lightrec_regs));
-	lightrec_free(MEM_FOR_LIGHTREC, sizeof(cache->lightrec_regs), regs);
+	lightrec_free(cache->state, MEM_FOR_LIGHTREC,
+		      sizeof(cache->lightrec_regs), regs);
 }
 
 void lightrec_regcache_reset(struct regcache *cache)
@@ -449,14 +452,23 @@ void lightrec_regcache_reset(struct regcache *cache)
 	memset(&cache->lightrec_regs, 0, sizeof(cache->lightrec_regs));
 }
 
-struct regcache * lightrec_regcache_init(void)
+struct regcache * lightrec_regcache_init(struct lightrec_state *state)
 {
-	return lightrec_calloc(MEM_FOR_LIGHTREC, sizeof(struct regcache));
+	struct regcache *cache;
+
+	cache = lightrec_calloc(state, MEM_FOR_LIGHTREC, sizeof(*cache));
+	if (!cache)
+		return NULL;
+
+	cache->state = state;
+
+	return cache;
 }
 
 void lightrec_free_regcache(struct regcache *cache)
 {
-	return lightrec_free(MEM_FOR_LIGHTREC, sizeof(*cache), cache);
+	return lightrec_free(cache->state, MEM_FOR_LIGHTREC,
+			     sizeof(*cache), cache);
 }
 
 void lightrec_regcache_mark_live(struct regcache *cache, jit_state_t *_jit)

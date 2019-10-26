@@ -23,7 +23,7 @@ struct block * lightrec_find_block(struct blockcache *cache, u32 pc);
 void lightrec_register_block(struct blockcache *cache, struct block *block);
 void lightrec_unregister_block(struct blockcache *cache, struct block *block);
 
-struct blockcache * lightrec_blockcache_init(void);
+struct blockcache * lightrec_blockcache_init(struct lightrec_state *state);
 void lightrec_free_block_cache(struct blockcache *cache);
 
 u32 calculate_block_hash(const struct block *block);

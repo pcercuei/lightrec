@@ -53,16 +53,19 @@ static bool is_syscall(const struct opcode *op)
 		 (op->r.rd == 12 || op->r.rd == 13));
 }
 
-void lightrec_free_opcode_list(struct opcode *list)
+void lightrec_free_opcode_list(struct lightrec_state *state, struct opcode *list)
 {
+	struct opcode *next;
+
 	while (list) {
-		struct opcode *next = list->next;
-		lightrec_free(MEM_FOR_IR, sizeof(*list), list);
+		next = list->next;
+		lightrec_free(state, MEM_FOR_IR, sizeof(*list), list);
 		list = next;
 	}
 }
 
-struct opcode * lightrec_disassemble(const u32 *src, unsigned int *len)
+struct opcode * lightrec_disassemble(struct lightrec_state *state,
+				     const u32 *src, unsigned int *len)
 {
 	struct opcode *head = NULL;
 	bool stop_next = false;
@@ -70,10 +73,10 @@ struct opcode * lightrec_disassemble(const u32 *src, unsigned int *len)
 	unsigned int i;
 
 	for (i = 0, last = NULL; ; i++, last = curr) {
-		curr = lightrec_calloc(MEM_FOR_IR, sizeof(*curr));
+		curr = lightrec_calloc(state, MEM_FOR_IR, sizeof(*curr));
 		if (!curr) {
 			pr_err("Unable to allocate memory\n");
-			lightrec_free_opcode_list(head);
+			lightrec_free_opcode_list(state, head);
 			return NULL;
 		}
 
