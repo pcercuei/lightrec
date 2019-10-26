@@ -33,6 +33,9 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <string.h>
+#if ENABLE_TINYMM
+#include <tinymm.h>
+#endif
 
 #define GENMASK(h, l) \
 	(((uintptr_t)-1 << (l)) & ((uintptr_t)-1 >> (__WORDSIZE - 1 - (h))))
@@ -1011,9 +1014,15 @@ struct lightrec_state * lightrec_init(char *argv0,
 
 	state->lut_size = lut_size;
 
+#if ENABLE_TINYMM
+	state->tinymm = tinymm_init(malloc, free, 4096);
+	if (!state->tinymm)
+		goto err_free_state;
+#endif
+
 	state->block_cache = lightrec_blockcache_init(state);
 	if (!state->block_cache)
-		goto err_free_state;
+		goto err_free_tinymm;
 
 	state->reg_cache = lightrec_regcache_init(state);
 	if (!state->reg_cache)
@@ -1118,7 +1127,11 @@ err_free_reg_cache:
 	lightrec_free_regcache(state->reg_cache);
 err_free_block_cache:
 	lightrec_free_block_cache(state->block_cache);
+err_free_tinymm:
+#if ENABLE_TINYMM
+	tinymm_shutdown(state->tinymm);
 err_free_state:
+#endif
 	lightrec_unregister(MEM_FOR_LIGHTREC, sizeof(*state) +
 			    sizeof(*state->code_lut) * state->lut_size);
 	free(state);
@@ -1145,6 +1158,9 @@ void lightrec_destroy(struct lightrec_state *state)
 	lightrec_free_block(state->break_wrapper);
 	finish_jit();
 
+#if ENABLE_TINYMM
+	tinymm_shutdown(state->tinymm);
+#endif
 	lightrec_unregister(MEM_FOR_LIGHTREC, sizeof(*state) +
 			    sizeof(*state->code_lut) * state->lut_size);
 	free(state);

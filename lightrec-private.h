@@ -60,6 +60,7 @@ struct blockcache;
 struct recompiler;
 struct regcache;
 struct opcode;
+struct tinymm;
 
 struct block {
 	jit_state_t *_jit;
@@ -104,6 +105,7 @@ struct lightrec_state {
 	unsigned int nb_branches;
 	unsigned int nb_local_branches;
 	unsigned int nb_targets;
+	struct tinymm *tinymm;
 	struct blockcache *block_cache;
 	struct regcache *reg_cache;
 	struct recompiler *rec;
