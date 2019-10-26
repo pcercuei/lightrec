@@ -21,12 +21,10 @@
 #include <stdlib.h>
 
 /* Must be power of two */
-#define TINY_LUT_SIZE 0x100
 #define LUT_SIZE 0x4000
 
 struct blockcache {
 	struct lightrec_state *state;
-	struct block * tiny_lut[TINY_LUT_SIZE];
 	struct block * lut[LUT_SIZE];
 };
 
@@ -36,18 +34,10 @@ struct block * lightrec_find_block(struct blockcache *cache, u32 pc)
 
 	pc = kunseg(pc);
 
-	block = cache->tiny_lut[(pc >> 2) & (TINY_LUT_SIZE - 1)];
-	if (likely(block && kunseg(block->pc) == pc))
-		return block;
-
-	block = cache->lut[(pc >> 2) & (LUT_SIZE - 1)];
 	for (block = cache->lut[(pc >> 2) & (LUT_SIZE - 1)];
-	     block; block = block->next) {
-		if (kunseg(block->pc) == pc) {
-			cache->tiny_lut[(pc >> 2) & (TINY_LUT_SIZE - 1)] = block;
+	     block; block = block->next)
+		if (kunseg(block->pc) == pc)
 			return block;
-		}
-	}
 
 	return NULL;
 }
@@ -81,7 +71,6 @@ void lightrec_register_block(struct blockcache *cache, struct block *block)
 		block->next = old;
 
 	cache->lut[(pc >> 2) & (LUT_SIZE - 1)] = block;
-	cache->tiny_lut[(pc >> 2) & (TINY_LUT_SIZE - 1)] = block;
 
 	remove_from_code_lut(cache, block);
 }
@@ -92,8 +81,6 @@ void lightrec_unregister_block(struct blockcache *cache, struct block *block)
 	struct block *old = cache->lut[(pc >> 2) & (LUT_SIZE - 1)];
 
 	block->state->code_lut[lut_offset(pc)] = NULL;
-
-	cache->tiny_lut[(pc >> 2) & (TINY_LUT_SIZE - 1)] = NULL;
 
 	if (old == block) {
 		cache->lut[(pc >> 2) & (LUT_SIZE - 1)] = old->next;
