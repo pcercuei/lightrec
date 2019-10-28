@@ -239,37 +239,39 @@ void lightrec_recompiler_remove(struct recompiler *rec, struct block *block)
 
 void * lightrec_recompiler_run_first_pass(struct block *block, u32 *pc)
 {
-	bool freed, fully_tagged = block->flags & BLOCK_FULLY_TAGGED;
-
-	/* Mark the opcode list as freed, so that the threaded compiler won't
-	 * free it while we're using it in the interpreter. */
-	if (fully_tagged)
-		freed = atomic_flag_test_and_set(&block->op_list_freed);
-	else
-		freed = true;
+	bool freed;
 
 	if (likely(block->function)) {
-		if (!freed) {
-			pr_debug("Block PC 0x%08x is fully tagged"
-				 " - free opcode list\n", block->pc);
+		if (block->flags & BLOCK_FULLY_TAGGED) {
+			freed = atomic_flag_test_and_set(&block->op_list_freed);
 
-			/* The block was already compiled but the opcode list
-			 * didn't get freed yet - do it now */
-			lightrec_free_opcode_list(block->opcode_list);
-			block->opcode_list = NULL;
+			if (!freed) {
+				pr_debug("Block PC 0x%08x is fully tagged"
+					 " - free opcode list\n", block->pc);
+
+				/* The block was already compiled but the opcode list
+				 * didn't get freed yet - do it now */
+				lightrec_free_opcode_list(block->opcode_list);
+				block->opcode_list = NULL;
+			}
 		}
 
 		return block->function;
 	}
 
+	/* Mark the opcode list as freed, so that the threaded compiler won't
+	 * free it while we're using it in the interpreter. */
+	freed = atomic_flag_test_and_set(&block->op_list_freed);
+
 	/* Block wasn't compiled yet - run the interpreter */
 	*pc = lightrec_emulate_block(block);
 
-	atomic_flag_clear(&block->op_list_freed);
+	if (!freed)
+		atomic_flag_clear(&block->op_list_freed);
 
 	/* The block got compiled while the interpreter was running.
 	 * We can free the opcode list now. */
-	if (block->function && fully_tagged &&
+	if (block->function && (block->flags & BLOCK_FULLY_TAGGED) &&
 	    !atomic_flag_test_and_set(&block->op_list_freed)) {
 		pr_debug("Block PC 0x%08x is fully tagged"
 			 " - free opcode list\n", block->pc);
