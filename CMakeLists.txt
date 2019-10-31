@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 3.0)
 project(lightrec LANGUAGES C VERSION 0.2)
 
 set(BUILD_SHARED_LIBS ON CACHE BOOL "Build shared libraries")
+if (NOT BUILD_SHARED_LIBS)
+	add_definitions(-DLIGHTREC_STATIC)
+endif (NOT BUILD_SHARED_LIBS)
 
 if (NOT LOG_LEVEL)
 	set(LOG_LEVEL Info CACHE STRING "Log level" FORCE)
