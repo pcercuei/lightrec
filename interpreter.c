@@ -62,6 +62,23 @@ struct interpreter {
 	EXECUTE(int_standard[inter->op->i.op], inter);			\
 } while (0)
 
+static void update_cycles_before_branch(struct interpreter *inter)
+{
+	u32 cycles;
+
+	if (!inter->delay_slot) {
+		cycles = lightrec_cycles_of_opcode(inter->op->c);
+
+		if (has_delay_slot(inter->op->c) &&
+		    !(inter->op->flags & LIGHTREC_NO_DS))
+			cycles += lightrec_cycles_of_opcode(inter->op->next->c);
+
+		inter->cycles += cycles;
+		inter->state->current_cycle += inter->cycles;
+		inter->cycles = -cycles;
+	}
+}
+
 static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 {
 	u32 *reg_cache = inter->state->native_reg_cache;
@@ -239,6 +256,8 @@ static u32 int_beq(struct interpreter *inter, bool bne)
 	u32 rs, rt, next_pc = old_pc + 4 + ((s16)inter->op->i.imm << 2);
 	bool branch;
 
+	update_cycles_before_branch(inter);
+
 	rs = inter->state->native_reg_cache[inter->op->i.rs];
 	rt = inter->state->native_reg_cache[inter->op->i.rt];
 	branch = (rs == rt) ^ bne;
@@ -277,6 +296,8 @@ static u32 int_bgez(struct interpreter *inter, bool link, bool lt, bool regimm)
 	u32 next_pc = old_pc + 4 + ((s16)inter->op->i.imm << 2);
 	bool branch;
 	s32 rs;
+
+	update_cycles_before_branch(inter);
 
 	if (link)
 		inter->state->native_reg_cache[31] = old_pc + 8;
@@ -821,6 +842,14 @@ static u32 int_META_MOV(struct interpreter *inter)
 	JUMP_NEXT(inter);
 }
 
+static u32 int_META_SYNC(struct interpreter *inter)
+{
+	inter->state->current_cycle += inter->cycles;
+	inter->cycles = 0;
+
+	JUMP_SKIP(inter);
+}
+
 static const lightrec_int_func_t int_standard[64] = {
 	[OP_SPECIAL]		= int_SPECIAL,
 	[OP_REGIMM]		= int_REGIMM,
@@ -859,7 +888,7 @@ static const lightrec_int_func_t int_standard[64] = {
 	[OP_META_BEQZ]		= int_BEQ,
 	[OP_META_BNEZ]		= int_BNE,
 	[OP_META_MOV]		= int_META_MOV,
-	[OP_META_SYNC]		= int_META_SKIP,
+	[OP_META_SYNC]		= int_META_SYNC,
 };
 
 static const lightrec_int_func_t int_special[64] = {
