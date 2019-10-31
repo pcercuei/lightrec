@@ -18,7 +18,9 @@
 #include "debug.h"
 #include "lightrec.h"
 
+#ifndef __packed
 #define __packed __attribute__((packed))
+#endif
 
 #define LIGHTREC_DIRECT_IO	(1 << 0)
 #define LIGHTREC_NO_INVALIDATE	(1 << 1)
