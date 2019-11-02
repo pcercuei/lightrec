@@ -30,9 +30,8 @@ static bool is_unconditional_jump(const struct opcode *op)
 {
 	switch (op->i.op) {
 	case OP_SPECIAL:
-		return op->r.op == OP_SPECIAL_JR || op->r.op == OP_SPECIAL_JALR;
+		return op->r.op == OP_SPECIAL_JR;
 	case OP_J:
-	case OP_JAL:
 		return true;
 	case OP_BEQ:
 	case OP_BLEZ:
@@ -43,15 +42,6 @@ static bool is_unconditional_jump(const struct opcode *op)
 	default:
 		return false;
 	}
-}
-
-static bool is_syscall(const struct opcode *op)
-{
-	return (op->i.op == OP_SPECIAL && (op->r.op == OP_SPECIAL_SYSCALL ||
-					   op->r.op == OP_SPECIAL_BREAK)) ||
-		(op->i.op == OP_CP0 && (op->r.rs == OP_CP0_MTC0 ||
-					op->r.rs == OP_CP0_CTC0) &&
-		 (op->r.rd == 12 || op->r.rd == 13));
 }
 
 void lightrec_free_opcode_list(struct lightrec_state *state, struct opcode *list)
@@ -93,7 +83,7 @@ struct opcode * lightrec_disassemble(struct lightrec_state *state,
 
 		/* NOTE: The block disassembly ends after the opcode that
 		 * follows an unconditional jump (delay slot) */
-		if (stop_next || is_syscall(curr))
+		if (stop_next)
 			break;
 		else if (is_unconditional_jump(curr))
 			stop_next = true;

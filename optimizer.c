@@ -599,6 +599,59 @@ static int lightrec_transform_ops(struct block *block)
 	return 0;
 }
 
+static int lightrec_add_sync_after_eob(struct block *block)
+{
+	struct opcode *op;
+	int ret;
+
+	for (op = block->opcode_list; op; op = op->next) {
+		switch (op->c.i.op) {
+		case OP_CP0:
+			if ((op->c.r.rs == OP_CP0_MTC0 ||
+			    op->c.r.rs == OP_CP0_CTC0) &&
+			    (op->c.r.rd == 12 || op->c.r.rd == 13))
+				break;
+		default: /* fall-through */
+			continue;
+		case OP_JAL:
+			if (!(op->flags & LIGHTREC_NO_DS))
+				continue;
+			break;
+		case OP_SPECIAL:
+			switch (op->c.r.op) {
+			case OP_SPECIAL_JALR:
+				if (!(op->flags & LIGHTREC_NO_DS))
+					continue;
+			case OP_SPECIAL_SYSCALL: /* fall-through */
+			case OP_SPECIAL_BREAK:
+				break;
+			default:
+				continue;
+			}
+			break;
+		}
+
+		if (has_delay_slot(op->next->c) &&
+		    (op->next->flags & LIGHTREC_EMULATE_BRANCH)) {
+			/* The opcode right at the entry point is an
+			 * "impossible" branch, for which we must not add an
+			 * entry to the code LUT. */
+			continue;
+		}
+
+		ret = lightrec_add_sync(block, op);
+		if (ret)
+			return ret;
+
+		op->next->offset = op->offset + 1;
+
+		pr_debug("Add SYNC after opcode at offset 0x%x\n",
+			 (op->offset + 1) << 2);
+	}
+
+	return 0;
+}
+
 static int lightrec_switch_delay_slots(struct block *block)
 {
 	struct opcode *list, *prev;
@@ -1082,6 +1135,7 @@ static int (*lightrec_optimizers[])(struct block *) = {
 	&lightrec_transform_ops,
 	&lightrec_local_branches,
 	&lightrec_switch_delay_slots,
+	&lightrec_add_sync_after_eob,
 	&lightrec_flag_stores,
 	&lightrec_flag_mults,
 	&lightrec_early_unload,
