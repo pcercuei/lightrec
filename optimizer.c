@@ -29,10 +29,12 @@ bool is_unconditional_jump(union code c)
 {
 	switch (c.i.op) {
 	case OP_SPECIAL:
-		return c.r.op == OP_SPECIAL_JR || c.r.op == OP_SPECIAL_JALR;
+		return c.r.op == OP_SPECIAL_JR ||
+			(!OPT_ADD_SYNC_AFTER_EOB && c.r.op == OP_SPECIAL_JALR);
 	case OP_J:
-	case OP_JAL:
 		return true;
+	case OP_JAL:
+		return !OPT_ADD_SYNC_AFTER_EOB;
 	case OP_BEQ:
 	case OP_BLEZ:
 		return c.i.rs == c.i.rt;
@@ -1287,6 +1289,58 @@ static bool lightrec_can_switch_delay_slot(union code op, union code next_op)
 	return true;
 }
 
+static int lightrec_add_sync_after_eob(struct lightrec_state *state, struct block *block)
+{
+	unsigned int i, op_offset;
+	union code c;
+	u16 flags;
+
+	for (i = 0; i < block->nb_ops; i++) {
+		c = block->opcode_list[i].c;
+		flags = block->opcode_list[i].flags;
+		op_offset = i + 1;
+
+		switch (c.i.op) {
+		case OP_CP0:
+			if ((c.r.rs == OP_CP0_MTC0 ||
+			     c.r.rs == OP_CP0_CTC0) &&
+			    (c.r.rd == 12 || c.r.rd == 13))
+				break;
+		default: /* fall-through */
+			continue;
+		case OP_JAL:
+			op_offset += !(flags & LIGHTREC_NO_DS);
+			break;
+		case OP_SPECIAL:
+			switch (c.r.op) {
+			case OP_SPECIAL_JALR:
+				op_offset += !(flags & LIGHTREC_NO_DS);
+			case OP_SPECIAL_SYSCALL: /* fall-through */
+			case OP_SPECIAL_BREAK:
+				break;
+			default:
+				continue;
+			}
+			break;
+		}
+
+		if (has_delay_slot(block->opcode_list[op_offset].c) &&
+		    (block->opcode_list[op_offset].flags & LIGHTREC_EMULATE_BRANCH)) {
+			/* The opcode right at the entry point is an
+			 * "impossible" branch, for which we must not add an
+			 * entry to the code LUT. */
+			continue;
+		}
+
+		block->opcode_list[op_offset].flags |= LIGHTREC_SYNC;
+
+		pr_debug("Add SYNC after opcode at offset 0x%x\n",
+			 op_offset << 2);
+	}
+
+	return 0;
+}
+
 static int lightrec_switch_delay_slots(struct lightrec_state *state, struct block *block)
 {
 	struct opcode *list, *next = &block->opcode_list[0];
@@ -2429,6 +2483,7 @@ static int (*lightrec_optimizers[])(struct lightrec_state *state, struct block *
 	IF_OPT(OPT_HANDLE_LOAD_DELAYS, &lightrec_swap_load_delays),
 	IF_OPT(OPT_TRANSFORM_OPS, &lightrec_transform_branches),
 	IF_OPT(OPT_LOCAL_BRANCHES, &lightrec_local_branches),
+	IF_OPT(OPT_ADD_SYNC_AFTER_EOB, &lightrec_add_sync_after_eob),
 	IF_OPT(OPT_TRANSFORM_OPS, &lightrec_transform_ops),
 	IF_OPT(OPT_SWITCH_DELAY_SLOTS, &lightrec_switch_delay_slots),
 	IF_OPT(OPT_FLAG_IO, &lightrec_flag_io),

@@ -1362,7 +1362,7 @@ unsigned int lightrec_get_mips_block_len(const u32 *src)
 	for (i = 1; ; i++) {
 		c.opcode = LE32TOH(*src++);
 
-		if (is_syscall(c))
+		if (!OPT_ADD_SYNC_AFTER_EOB && is_syscall(c))
 			return i;
 
 		if (c.i.op == OP_META_BIOS)
