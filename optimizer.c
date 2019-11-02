@@ -1154,13 +1154,14 @@ static int shrink_opcode_list(struct lightrec_state *state, struct block *block,
 static int lightrec_detect_impossible_branches(struct lightrec_state *state,
 					       struct block *block)
 {
-	struct opcode *op, *next = &block->opcode_list[0];
+	struct opcode *op, *list = block->opcode_list, *next = &list[0];
 	unsigned int i;
 	int ret = 0;
+	s16 offset;
 
 	for (i = 0; i < block->nb_ops - 1; i++) {
 		op = next;
-		next = &block->opcode_list[i + 1];
+		next = &list[i + 1];
 
 		if (!has_delay_slot(op->c) ||
 		    (!load_in_delay_slot(next->c) &&
@@ -1175,9 +1176,23 @@ static int lightrec_detect_impossible_branches(struct lightrec_state *state,
 			continue;
 		}
 
+		offset = i + 1 + (s16)op->i.imm;
+		if (load_in_delay_slot(next->c) &&
+		    (offset >= 0 && offset < block->nb_ops) &&
+		    !opcode_reads_register(list[offset].c, next->c.i.rt)) {
+			/* The 'impossible' branch is a local branch - we can
+			 * verify here that the first opcode of the target does
+			 * not use the target register of the delay slot */
+
+			pr_debug("Branch at offset 0x%x has load delay slot, "
+				 "but is local and dest opcode does not read "
+				 "dest register\n", i << 2);
+			continue;
+		}
+
 		op->flags |= LIGHTREC_EMULATE_BRANCH;
 
-		if (op == block->opcode_list) {
+		if (op == list) {
 			pr_debug("First opcode of block PC 0x%08x is an impossible branch\n",
 				 block->pc);
 
