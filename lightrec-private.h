@@ -118,6 +118,7 @@ struct lightrec_state {
 	void (*eob_wrapper_func)(void);
 	void (*get_next_block)(void);
 	struct lightrec_ops ops;
+	unsigned int nb_precompile;
 	unsigned int cycles;
 	unsigned int nb_maps;
 	const struct lightrec_mem_map *maps;

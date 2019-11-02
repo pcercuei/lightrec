@@ -787,6 +787,8 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 
 	block->hash = lightrec_calculate_block_hash(block);
 
+	pr_debug("Recompile count: %u\n", state->nb_precompile++);
+
 	return block;
 }
 
