@@ -685,7 +685,10 @@ static int lightrec_switch_delay_slots(struct block *block)
 
 static int lightrec_detect_impossible_branches(struct block *block)
 {
+	const struct lightrec_mem_map *map = block->map;
 	struct opcode *op, *next;
+	union code code;
+	s32 offset;
 	int ret;
 
 	for (op = block->opcode_list, next = op->next; next;
@@ -701,6 +704,24 @@ static int lightrec_detect_impossible_branches(struct block *block)
 			 * opcode: this is effectively a NOP */
 			next->c.opcode = 0;
 			continue;
+		}
+
+		offset = op->offset + 1 + (s16)op->i.imm;
+		if (load_in_delay_slot(next->c) &&
+		    (offset >= 0 && offset < block->nb_ops)) {
+			/* The 'impossible' branch is a local branch - we can
+			 * verify here that the first opcode of the target does
+			 * not use the target register of the delay slot */
+
+			code = lightrec_read_opcode(block->state,
+						    kunseg(block->pc) + offset);
+			if (!opcode_reads_register(code, next->c.i.rt)) {
+				pr_debug("Branch at offset 0x%x has load delay"
+					 " slot, but is local and dest opcode"
+					 " does not read dest register\n",
+					 op->offset << 2);
+				continue;
+			}
 		}
 
 		op->flags |= LIGHTREC_EMULATE_BRANCH;
