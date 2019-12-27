@@ -914,16 +914,14 @@ static void rec_store_direct(const struct block *block, const struct opcode *op,
 	jit_stxi(offsetof(struct lightrec_state, code_lut), tmp, tmp3);
 
 	if (state->offset_ram != state->offset_scratch) {
-		if (state->offset_ram)
-			jit_movi(tmp, state->offset_ram);
+		jit_movi(tmp, state->offset_ram);
 
 		to_end = jit_jmpi();
 	}
 
 	jit_patch(to_not_ram);
 
-	if (state->offset_scratch)
-		jit_movi(tmp, state->offset_scratch);
+	jit_movi(tmp, state->offset_scratch);
 
 	if (state->offset_ram != state->offset_scratch)
 		jit_patch(to_end);
