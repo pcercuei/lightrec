@@ -921,7 +921,8 @@ static void rec_store_direct(const struct block *block, const struct opcode *op,
 
 	jit_patch(to_not_ram);
 
-	jit_movi(tmp, state->offset_scratch);
+	if (state->offset_ram || state->offset_scratch)
+		jit_movi(tmp, state->offset_scratch);
 
 	if (state->offset_ram != state->offset_scratch)
 		jit_patch(to_end);
