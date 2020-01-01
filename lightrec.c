@@ -1189,7 +1189,7 @@ void lightrec_invalidate(struct lightrec_state *state, u32 addr, u32 len)
 
 void lightrec_invalidate_all(struct lightrec_state *state)
 {
-	memset(state->code_lut, 0,
+	memset(state->code_lut, 0, sizeof(*state->code_lut) *
 	       state->maps[PSX_MAP_KERNEL_USER_RAM].length >> 2);
 }
 
