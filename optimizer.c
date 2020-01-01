@@ -863,8 +863,8 @@ static int lightrec_flag_stores(struct block *block)
 			 * current block, using constant propagation. When these
 			 * occur, we mark the blocks as not compilable. */
 			if ((known & BIT(list->i.rs)) &&
-			    kunseg(values[list->i.rs]) >= block->kunseg_pc &&
-			    kunseg(values[list->i.rs]) < (block->kunseg_pc +
+			    kunseg(values[list->i.rs]) >= kunseg(block->pc) &&
+			    kunseg(values[list->i.rs]) < (kunseg(block->pc) +
 							  block->nb_ops * 4)) {
 				pr_debug("Self-modifying block detected\n");
 				block->flags |= BLOCK_NEVER_COMPILE;

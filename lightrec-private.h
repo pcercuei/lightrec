@@ -67,7 +67,7 @@ struct block {
 	struct lightrec_state *state;
 	struct opcode *opcode_list;
 	void (*function)(void);
-	u32 pc, kunseg_pc;
+	u32 pc;
 #if ENABLE_THREADED_COMPILER
 	atomic_flag op_list_freed;
 #endif

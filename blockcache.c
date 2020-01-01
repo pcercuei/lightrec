@@ -37,13 +37,13 @@ struct block * lightrec_find_block(struct blockcache *cache, u32 pc)
 	pc = kunseg(pc);
 
 	block = cache->tiny_lut[(pc >> 2) & (TINY_LUT_SIZE - 1)];
-	if (likely(block && block->kunseg_pc == pc))
+	if (likely(block && kunseg(block->pc) == pc))
 		return block;
 
 	block = cache->lut[(pc >> 2) & (LUT_SIZE - 1)];
 	for (block = cache->lut[(pc >> 2) & (LUT_SIZE - 1)];
 	     block; block = block->next) {
-		if (block->kunseg_pc == pc) {
+		if (kunseg(block->pc) == pc) {
 			cache->tiny_lut[(pc >> 2) & (TINY_LUT_SIZE - 1)] = block;
 			return block;
 		}
@@ -61,7 +61,7 @@ static void remove_from_code_lut(struct blockcache *cache, struct block *block)
 	 * overrides this. This is required, as a NULL value in the code
 	 * LUT means an outdated block. */
 	if (block->map == &state->maps[PSX_MAP_KERNEL_USER_RAM])
-		state->code_lut[block->kunseg_pc >> 2] = state->get_next_block;
+		state->code_lut[kunseg(block->pc) >> 2] = state->get_next_block;
 }
 
 void lightrec_mark_for_recompilation(struct blockcache *cache,
@@ -74,7 +74,7 @@ void lightrec_mark_for_recompilation(struct blockcache *cache,
 
 void lightrec_register_block(struct blockcache *cache, struct block *block)
 {
-	u32 pc = block->kunseg_pc;
+	u32 pc = kunseg(block->pc);
 	struct block *old;
 
 	old = cache->lut[(pc >> 2) & (LUT_SIZE - 1)];
@@ -89,7 +89,7 @@ void lightrec_register_block(struct blockcache *cache, struct block *block)
 
 void lightrec_unregister_block(struct blockcache *cache, struct block *block)
 {
-	u32 pc = block->kunseg_pc;
+	u32 pc = kunseg(block->pc);
 	struct block *old = cache->lut[(pc >> 2) & (LUT_SIZE - 1)];
 
 	if (block->map == &block->state->maps[PSX_MAP_KERNEL_USER_RAM])
@@ -143,5 +143,5 @@ struct blockcache * lightrec_blockcache_init(struct lightrec_state *state)
 bool lightrec_block_is_outdated(struct block *block)
 {
 	return (block->map == &block->state->maps[PSX_MAP_KERNEL_USER_RAM]) &&
-		!block->state->code_lut[block->kunseg_pc >> 2];
+		!block->state->code_lut[kunseg(block->pc) >> 2];
 }

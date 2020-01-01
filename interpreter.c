@@ -1021,7 +1021,7 @@ static u32 lightrec_emulate_block_list(struct block *block, struct opcode *op)
 
 u32 lightrec_emulate_block(struct block *block, u32 pc)
 {
-	u32 offset = (kunseg(pc) - block->kunseg_pc) >> 2;
+	u32 offset = (kunseg(pc) - kunseg(block->pc)) >> 2;
 	struct opcode *op;
 
 	for (op = block->opcode_list;

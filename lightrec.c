@@ -751,7 +751,6 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 	}
 
 	block->pc = pc;
-	block->kunseg_pc = map->pc + addr;
 	block->state = state;
 	block->_jit = NULL;
 	block->function = NULL;
@@ -901,8 +900,8 @@ int lightrec_compile_block(struct block *block)
 	block->function = jit_emit();
 
 	/* Add compiled function to the LUT */
-	if (block->map == &block->state->maps[PSX_MAP_KERNEL_USER_RAM])
-		block->state->code_lut[block->kunseg_pc >> 2] = block->function;
+	if (block->map == &state->maps[PSX_MAP_KERNEL_USER_RAM])
+		state->code_lut[kunseg(block->pc) >> 2] = block->function;
 
 	jit_get_code(&code_size);
 	lightrec_register(MEM_FOR_CODE, code_size);
