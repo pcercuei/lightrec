@@ -367,18 +367,14 @@ struct block * lightrec_get_block(struct lightrec_state *state, u32 pc)
 
 static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 {
-	const struct lightrec_mem_map *map;
 	struct block *block;
 	bool should_recompile;
 	void *func;
 
 	for (;;) {
-		map = lightrec_get_map(state, kunseg(pc));
-		if (map == &state->maps[PSX_MAP_KERNEL_USER_RAM]) {
-			func = state->code_lut[lut_offset(pc)];
-			if (func && func != state->get_next_block)
-				return func;
-		}
+		func = state->code_lut[lut_offset(pc)];
+		if (func && func != state->get_next_block)
+			return func;
 
 		block = lightrec_get_block(state, pc);
 
@@ -900,8 +896,7 @@ int lightrec_compile_block(struct block *block)
 	block->function = jit_emit();
 
 	/* Add compiled function to the LUT */
-	if (block->map == &state->maps[PSX_MAP_KERNEL_USER_RAM])
-		state->code_lut[lut_offset(block->pc)] = block->function;
+	state->code_lut[lut_offset(block->pc)] = block->function;
 
 	jit_get_code(&code_size);
 	lightrec_register(MEM_FOR_CODE, code_size);

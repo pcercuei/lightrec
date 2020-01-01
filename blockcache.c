@@ -60,8 +60,7 @@ static void remove_from_code_lut(struct blockcache *cache, struct block *block)
 	 * calls back get_next_block_func(), until the compiler
 	 * overrides this. This is required, as a NULL value in the code
 	 * LUT means an outdated block. */
-	if (block->map == &state->maps[PSX_MAP_KERNEL_USER_RAM])
-		state->code_lut[lut_offset(block->pc)] = state->get_next_block;
+	state->code_lut[lut_offset(block->pc)] = state->get_next_block;
 }
 
 void lightrec_mark_for_recompilation(struct blockcache *cache,
@@ -92,8 +91,7 @@ void lightrec_unregister_block(struct blockcache *cache, struct block *block)
 	u32 pc = kunseg(block->pc);
 	struct block *old = cache->lut[(pc >> 2) & (LUT_SIZE - 1)];
 
-	if (block->map == &block->state->maps[PSX_MAP_KERNEL_USER_RAM])
-		block->state->code_lut[lut_offset(pc)] = NULL;
+	block->state->code_lut[lut_offset(pc)] = NULL;
 
 	cache->tiny_lut[(pc >> 2) & (TINY_LUT_SIZE - 1)] = NULL;
 
@@ -142,6 +140,5 @@ struct blockcache * lightrec_blockcache_init(struct lightrec_state *state)
 
 bool lightrec_block_is_outdated(struct block *block)
 {
-	return (block->map == &block->state->maps[PSX_MAP_KERNEL_USER_RAM]) &&
-		!block->state->code_lut[lut_offset(block->pc)];
+	return !block->state->code_lut[lut_offset(block->pc)];
 }
