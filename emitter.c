@@ -903,12 +903,11 @@ static void rec_store_direct(const struct block *block, const struct opcode *op,
 	to_not_ram = jit_bgei(tmp2, 0x1fffff);
 
 	/* Compute the offset to the code LUT */
+	jit_andi(tmp, tmp2, 0x1ffffc);
 #if __WORDSIZE == 64
-	jit_lshi(tmp, tmp2, 1);
-	jit_addr(tmp, LIGHTREC_REG_STATE, tmp);
-#else
-	jit_addr(tmp, LIGHTREC_REG_STATE, tmp2);
+	jit_lshi(tmp, tmp, 1);
 #endif
+	jit_addr(tmp, LIGHTREC_REG_STATE, tmp);
 
 	/* Write NULL to the code LUT to invalidate any block that's there */
 	jit_stxi(offsetof(struct lightrec_state, code_lut), tmp, tmp3);
