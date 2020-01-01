@@ -83,7 +83,7 @@ static void lightrec_invalidate_map(struct lightrec_state *state,
 		const struct lightrec_mem_map *map, u32 addr)
 {
 	if (map == &state->maps[PSX_MAP_KERNEL_USER_RAM])
-		state->code_lut[addr >> 2] = NULL;
+		state->code_lut[lut_offset(addr)] = NULL;
 }
 
 static const struct lightrec_mem_map *
@@ -375,7 +375,7 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 	for (;;) {
 		map = lightrec_get_map(state, kunseg(pc));
 		if (map == &state->maps[PSX_MAP_KERNEL_USER_RAM]) {
-			func = state->code_lut[kunseg(pc) >> 2];
+			func = state->code_lut[lut_offset(pc)];
 			if (func && func != state->get_next_block)
 				return func;
 		}
@@ -901,7 +901,7 @@ int lightrec_compile_block(struct block *block)
 
 	/* Add compiled function to the LUT */
 	if (block->map == &state->maps[PSX_MAP_KERNEL_USER_RAM])
-		state->code_lut[kunseg(block->pc) >> 2] = block->function;
+		state->code_lut[lut_offset(block->pc)] = block->function;
 
 	jit_get_code(&code_size);
 	lightrec_register(MEM_FOR_CODE, code_size);

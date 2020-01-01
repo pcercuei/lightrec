@@ -138,6 +138,11 @@ static inline u32 kunseg(u32 addr)
 		return addr &~ 0x80000000;
 }
 
+static inline u32 lut_offset(u32 pc)
+{
+	return (pc & (RAM_SIZE - 1)) >> 2;
+}
+
 void lightrec_mtc(struct lightrec_state *state, union code op, u32 data);
 u32 lightrec_mfc(struct lightrec_state *state, union code op);
 
