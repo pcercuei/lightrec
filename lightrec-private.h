@@ -54,6 +54,8 @@
 #define RAM_SIZE	0x200000
 #define BIOS_SIZE	0x80000
 
+#define CODE_LUT_SIZE	(RAM_SIZE >> 2)
+
 /* Definition of jit_state_t (avoids inclusion of <lightning.h>) */
 struct jit_node;
 struct jit_state;
@@ -120,7 +122,6 @@ struct lightrec_state {
 	const struct lightrec_mem_map *maps;
 	uintptr_t offset_ram, offset_bios, offset_scratch;
 	_Bool mirrors_mapped;
-	unsigned int lut_size;
 	void *code_lut[];
 };
 

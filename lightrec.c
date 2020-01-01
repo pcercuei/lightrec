@@ -988,7 +988,6 @@ struct lightrec_state * lightrec_init(char *argv0,
 				      const struct lightrec_ops *ops)
 {
 	struct lightrec_state *state;
-	unsigned int lut_size;
 
 	/* Sanity-check ops */
 	if (!ops ||
@@ -1002,16 +1001,13 @@ struct lightrec_state * lightrec_init(char *argv0,
 
 	init_jit(argv0);
 
-	lut_size = map[PSX_MAP_KERNEL_USER_RAM].length >> 2;
-
-	state = calloc(1, sizeof(*state) + sizeof(*state->code_lut) * lut_size);
+	state = calloc(1, sizeof(*state) +
+		       sizeof(*state->code_lut) * CODE_LUT_SIZE);
 	if (!state)
 		goto err_finish_jit;
 
 	lightrec_register(MEM_FOR_LIGHTREC, sizeof(*state) +
-			  sizeof(*state->code_lut) * lut_size);
-
-	state->lut_size = lut_size;
+			  sizeof(*state->code_lut) * CODE_LUT_SIZE);
 
 #if ENABLE_TINYMM
 	state->tinymm = tinymm_init(malloc, free, 4096);
@@ -1132,7 +1128,7 @@ err_free_tinymm:
 err_free_state:
 #endif
 	lightrec_unregister(MEM_FOR_LIGHTREC, sizeof(*state) +
-			    sizeof(*state->code_lut) * state->lut_size);
+			    sizeof(*state->code_lut) * CODE_LUT_SIZE);
 	free(state);
 err_finish_jit:
 	finish_jit();
@@ -1161,7 +1157,7 @@ void lightrec_destroy(struct lightrec_state *state)
 	tinymm_shutdown(state->tinymm);
 #endif
 	lightrec_unregister(MEM_FOR_LIGHTREC, sizeof(*state) +
-			    sizeof(*state->code_lut) * state->lut_size);
+			    sizeof(*state->code_lut) * CODE_LUT_SIZE);
 	free(state);
 }
 
