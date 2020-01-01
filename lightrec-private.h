@@ -130,10 +130,8 @@ static inline u32 kunseg(u32 addr)
 {
 	if (unlikely(addr >= 0xa0000000))
 		return addr - 0xa0000000;
-	else if (addr >= 0x80000000)
-		return addr - 0x80000000;
 	else
-		return addr;
+		return addr &~ 0x80000000;
 }
 
 void lightrec_mtc(struct lightrec_state *state, union code op, u32 data);
