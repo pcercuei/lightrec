@@ -841,9 +841,9 @@ static void rec_store_direct_no_invalidate(const struct block *block,
 	/* Convert to KUNSEG and avoid RAM mirrors */
 	if (op->i.imm) {
 		jit_addi(tmp, rs, (s16)op->i.imm);
-		jit_andi(tmp, tmp, 0x1f9fffff);
+		jit_andi(tmp, tmp, 0x1f800000 | (RAM_SIZE - 1));
 	} else {
-		jit_andi(tmp, rs, 0x1f9fffff);
+		jit_andi(tmp, rs, 0x1f800000 | (RAM_SIZE - 1));
 	}
 
 	lightrec_free_reg(reg_cache, rs);
@@ -892,18 +892,18 @@ static void rec_store_direct(const struct block *block, const struct opcode *op,
 	/* Convert to KUNSEG and avoid RAM mirrors */
 	if (op->i.imm) {
 		jit_addi(tmp2, rs, (s16)op->i.imm);
-		jit_andi(tmp2, tmp2, 0x1f9fffff);
+		jit_andi(tmp2, tmp2, 0x1f800000 | (RAM_SIZE - 1));
 	} else {
-		jit_andi(tmp2, rs, 0x1f9fffff);
+		jit_andi(tmp2, rs, 0x1f800000 | (RAM_SIZE - 1));
 	}
 
 	lightrec_free_reg(reg_cache, rs);
 	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
 
-	to_not_ram = jit_bgei(tmp2, 0x1fffff);
+	to_not_ram = jit_bgti(tmp2, RAM_SIZE);
 
 	/* Compute the offset to the code LUT */
-	jit_andi(tmp, tmp2, 0x1ffffc);
+	jit_andi(tmp, tmp2, (RAM_SIZE - 1) & ~3);
 #if __WORDSIZE == 64
 	jit_lshi(tmp, tmp, 1);
 #endif
@@ -1019,7 +1019,7 @@ static void rec_load_direct(const struct block *block, const struct opcode *op,
 		if (!state->mirrors_mapped) {
 			jit_andi(tmp, addr_reg, BIT(28));
 			jit_rshi_u(tmp, tmp, 28 - 22);
-			jit_ori(tmp, tmp, 0x1f9fffff);
+			jit_ori(tmp, tmp, 0x1f800000 | (RAM_SIZE - 1));
 			jit_andr(rt, addr_reg, tmp);
 		} else {
 			jit_andi(rt, addr_reg, 0x1fffffff);
@@ -1031,7 +1031,7 @@ static void rec_load_direct(const struct block *block, const struct opcode *op,
 		to_not_ram = jit_bmsi(addr_reg, BIT(28));
 
 		/* Convert to KUNSEG and avoid RAM mirrors */
-		jit_andi(rt, addr_reg, 0x1fffff);
+		jit_andi(rt, addr_reg, RAM_SIZE - 1);
 
 		if (state->offset_ram)
 			jit_movi(tmp, state->offset_ram);
@@ -1044,7 +1044,7 @@ static void rec_load_direct(const struct block *block, const struct opcode *op,
 			to_not_bios = jit_bmci(addr_reg, BIT(22));
 
 		/* Convert to KUNSEG */
-		jit_andi(rt, addr_reg, 0x1fc7ffff);
+		jit_andi(rt, addr_reg, 0x1fc00000 | (BIOS_SIZE - 1));
 
 		jit_movi(tmp, state->offset_bios);
 

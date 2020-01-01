@@ -51,6 +51,9 @@
 #define BLOCK_SHOULD_RECOMPILE	BIT(1)
 #define BLOCK_FULLY_TAGGED	BIT(2)
 
+#define RAM_SIZE	0x200000
+#define BIOS_SIZE	0x80000
+
 /* Definition of jit_state_t (avoids inclusion of <lightning.h>) */
 struct jit_node;
 struct jit_state;
