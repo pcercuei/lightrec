@@ -253,7 +253,7 @@ static u32 int_special_JALR(struct interpreter *inter)
 static u32 int_do_branch(struct interpreter *inter, u32 old_pc, u32 next_pc)
 {
 	if ((inter->op->flags & LIGHTREC_LOCAL_BRANCH) &&
-	    (s16)inter->op->c.i.imm >= -1) {
+	    (s16)inter->op->c.i.imm >= 0) {
 		next_pc = old_pc + ((1 + (s16)inter->op->c.i.imm) << 2);
 		next_pc = lightrec_emulate_block(inter->block, next_pc);
 	}
