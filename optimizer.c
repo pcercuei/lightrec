@@ -670,6 +670,13 @@ static int lightrec_detect_impossible_branches(struct block *block)
 		     !has_delay_slot(list->next->c)))
 			continue;
 
+		if (list->c.opcode == list->next->c.opcode) {
+			/* The delay slot is the exact same opcode as the branch
+			 * opcode: this is effectively a NOP */
+			list->next->c.opcode = 0;
+			continue;
+		}
+
 		if (list == block->opcode_list) {
 			/* If the first opcode is an 'impossible' branch, we
 			 * only keep the first two opcodes of the block (the
