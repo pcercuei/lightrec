@@ -252,7 +252,8 @@ static u32 int_special_JALR(struct interpreter *inter)
 
 static u32 int_do_branch(struct interpreter *inter, u32 old_pc, u32 next_pc)
 {
-	if ((inter->op->flags & LIGHTREC_LOCAL_BRANCH) &&
+	if (!inter->delay_slot &&
+	    (inter->op->flags & LIGHTREC_LOCAL_BRANCH) &&
 	    (s16)inter->op->c.i.imm >= 0) {
 		next_pc = old_pc + ((1 + (s16)inter->op->c.i.imm) << 2);
 		next_pc = lightrec_emulate_block(inter->block, next_pc);
@@ -261,21 +262,16 @@ static u32 int_do_branch(struct interpreter *inter, u32 old_pc, u32 next_pc)
 	return next_pc;
 }
 
-static u32 int_beq(struct interpreter *inter, bool bne)
+static u32 int_branch(struct interpreter *inter, u32 pc,
+		      union code code, bool branch)
 {
-	u32 old_pc = inter->block->pc + inter->op->offset * sizeof(u32);
-	u32 rs, rt, next_pc = old_pc + 4 + ((s16)inter->op->i.imm << 2);
-	bool branch;
+	u32 next_pc = pc + 4 + ((s16)code.i.imm << 2);
 
 	update_cycles_before_branch(inter);
 
-	rs = inter->state->native_reg_cache[inter->op->i.rs];
-	rt = inter->state->native_reg_cache[inter->op->i.rt];
-	branch = (rs == rt) ^ bne;
-
 	if (inter->op->flags & LIGHTREC_NO_DS) {
 		if (branch)
-			return int_do_branch(inter, old_pc, next_pc);
+			return int_do_branch(inter, pc, next_pc);
 
 		JUMP_NEXT(inter);
 	}
@@ -283,12 +279,22 @@ static u32 int_beq(struct interpreter *inter, bool bne)
 	next_pc = int_delay_slot(inter, next_pc, branch);
 
 	if (branch)
-		return int_do_branch(inter, old_pc, next_pc);
+		return int_do_branch(inter, pc, next_pc);
 
 	if (inter->op->flags & LIGHTREC_EMULATE_BRANCH)
-		return old_pc + 8;
+		return pc + 8;
 	else
 		JUMP_AFTER_BRANCH(inter);
+}
+
+static u32 int_beq(struct interpreter *inter, bool bne)
+{
+	u32 rs, rt, old_pc = inter->block->pc + inter->op->offset * sizeof(u32);
+
+	rs = inter->state->native_reg_cache[inter->op->i.rs];
+	rt = inter->state->native_reg_cache[inter->op->i.rt];
+
+	return int_branch(inter, old_pc, inter->op->c, (rs == rt) ^ bne);
 }
 
 static u32 int_BEQ(struct interpreter *inter)
@@ -304,34 +310,15 @@ static u32 int_BNE(struct interpreter *inter)
 static u32 int_bgez(struct interpreter *inter, bool link, bool lt, bool regimm)
 {
 	u32 old_pc = inter->block->pc + inter->op->offset * sizeof(u32);
-	u32 next_pc = old_pc + 4 + ((s16)inter->op->i.imm << 2);
-	bool branch;
 	s32 rs;
-
-	update_cycles_before_branch(inter);
 
 	if (link)
 		inter->state->native_reg_cache[31] = old_pc + 8;
 
 	rs = (s32)inter->state->native_reg_cache[inter->op->i.rs];
-	branch = ((regimm && !rs) || rs > 0) ^ lt;
 
-	if (inter->op->flags & LIGHTREC_NO_DS) {
-		if (branch)
-			return int_do_branch(inter, old_pc, next_pc);
-
-		JUMP_NEXT(inter);
-	}
-
-	next_pc = int_delay_slot(inter, next_pc, branch);
-
-	if (branch)
-		return int_do_branch(inter, old_pc, next_pc);
-
-	if (inter->op->flags & LIGHTREC_EMULATE_BRANCH)
-		return old_pc + 8;
-	else
-		JUMP_AFTER_BRANCH(inter);
+	return int_branch(inter, old_pc, inter->op->c,
+			  ((regimm && !rs) || rs > 0) ^ lt);
 }
 
 static u32 int_regimm_BLTZ(struct interpreter *inter)
