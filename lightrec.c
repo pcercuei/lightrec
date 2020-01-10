@@ -857,6 +857,7 @@ int lightrec_compile_block(struct block *block)
 			pr_debug("Branch at offset 0x%x will be emulated\n",
 				 elm->offset << 2);
 			lightrec_emit_eob(block, elm, next_pc);
+			skip_next = !(elm->flags & LIGHTREC_NO_DS);
 		} else if (elm->opcode) {
 			lightrec_rec_opcode(block, elm, next_pc);
 			skip_next = has_delay_slot(elm->c) &&
