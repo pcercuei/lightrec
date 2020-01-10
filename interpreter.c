@@ -26,6 +26,8 @@ static u32 int_CP0(struct interpreter *inter);
 static u32 int_CP2(struct interpreter *inter);
 static u32 int_SPECIAL(struct interpreter *inter);
 static u32 int_REGIMM(struct interpreter *inter);
+static u32 int_branch(struct interpreter *inter, u32 pc,
+		      union code code, bool branch);
 
 typedef u32 (*lightrec_int_func_t)(struct interpreter *inter);
 
@@ -79,6 +81,36 @@ static void update_cycles_before_branch(struct interpreter *inter)
 	}
 }
 
+static bool is_branch_taken(const u32 *reg_cache, union code op)
+{
+	switch (op.i.op) {
+	case OP_SPECIAL:
+		return op.r.op == OP_SPECIAL_JR || op.r.op == OP_SPECIAL_JALR;
+	case OP_J:
+	case OP_JAL:
+		return true;
+	case OP_BEQ:
+	case OP_META_BEQZ:
+		return reg_cache[op.r.rs] == reg_cache[op.r.rt];
+	case OP_BNE:
+	case OP_META_BNEZ:
+		return reg_cache[op.r.rs] != reg_cache[op.r.rt];
+	case OP_REGIMM:
+		switch (op.r.rt) {
+		case OP_REGIMM_BLTZ:
+		case OP_REGIMM_BLTZAL:
+			return (s32)reg_cache[op.r.rs] < 0;
+		case OP_REGIMM_BGEZ:
+		case OP_REGIMM_BGEZAL:
+			return (s32)reg_cache[op.r.rs] >= 0;
+		}
+	default:
+		break;
+	}
+
+	return false;
+}
+
 static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 {
 	u32 *reg_cache = inter->state->native_reg_cache;
@@ -91,7 +123,8 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 		.block = NULL,
 	};
 	bool run_first_op = false, dummy_ld = false, save_rs = false,
-	     load_in_ds, branch_in_ds = false;
+	     load_in_ds, branch_in_ds = false, branch_at_addr = false,
+	     branch_taken;
 	u32 old_rs, new_rs, new_rt;
 	u32 next_pc, ds_next_pc;
 
@@ -145,7 +178,18 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 			dummy_ld = opcode_writes_register(op_next, op->r.rt);
 		}
 
-		if (run_first_op) {
+		if (!run_first_op) {
+			next_pc = pc;
+		} else if (has_delay_slot(op_next)) {
+			/* The first opcode of the next block is a branch, so we
+			 * cannot execute it here, because of the load delay.
+			 * Just check whether or not the branch would be taken,
+			 * and save that info into the interpreter struct. */
+			branch_at_addr = true;
+			branch_taken = is_branch_taken(reg_cache, op_next);
+			pr_debug("Target of impossible branch is a branch, "
+				 "%staken.\n", branch_taken ? "" : "not ");
+		} else {
 			new_op.c = op_next;
 			new_op.flags = 0;
 			new_op.offset = 0;
@@ -161,8 +205,6 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 			}
 
 			inter->cycles += lightrec_cycles_of_opcode(op_next);
-		} else {
-			next_pc = pc;
 		}
 	} else {
 		next_pc = inter->block->pc
@@ -177,10 +219,18 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 		new_rt = reg_cache[op->r.rt];
 
 	/* Execute delay slot opcode */
-	ds_next_pc = (*int_standard[inter2.op->i.op])(&inter2);
+	if (branch_at_addr)
+		ds_next_pc = int_branch(&inter2, pc, op_next, branch_taken);
+	else
+		ds_next_pc = (*int_standard[inter2.op->i.op])(&inter2);
 
-	if (!branch && branch_in_ds)
+	if (branch_at_addr && !branch_taken) {
+		/* If the branch at the target of the branch opcode is not
+		 * taken, we jump to its delay slot */
+		next_pc = pc + sizeof(u32);
+	} else if (!branch && branch_in_ds) {
 		next_pc = ds_next_pc;
+	}
 
 	if (save_rs)
 		reg_cache[op->r.rs] = new_rs;
@@ -188,6 +238,26 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 		reg_cache[op->r.rt] = new_rt;
 
 	inter->cycles += lightrec_cycles_of_opcode(op->c);
+
+	if (branch_at_addr && branch_taken) {
+		/* If the branch at the target of the branch opcode is taken,
+		 * we execute its delay slot here, and jump to its target
+		 * address. */
+		op_next = lightrec_read_opcode(inter->state, pc + 4);
+
+		new_op.c = op_next;
+		new_op.flags = 0;
+		new_op.offset = sizeof(u32);
+		new_op.next = NULL;
+		inter2.op = &new_op;
+		inter2.block = NULL;
+
+		inter->cycles += lightrec_cycles_of_opcode(op_next);
+
+		pr_debug("Running delay slot of branch at target of impossible "
+			 "branch\n");
+		(*int_standard[inter2.op->i.op])(&inter2);
+	}
 
 	return next_pc;
 }
