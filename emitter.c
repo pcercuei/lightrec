@@ -185,6 +185,13 @@ static void rec_b(const struct block *block, const struct opcode *op, u32 pc,
 				lightrec_rec_opcode(block, op->next, pc + 4);
 		}
 
+		if (link) {
+			/* Update the $ra register */
+			link_reg = lightrec_alloc_reg_out(reg_cache, _jit, 31);
+			jit_movi(link_reg, link);
+			lightrec_free_reg(reg_cache, link_reg);
+		}
+
 		/* Store back remaining registers */
 		lightrec_storeback_regs(reg_cache, _jit);
 
