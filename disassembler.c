@@ -38,7 +38,8 @@ static bool is_unconditional_jump(const struct opcode *op)
 	case OP_BLEZ:
 		return op->i.rs == op->i.rt;
 	case OP_REGIMM:
-		return (op->r.rt == OP_REGIMM_BGEZ) && op->i.rs == 0;
+		return (op->r.rt == OP_REGIMM_BGEZ |
+			op->r.rt == OP_REGIMM_BGEZAL) && op->i.rs == 0;
 	default:
 		return false;
 	}
