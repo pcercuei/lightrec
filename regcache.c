@@ -476,6 +476,18 @@ void lightrec_regcache_mark_live(struct regcache *cache, jit_state_t *_jit)
 	struct native_register *nreg;
 	unsigned int i;
 
+#ifdef _WIN32
+	/* FIXME: GNU Lightning on Windows seems to use our mapped registers as
+	 * temporaries. Until the actual bug is found and fixed, unconditionally
+	 * mark our registers as live here. */
+	for (i = 0; i < NUM_REGS; i++) {
+		nreg = &cache->lightrec_regs[i];
+
+		if (nreg->used || nreg->loaded || nreg->dirty)
+			jit_live(JIT_V(i));
+	}
+#endif
+
 	for (i = 0; i < NUM_TEMPS; i++) {
 		nreg = &cache->lightrec_regs[NUM_REGS + i];
 
