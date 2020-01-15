@@ -867,7 +867,7 @@ int lightrec_compile_block(struct block *block)
 			 * mapped registers as temporaries. Until the actual bug
 			 * is found and fixed, unconditionally mark our
 			 * registers as live here. */
-			lightrec_regcache_mark_live(reg_cache, _jit);
+			lightrec_regcache_mark_live(state->reg_cache, _jit);
 #endif
 		}
 	}
