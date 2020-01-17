@@ -139,11 +139,13 @@ u32 lightrec_rw(struct lightrec_state *state, union code op,
 	switch (op.i.op) {
 	case OP_SB:
 		*(u8 *) new_addr = (u8) data;
-		lightrec_invalidate_map(state, map, kaddr);
+		if (!state->invalidate_from_dma_only)
+			lightrec_invalidate_map(state, map, kaddr);
 		return 0;
 	case OP_SH:
 		*(u16 *) new_addr = HTOLE16((u16) data);
-		lightrec_invalidate_map(state, map, kaddr);
+		if (!state->invalidate_from_dma_only)
+			lightrec_invalidate_map(state, map, kaddr);
 		return 0;
 	case OP_SWL:
 		shift = kaddr & 3;
@@ -152,7 +154,8 @@ u32 lightrec_rw(struct lightrec_state *state, union code op,
 
 		*(u32 *)(new_addr & ~3) = HTOLE32((data >> ((3 - shift) * 8))
 						  | (mem_data & mask));
-		lightrec_invalidate_map(state, map, kaddr & ~0x3);
+		if (!state->invalidate_from_dma_only)
+			lightrec_invalidate_map(state, map, kaddr & ~0x3);
 		return 0;
 	case OP_SWR:
 		shift = kaddr & 3;
@@ -161,16 +164,19 @@ u32 lightrec_rw(struct lightrec_state *state, union code op,
 
 		*(u32 *)(new_addr & ~3) = HTOLE32((data << (shift * 8))
 						  | (mem_data & mask));
-		lightrec_invalidate_map(state, map, kaddr & ~0x3);
+		if (!state->invalidate_from_dma_only)
+			lightrec_invalidate_map(state, map, kaddr & ~0x3);
 		return 0;
 	case OP_SW:
 		*(u32 *) new_addr = HTOLE32(data);
-		lightrec_invalidate_map(state, map, kaddr);
+		if (!state->invalidate_from_dma_only)
+			lightrec_invalidate_map(state, map, kaddr);
 		return 0;
 	case OP_SWC2:
 		*(u32 *) new_addr = HTOLE32(state->ops.cop2_ops.mfc(state,
 								    op.i.rt));
-		lightrec_invalidate_map(state, map, kaddr);
+		if (!state->invalidate_from_dma_only)
+			lightrec_invalidate_map(state, map, kaddr);
 		return 0;
 	case OP_LB:
 		return (s32) *(s8 *) new_addr;
@@ -1189,6 +1195,14 @@ void lightrec_invalidate(struct lightrec_state *state, u32 addr, u32 len)
 void lightrec_invalidate_all(struct lightrec_state *state)
 {
 	memset(state->code_lut, 0, sizeof(*state->code_lut) * CODE_LUT_SIZE);
+}
+
+void lightrec_set_invalidate_mode(struct lightrec_state *state, bool dma_only)
+{
+	if (state->invalidate_from_dma_only != dma_only)
+		lightrec_invalidate_all(state);
+
+	state->invalidate_from_dma_only = dma_only;
 }
 
 void lightrec_set_exit_flags(struct lightrec_state *state, u32 flags)

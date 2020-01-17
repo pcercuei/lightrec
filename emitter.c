@@ -965,12 +965,16 @@ static void rec_store_direct(const struct block *block, const struct opcode *op,
 static void rec_store(const struct block *block, const struct opcode *op,
 		     jit_code_t code)
 {
-	if (op->flags & LIGHTREC_NO_INVALIDATE)
+	if (op->flags & LIGHTREC_NO_INVALIDATE) {
 		rec_store_direct_no_invalidate(block, op, code);
-	else if (op->flags & LIGHTREC_DIRECT_IO)
-		rec_store_direct(block, op, code);
-	else
+	} else if (op->flags & LIGHTREC_DIRECT_IO) {
+		if (block->state->invalidate_from_dma_only)
+			rec_store_direct_no_invalidate(block, op, code);
+		else
+			rec_store_direct(block, op, code);
+	} else {
 		rec_io(block, op, true, false);
+	}
 }
 
 static void rec_SB(const struct block *block, const struct opcode *op, u32 pc)
