@@ -896,12 +896,95 @@ static int lightrec_flag_stores(struct block *block)
 	return 0;
 }
 
+static bool is_mult32(const struct block *block, const struct opcode *op)
+{
+	const struct opcode *next;
+	u32 offset;
+
+	for (op = op->next; op; op = op->next) {
+		switch (op->i.op) {
+		case OP_BEQ:
+		case OP_BNE:
+		case OP_BLEZ:
+		case OP_BGTZ:
+		case OP_REGIMM:
+		case OP_META_BEQZ:
+		case OP_META_BNEZ:
+			/* TODO: handle backwards branches too */
+			if ((op->flags & LIGHTREC_LOCAL_BRANCH) &&
+			    (s16)op->c.i.imm >= 0) {
+				offset = op->offset + 1 + (s16)op->c.i.imm;
+
+				for (next = op; next->offset != offset;
+				     next = next->next);
+
+				if (is_mult32(block, next))
+					continue;
+				else
+					return false;
+			} else {
+				return false;
+			}
+		case OP_SPECIAL:
+			switch (op->r.op) {
+			case OP_SPECIAL_MULT:
+			case OP_SPECIAL_MULTU:
+			case OP_SPECIAL_DIV:
+			case OP_SPECIAL_DIVU:
+			case OP_SPECIAL_MTHI:
+				return true;
+			case OP_SPECIAL_JR:
+				return op->r.rs == 31 &&
+					((op->flags & LIGHTREC_NO_DS) ||
+					 !(op->next->i.op == OP_SPECIAL &&
+					   op->next->r.op == OP_SPECIAL_MFHI));
+			case OP_SPECIAL_JALR:
+			case OP_SPECIAL_MFHI:
+				return false;
+			default:
+				continue;
+			}
+		default:
+			continue;
+		}
+	}
+
+	return false;
+}
+
+static int lightrec_flag_mults(struct block *block)
+{
+	struct opcode *list, *op;
+
+	for (list = block->opcode_list; list; list = list->next) {
+		if (list->i.op != OP_SPECIAL)
+			continue;
+
+		switch (list->r.op) {
+		case OP_SPECIAL_MULT:
+		case OP_SPECIAL_MULTU:
+			break;
+		default:
+			continue;
+		}
+
+		if (is_mult32(block, list)) {
+			pr_debug("Mark MULT(U) opcode at offset 0x%x as"
+				 " 32-bit\n", list->offset << 2);
+			list->flags |= LIGHTREC_MULT32;
+		}
+	}
+
+	return 0;
+}
+
 static int (*lightrec_optimizers[])(struct block *) = {
 	&lightrec_detect_impossible_branches,
 	&lightrec_transform_ops,
 	&lightrec_local_branches,
 	&lightrec_switch_delay_slots,
 	&lightrec_flag_stores,
+	&lightrec_flag_mults,
 	&lightrec_early_unload,
 };
 
