@@ -280,6 +280,7 @@ u8 lightrec_alloc_reg_in(struct regcache *cache, jit_state_t *_jit, u8 reg)
 	if (reg == 0 && (!nreg->loaded || nreg->dirty)) {
 		jit_movi(jit_reg, 0);
 		nreg->extended = true;
+		nreg->loaded = true;
 	}
 
 	nreg->used = true;
