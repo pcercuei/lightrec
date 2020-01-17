@@ -608,7 +608,10 @@ static void rec_alu_mult(const struct block *block,
 	jit_note(__FILE__, __LINE__);
 
 	lo = lightrec_alloc_reg_out(reg_cache, _jit, REG_LO);
-	hi = lightrec_alloc_reg_out_ext(reg_cache, _jit, REG_HI);
+	if (!(op->flags & LIGHTREC_MULT32))
+		hi = lightrec_alloc_reg_out_ext(reg_cache, _jit, REG_HI);
+	else if (__WORDSIZE == 64)
+		hi = lightrec_alloc_reg_temp(reg_cache, _jit);
 
 	if (__WORDSIZE == 32 || !is_signed) {
 		rs = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rs);
@@ -619,11 +622,16 @@ static void rec_alu_mult(const struct block *block,
 	}
 
 #if __WORDSIZE == 32
-	/* On 32-bit systems, do a 32*32->64 bit operation. */
-	if (is_signed)
-		jit_qmulr(lo, hi, rs, rt);
-	else
-		jit_qmulr_u(lo, hi, rs, rt);
+	/* On 32-bit systems, do a 32*32->64 bit operation, or a 32*32->32 bit
+	 * operation if the MULT was detected a 32-bit only. */
+	if (!(op->flags & LIGHTREC_MULT32)) {
+		if (is_signed)
+			jit_qmulr(lo, hi, rs, rt);
+		else
+			jit_qmulr_u(lo, hi, rs, rt);
+	} else {
+		jit_mulr(lo, rs, rt);
+	}
 #else
 	/* On 64-bit systems, do a 64*64->64 bit operation.
 	 * The input registers must be 32 bits, so we first sign-extend (if
@@ -637,13 +645,15 @@ static void rec_alu_mult(const struct block *block,
 	}
 
 	/* The 64-bit output value is in $lo, store the upper 32 bits in $hi */
-	jit_rshi(hi, lo, 32);
+	if (!(op->flags & LIGHTREC_MULT32))
+		jit_rshi(hi, lo, 32);
 #endif
 
 	lightrec_free_reg(reg_cache, rs);
 	lightrec_free_reg(reg_cache, rt);
 	lightrec_free_reg(reg_cache, lo);
-	lightrec_free_reg(reg_cache, hi);
+	if (__WORDSIZE == 64 || !(op->flags & LIGHTREC_MULT32))
+		lightrec_free_reg(reg_cache, hi);
 }
 
 static void rec_alu_div(const struct block *block,
