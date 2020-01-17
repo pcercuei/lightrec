@@ -183,7 +183,7 @@ static bool is_nop(union code op)
 		case OP_SPECIAL_SLL:
 		case OP_SPECIAL_SRA:
 		case OP_SPECIAL_SRL:
-			return op.r.imm == 0;
+			return op.r.rd == op.r.rt && op.r.imm == 0;
 		default:
 			return false;
 		}
@@ -549,6 +549,15 @@ static int lightrec_transform_ops(struct block *block)
 			break;
 		case OP_SPECIAL:
 			switch (list->r.op) {
+			case OP_SPECIAL_SLL:
+			case OP_SPECIAL_SRA:
+			case OP_SPECIAL_SRL:
+				if (list->r.imm == 0) {
+					pr_debug("Convert SLL/SRL/SRA #0 to MOV\n");
+					list->i.op = OP_META_MOV;
+					list->r.rs = list->r.rt;
+				}
+				break;
 			case OP_SPECIAL_OR:
 			case OP_SPECIAL_ADD:
 			case OP_SPECIAL_ADDU:
