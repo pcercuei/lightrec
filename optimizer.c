@@ -601,6 +601,9 @@ static int lightrec_switch_delay_slots(struct block *block)
 		if (prev && prev->c.i.op == OP_META_SYNC)
 			continue;
 
+		if (prev && has_delay_slot(prev->c))
+			continue;
+
 		switch (list->i.op) {
 		case OP_SPECIAL:
 			switch (op.r.op) {
