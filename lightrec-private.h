@@ -99,9 +99,9 @@ struct lightrec_state {
 	u32 current_cycle;
 	u32 target_cycle;
 	u32 exit_flags;
-	struct block *wrapper, *rw_wrapper, *rw_generic_wrapper, *mfc_wrapper,
-		     *mtc_wrapper, *rfe_wrapper, *cp_wrapper, *syscall_wrapper,
-		     *break_wrapper;
+	struct block *dispatcher, *rw_wrapper, *rw_generic_wrapper,
+		     *mfc_wrapper, *mtc_wrapper, *rfe_wrapper, *cp_wrapper,
+		     *syscall_wrapper, *break_wrapper;
 	void *rw_func, *rw_generic_func, *mfc_func, *mtc_func, *rfe_func,
 	     *cp_func, *syscall_func, *break_func;
 	struct jit_node *branches[512];

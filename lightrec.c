@@ -556,7 +556,7 @@ err_no_mem:
 	return NULL;
 }
 
-static struct block * generate_wrapper_block(struct lightrec_state *state)
+static struct block * generate_dispatcher(struct lightrec_state *state)
 {
 	struct block *block;
 	jit_state_t *_jit;
@@ -573,7 +573,7 @@ static struct block * generate_wrapper_block(struct lightrec_state *state)
 	if (!_jit)
 		goto err_free_block;
 
-	jit_name("wrapper");
+	jit_name("dispatcher");
 	jit_note(__FILE__, __LINE__);
 
 	jit_prolog();
@@ -689,7 +689,7 @@ static struct block * generate_wrapper_block(struct lightrec_state *state)
 	state->get_next_block = jit_address(addr);
 
 	if (ENABLE_DISASSEMBLER) {
-		pr_debug("Main wrapper block:\n");
+		pr_debug("Dispatcher block:\n");
 		jit_disassemble();
 	}
 
@@ -700,7 +700,7 @@ static struct block * generate_wrapper_block(struct lightrec_state *state)
 err_free_block:
 	lightrec_free(state, MEM_FOR_IR, sizeof(*block), block);
 err_no_mem:
-	pr_err("Unable to compile wrapper: Out of memory\n");
+	pr_err("Unable to compile dispatcher: Out of memory\n");
 	return NULL;
 }
 
@@ -940,7 +940,7 @@ int lightrec_compile_block(struct block *block)
 
 u32 lightrec_execute(struct lightrec_state *state, u32 pc, u32 target_cycle)
 {
-	s32 (*func)(void *, s32) = (void *)state->wrapper->function;
+	s32 (*func)(void *, s32) = (void *)state->dispatcher->function;
 	void *block_trace;
 	s32 cycles_delta;
 
@@ -1043,15 +1043,15 @@ struct lightrec_state * lightrec_init(char *argv0,
 
 	memcpy(&state->ops, ops, sizeof(*ops));
 
-	state->wrapper = generate_wrapper_block(state);
-	if (!state->wrapper)
+	state->dispatcher = generate_dispatcher(state);
+	if (!state->dispatcher)
 		goto err_free_recompiler;
 
 	state->rw_generic_wrapper = generate_wrapper(state,
 						     lightrec_rw_generic_cb,
 						     true);
 	if (!state->rw_generic_wrapper)
-		goto err_free_wrapper;
+		goto err_free_dispatcher;
 
 	state->rw_wrapper = generate_wrapper(state, lightrec_rw_cb, false);
 	if (!state->rw_wrapper)
@@ -1122,8 +1122,8 @@ err_free_rw_wrapper:
 	lightrec_free_block(state->rw_wrapper);
 err_free_generic_rw_wrapper:
 	lightrec_free_block(state->rw_generic_wrapper);
-err_free_wrapper:
-	lightrec_free_block(state->wrapper);
+err_free_dispatcher:
+	lightrec_free_block(state->dispatcher);
 err_free_recompiler:
 	if (ENABLE_THREADED_COMPILER)
 		lightrec_free_recompiler(state->rec);
@@ -1151,7 +1151,7 @@ void lightrec_destroy(struct lightrec_state *state)
 
 	lightrec_free_regcache(state->reg_cache);
 	lightrec_free_block_cache(state->block_cache);
-	lightrec_free_block(state->wrapper);
+	lightrec_free_block(state->dispatcher);
 	lightrec_free_block(state->rw_generic_wrapper);
 	lightrec_free_block(state->rw_wrapper);
 	lightrec_free_block(state->mfc_wrapper);
