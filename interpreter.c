@@ -139,6 +139,23 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 	     branch_taken;
 	u32 old_rs, new_rs, new_rt;
 	u32 next_pc, ds_next_pc;
+	u32 cause, epc;
+
+	if (op->i.op == OP_CP0 && op->r.rs == OP_CP0_RFE) {
+		/* When an IRQ happens, the PSX exception handlers (when done)
+		 * will jump back to the instruction that was executed right
+		 * before the IRQ, unless it was a GTE opcode; in that case, it
+		 * jumps to the instruction right after.
+		 * Since we will never handle the IRQ right after a GTE opcode,
+		 * but on branch boundaries, we need to adjust the return
+		 * address so that the GTE opcode is effectively executed.
+		 */
+		cause = (*state->ops.cop0_ops.cfc)(state, 13);
+		epc = (*state->ops.cop0_ops.cfc)(state, 14);
+
+		if (!(cause & 0x7c) && epc == pc - 4)
+			pc -= 4;
+	}
 
 	if (inter->delay_slot) {
 		/* The branch opcode was in a delay slot of another branch
