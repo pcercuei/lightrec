@@ -901,10 +901,10 @@ static int lightrec_flag_stores(struct block *block)
 
 static bool is_mult32(const struct block *block, const struct opcode *op)
 {
-	const struct opcode *next;
+	const struct opcode *next, *last = NULL;
 	u32 offset;
 
-	for (op = op->next; op; op = op->next) {
+	for (op = op->next; op != last; op = op->next) {
 		switch (op->i.op) {
 		case OP_BEQ:
 		case OP_BNE:
@@ -921,10 +921,11 @@ static bool is_mult32(const struct block *block, const struct opcode *op)
 				for (next = op; next->offset != offset;
 				     next = next->next);
 
-				if (is_mult32(block, next))
-					continue;
-				else
+				if (!is_mult32(block, next))
 					return false;
+
+				last = next;
+				continue;
 			} else {
 				return false;
 			}
@@ -952,7 +953,7 @@ static bool is_mult32(const struct block *block, const struct opcode *op)
 		}
 	}
 
-	return false;
+	return last != NULL;
 }
 
 static int lightrec_flag_mults(struct block *block)
