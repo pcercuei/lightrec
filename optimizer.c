@@ -511,8 +511,10 @@ static int lightrec_transform_ops(struct block *block)
 			pr_debug("Converting useless opcode 0x%08x to NOP\n",
 					list->opcode);
 			list->opcode = 0x0;
-			continue;
 		}
+
+		if (!list->opcode)
+			continue;
 
 		switch (list->i.op) {
 		/* Transform BEQ / BNE to BEQZ / BNEZ meta-opcodes if one of the
