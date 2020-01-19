@@ -678,7 +678,8 @@ static int lightrec_detect_impossible_branches(struct block *block)
 	     op = next, next = op->next) {
 		if (!has_delay_slot(op->c) ||
 		    (!load_in_delay_slot(next->c) &&
-		     !has_delay_slot(next->c)))
+		     !has_delay_slot(next->c) &&
+		     !(next->i.op == OP_CP0 && next->r.rs == OP_CP0_RFE)))
 			continue;
 
 		if (op->c.opcode == next->c.opcode) {
