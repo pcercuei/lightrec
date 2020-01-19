@@ -958,9 +958,10 @@ static bool is_mult32(const struct block *block, const struct opcode *op)
 
 static int lightrec_flag_mults(struct block *block)
 {
-	struct opcode *list, *op;
+	struct opcode *list, *prev;
 
-	for (list = block->opcode_list; list; list = list->next) {
+	for (list = block->opcode_list, prev = NULL; list;
+	     prev = list, list = list->next) {
 		if (list->i.op != OP_SPECIAL)
 			continue;
 
@@ -971,6 +972,10 @@ static int lightrec_flag_mults(struct block *block)
 		default:
 			continue;
 		}
+
+		/* Don't support MULT(U) opcodes in delay slots */
+		if (prev && has_delay_slot(prev->c))
+			continue;
 
 		if (is_mult32(block, list)) {
 			pr_debug("Mark MULT(U) opcode at offset 0x%x as"
