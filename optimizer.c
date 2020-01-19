@@ -672,32 +672,32 @@ static int lightrec_switch_delay_slots(struct block *block)
 
 static int lightrec_detect_impossible_branches(struct block *block)
 {
-	struct opcode *list;
+	struct opcode *op, *next;
 
-	for (list = block->opcode_list; list->next; list = list->next) {
-		if (!has_delay_slot(list->c) ||
-		    (!load_in_delay_slot(list->next->c) &&
-		     !has_delay_slot(list->next->c)))
+	for (op = block->opcode_list, next = op->next; next;
+	     op = next, next = op->next) {
+		if (!has_delay_slot(op->c) ||
+		    (!load_in_delay_slot(next->c) &&
+		     !has_delay_slot(next->c)))
 			continue;
 
-		if (list->c.opcode == list->next->c.opcode) {
+		if (op->c.opcode == next->c.opcode) {
 			/* The delay slot is the exact same opcode as the branch
 			 * opcode: this is effectively a NOP */
-			list->next->c.opcode = 0;
+			next->c.opcode = 0;
 			continue;
 		}
 
-		if (list == block->opcode_list) {
+		if (op == block->opcode_list) {
 			/* If the first opcode is an 'impossible' branch, we
 			 * only keep the first two opcodes of the block (the
 			 * branch itself + its delay slot) */
-			lightrec_free_opcode_list(block->state,
-						  list->next->next);
-			list->next->next = NULL;
+			lightrec_free_opcode_list(block->state, next->next);
+			next->next = NULL;
 			block->nb_ops = 2;
 		}
 
-		list->flags |= LIGHTREC_EMULATE_BRANCH;
+		op->flags |= LIGHTREC_EMULATE_BRANCH;
 	}
 
 	return 0;
