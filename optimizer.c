@@ -229,7 +229,6 @@ bool load_in_delay_slot(union code op)
 		}
 
 		break;
-	case OP_LWC2:
 	case OP_LB:
 	case OP_LH:
 	case OP_LW:
