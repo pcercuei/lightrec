@@ -124,11 +124,12 @@ static bool is_branch_taken(const u32 *reg_cache, union code op)
 
 static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 {
-	u32 *reg_cache = inter->state->native_reg_cache;
+	struct lightrec_state *state = inter->state;
+	u32 *reg_cache = state->native_reg_cache;
 	struct opcode new_op, *op = inter->op->next;
 	union code op_next;
 	struct interpreter inter2 = {
-		.state = inter->state,
+		.state = state,
 		.cycles = inter->cycles,
 		.delay_slot = true,
 		.block = NULL,
@@ -156,7 +157,7 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 
 	if (branch) {
 		if (load_in_ds || branch_in_ds)
-			op_next = lightrec_read_opcode(inter->state, pc);
+			op_next = lightrec_read_opcode(state, pc);
 
 		if (load_in_ds) {
 			/* Verify that the next block actually reads the
@@ -254,7 +255,7 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 		/* If the branch at the target of the branch opcode is taken,
 		 * we execute its delay slot here, and jump to its target
 		 * address. */
-		op_next = lightrec_read_opcode(inter->state, pc + 4);
+		op_next = lightrec_read_opcode(state, pc + 4);
 
 		new_op.c = op_next;
 		new_op.flags = 0;
