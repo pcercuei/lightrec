@@ -375,7 +375,8 @@ static u32 int_branch(struct interpreter *inter, u32 pc,
 			return jump_next(inter);
 	}
 
-	next_pc = int_delay_slot(inter, next_pc, branch);
+	if (!inter->delay_slot)
+		next_pc = int_delay_slot(inter, next_pc, branch);
 
 	if (branch)
 		return int_do_branch(inter, pc, next_pc);
