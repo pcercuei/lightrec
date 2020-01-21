@@ -525,6 +525,9 @@ static int lightrec_transform_ops(struct block *block)
 					list->i.rs = list->i.rt;
 					list->i.rt = 0;
 				}
+			} else if (list->i.rs == list->i.rt) {
+				list->i.rs = 0;
+				list->i.rt = 0;
 			}
 			break;
 		case OP_BNE:
