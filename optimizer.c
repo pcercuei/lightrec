@@ -629,6 +629,8 @@ static int lightrec_switch_delay_slots(struct block *block)
 				continue;
 		case OP_BLEZ: /* fall-through */
 		case OP_BGTZ:
+		case OP_META_BEQZ:
+		case OP_META_BNEZ:
 			if (opcode_writes_register(next_op, op.i.rs))
 				continue;
 			break;
@@ -645,11 +647,6 @@ static int lightrec_switch_delay_slots(struct block *block)
 					continue;
 				break;
 			}
-			break;
-		case OP_META_BEQZ:
-		case OP_META_BNEZ:
-			if (opcode_writes_register(next_op, op.i.rs))
-				continue;
 		default: /* fall-through */
 			break;
 		}
