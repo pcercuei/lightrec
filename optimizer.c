@@ -136,6 +136,18 @@ bool opcode_writes_register(union code op, u8 reg)
 		default:
 			return false;
 		}
+	case OP_CP2:
+		if (op.r.op == OP_CP2_BASIC) {
+			switch (op.r.rs) {
+			case OP_CP2_BASIC_MFC2:
+			case OP_CP2_BASIC_CFC2:
+				return op.i.rt == reg;
+			default:
+				return false;
+			}
+		} else {
+			return false;
+		}
 	case OP_META_MOV:
 		return op.r.rd == reg;
 	default:
