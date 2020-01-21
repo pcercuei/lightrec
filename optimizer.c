@@ -640,13 +640,13 @@ static int lightrec_switch_delay_slots(struct block *block)
 				break;
 		case OP_BEQ:
 		case OP_BNE:
-			if (opcode_writes_register(next_op, op.i.rt))
+			if (op.i.rt && opcode_writes_register(next_op, op.i.rt))
 				continue;
 		case OP_BLEZ: /* fall-through */
 		case OP_BGTZ:
 		case OP_META_BEQZ:
 		case OP_META_BNEZ:
-			if (opcode_writes_register(next_op, op.i.rs))
+			if (op.i.rs && opcode_writes_register(next_op, op.i.rs))
 				continue;
 			break;
 		case OP_REGIMM:
@@ -658,7 +658,8 @@ static int lightrec_switch_delay_slots(struct block *block)
 					continue;
 			case OP_REGIMM_BLTZ: /* fall-through */
 			case OP_REGIMM_BGEZ:
-				if (opcode_writes_register(next_op, op.i.rs))
+				if (op.i.rs &&
+				    opcode_writes_register(next_op, op.i.rs))
 					continue;
 				break;
 			}
