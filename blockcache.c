@@ -138,6 +138,33 @@ struct blockcache * lightrec_blockcache_init(struct lightrec_state *state)
 	return cache;
 }
 
+u32 lightrec_calculate_block_hash(const struct block *block)
+{
+	const struct lightrec_mem_map *map = block->map;
+	u32 pc, hash = 0xffffffff;
+	const u32 *code;
+	unsigned int i;
+
+	pc = kunseg(block->pc) - map->pc;
+
+	while (map->mirror_of)
+		map = map->mirror_of;
+
+	code = map->address + pc;
+
+	for (i = 0; i < block->nb_ops; i++) {
+		hash += *code++;
+		hash += (hash << 10);
+		hash ^= (hash >> 6);
+	}
+
+	hash += (hash << 3);
+	hash ^= (hash >> 11);
+	hash += (hash << 15);
+
+	return hash;
+}
+
 bool lightrec_block_is_outdated(struct block *block)
 {
 	return !block->state->code_lut[lut_offset(block->pc)];
