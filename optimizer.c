@@ -762,15 +762,12 @@ static int lightrec_local_branches(struct block *block)
 				break;
 			}
 
-			if (!prev || prev->j.op != OP_META_SYNC) {
+			if (prev && prev->j.op != OP_META_SYNC) {
 				pr_debug("Adding sync before offset "
 					 "0x%x\n", offset << 2);
 				ret = lightrec_add_sync(block, prev);
 				if (ret)
 					return ret;
-
-				if (!prev)
-					prev = block->opcode_list;
 
 				prev->next->offset = target->offset;
 			}
