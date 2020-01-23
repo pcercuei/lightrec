@@ -777,6 +777,8 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 		lightrec_print_disassembly(block, code, length);
 	}
 
+	pr_debug("Block size: %lu opcodes\n", block->nb_ops);
+
 	/* If the first opcode is an 'impossible' branch, never compile the
 	 * block */
 	if (list->flags & LIGHTREC_EMULATE_BRANCH)
