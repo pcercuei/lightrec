@@ -73,6 +73,7 @@ struct block {
 	struct opcode *opcode_list;
 	void (*function)(void);
 	u32 pc;
+	u32 hash;
 #if ENABLE_THREADED_COMPILER
 	atomic_flag op_list_freed;
 #endif

@@ -784,6 +784,8 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 	if (list->flags & LIGHTREC_EMULATE_BRANCH)
 		block->flags |= BLOCK_NEVER_COMPILE;
 
+	block->hash = lightrec_calculate_block_hash(block);
+
 	return block;
 }
 

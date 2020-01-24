@@ -167,5 +167,21 @@ u32 lightrec_calculate_block_hash(const struct block *block)
 
 bool lightrec_block_is_outdated(struct block *block)
 {
-	return !block->state->code_lut[lut_offset(block->pc)];
+	void **lut_entry = &block->state->code_lut[lut_offset(block->pc)];
+	bool outdated;
+
+	if (*lut_entry)
+		return false;
+
+	outdated = block->hash != lightrec_calculate_block_hash(block);
+	if (likely(!outdated)) {
+		/* The block was marked as outdated, but the content is still
+		 * the same */
+		if (block->function)
+			*lut_entry = block->function;
+		else
+			*lut_entry = block->state->get_next_block;
+	}
+
+	return outdated;
 }
