@@ -45,12 +45,19 @@ struct block * lightrec_find_block(struct blockcache *cache, u32 pc)
 static void remove_from_code_lut(struct blockcache *cache, struct block *block)
 {
 	struct lightrec_state *state = block->state;
+	const struct opcode *op;
+	u32 offset = lut_offset(block->pc);
 
 	/* Use state->get_next_block in the code LUT, which basically
 	 * calls back get_next_block_func(), until the compiler
 	 * overrides this. This is required, as a NULL value in the code
 	 * LUT means an outdated block. */
-	state->code_lut[lut_offset(block->pc)] = state->get_next_block;
+	state->code_lut[offset] = state->get_next_block;
+
+	for (op = block->opcode_list; op; op = op->next)
+		if (op->c.i.op == OP_META_SYNC)
+			state->code_lut[offset + op->offset] = NULL;
+
 }
 
 void lightrec_mark_for_recompilation(struct blockcache *cache,
@@ -80,7 +87,7 @@ void lightrec_unregister_block(struct blockcache *cache, struct block *block)
 	u32 pc = kunseg(block->pc);
 	struct block *old = cache->lut[(pc >> 2) & (LUT_SIZE - 1)];
 
-	block->state->code_lut[lut_offset(pc)] = NULL;
+	remove_from_code_lut(cache, block);
 
 	if (old == block) {
 		cache->lut[(pc >> 2) & (LUT_SIZE - 1)] = old->next;
