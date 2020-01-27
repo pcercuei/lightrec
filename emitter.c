@@ -86,7 +86,8 @@ static void lightrec_emit_end_of_block(const struct block *block,
 		pr_debug("EOB: %u cycles\n", cycles);
 	}
 
-	state->branches[state->nb_branches++] = jit_jmpi();
+	if (op->next && ((op->flags & LIGHTREC_NO_DS) || op->next->next))
+		state->branches[state->nb_branches++] = jit_jmpi();
 }
 
 void lightrec_emit_eob(const struct block *block,
