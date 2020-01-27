@@ -144,6 +144,7 @@ u32 lightrec_calculate_block_hash(const struct block *block)
 
 	code = map->address + pc;
 
+	/* Jenkins one-at-a-time hash algorithm */
 	for (i = 0; i < block->nb_ops; i++) {
 		hash += *code++;
 		hash += (hash << 10);
