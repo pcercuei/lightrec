@@ -42,7 +42,7 @@ struct block * lightrec_find_block(struct blockcache *cache, u32 pc)
 	return NULL;
 }
 
-static void remove_from_code_lut(struct blockcache *cache, struct block *block)
+void remove_from_code_lut(struct blockcache *cache, struct block *block)
 {
 	struct lightrec_state *state = block->state;
 	const struct opcode *op;
@@ -64,8 +64,6 @@ void lightrec_mark_for_recompilation(struct blockcache *cache,
 				     struct block *block)
 {
 	block->flags |= BLOCK_SHOULD_RECOMPILE;
-
-	remove_from_code_lut(cache, block);
 }
 
 void lightrec_register_block(struct blockcache *cache, struct block *block)
