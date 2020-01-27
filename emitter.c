@@ -338,15 +338,13 @@ static void rec_alu_shiftv(const struct block *block,
 	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rs);
 	temp = lightrec_alloc_reg_temp(reg_cache, _jit);
 
-	if (code == jit_code_rshr_u)
-		rt = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rt);
-	else
+	if (code == jit_code_rshr) {
 		rt = lightrec_alloc_reg_in_ext(reg_cache, _jit, op->r.rt);
-
-	if (code == jit_code_rshr)
 		rd = lightrec_alloc_reg_out_ext(reg_cache, _jit, op->r.rd);
-	else
+	} else {
+		rt = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rt);
 		rd = lightrec_alloc_reg_out(reg_cache, _jit, op->r.rd);
+	}
 
 	jit_andi(temp, rs, 0x1f);
 
@@ -555,15 +553,13 @@ static void rec_alu_shift(const struct block *block,
 
 	jit_note(__FILE__, __LINE__);
 
-	if (code == jit_code_rshi_u)
-		rt = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rt);
-	else
+	if (code == jit_code_rshi) {
 		rt = lightrec_alloc_reg_in_ext(reg_cache, _jit, op->r.rt);
-
-	if (code == jit_code_rshi)
 		rd = lightrec_alloc_reg_out_ext(reg_cache, _jit, op->r.rd);
-	else
+	} else {
+		rt = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rt);
 		rd = lightrec_alloc_reg_out(reg_cache, _jit, op->r.rd);
+	}
 
 #if __WORDSIZE == 64
 	if (code == jit_code_rshi_u) {
