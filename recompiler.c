@@ -16,6 +16,7 @@
 #include "interpreter.h"
 #include "lightrec-private.h"
 #include "memmanager.h"
+#include "slist.h"
 
 #include <errno.h>
 #include <stdatomic.h>
@@ -25,7 +26,7 @@
 
 struct block_rec {
 	struct block *block;
-	struct block_rec *next;
+	struct slist_elm slist;
 };
 
 struct recompiler {
@@ -35,31 +36,19 @@ struct recompiler {
 	pthread_mutex_t mutex;
 	bool stop;
 	struct block *current_block;
-	struct block_rec *list;
+	struct slist_elm slist;
 };
-
-static void slist_remove(struct recompiler *rec, struct block_rec *elm)
-{
-	struct block_rec *prev;
-
-	if (rec->list == elm) {
-		rec->list = elm->next;
-	} else {
-		for (prev = rec->list; prev && prev->next != elm; )
-			prev = prev->next;
-		if (prev)
-			prev->next = elm->next;
-	}
-}
 
 static void lightrec_compile_list(struct recompiler *rec)
 {
-	struct block_rec *next;
+	struct block_rec *block_rec;
+	struct slist_elm *next;
 	struct block *block;
 	int ret;
 
-	while (!!(next = rec->list)) {
-		block = next->block;
+	while (!!(next = slist_first(&rec->slist))) {
+		block_rec = container_of(next, struct block_rec, slist);
+		block = block_rec->block;
 		rec->current_block = block;
 
 		pthread_mutex_unlock(&rec->mutex);
@@ -72,9 +61,9 @@ static void lightrec_compile_list(struct recompiler *rec)
 
 		pthread_mutex_lock(&rec->mutex);
 
-		slist_remove(rec, next);
+		slist_remove(&rec->slist, next);
 		lightrec_free(rec->state, MEM_FOR_LIGHTREC,
-			      sizeof(*next), next);
+			      sizeof(*block_rec), block_rec);
 		pthread_cond_signal(&rec->cond);
 	}
 
@@ -96,7 +85,7 @@ static void * lightrec_recompiler_thd(void *d)
 				return NULL;
 			}
 
-		} while (!rec->list);
+		} while (slist_empty(&rec->slist));
 
 		lightrec_compile_list(rec);
 	}
@@ -116,7 +105,7 @@ struct recompiler *lightrec_recompiler_init(struct lightrec_state *state)
 	rec->state = state;
 	rec->stop = false;
 	rec->current_block = NULL;
-	rec->list = NULL;
+	slist_init(&rec->slist);
 
 	ret = pthread_cond_init(&rec->cond, NULL);
 	if (ret) {
@@ -164,7 +153,8 @@ void lightrec_free_recompiler(struct recompiler *rec)
 
 int lightrec_recompiler_add(struct recompiler *rec, struct block *block)
 {
-	struct block_rec *block_rec, *prev;
+	struct slist_elm *elm, *prev;
+	struct block_rec *block_rec;
 	int ret = 0;
 
 	pthread_mutex_lock(&rec->mutex);
@@ -174,15 +164,16 @@ int lightrec_recompiler_add(struct recompiler *rec, struct block *block)
 	if (block->flags & BLOCK_IS_DEAD)
 		goto out_unlock;
 
-	for (block_rec = rec->list, prev = NULL; block_rec;
-	     prev = block_rec, block_rec = block_rec->next) {
+	for (elm = slist_first(&rec->slist), prev = NULL; elm;
+	     prev = elm, elm = elm->next) {
+		block_rec = container_of(elm, struct block_rec, slist);
+
 		if (block_rec->block == block) {
 			/* The block to compile is already in the queue - bump
 			 * it to the top of the list */
 			if (prev) {
-				prev->next = block_rec->next;
-				block_rec->next = rec->list;
-				rec->list = block_rec;
+				slist_remove_next(prev);
+				slist_append(&rec->slist, elm);
 			}
 
 			goto out_unlock;
@@ -204,8 +195,7 @@ int lightrec_recompiler_add(struct recompiler *rec, struct block *block)
 	pr_debug("Adding block PC 0x%x to recompiler\n", block->pc);
 
 	block_rec->block = block;
-	block_rec->next = rec->list;
-	rec->list = block_rec;
+	slist_append(&rec->slist, &block_rec->slist);
 
 	/* Signal the thread */
 	pthread_cond_signal(&rec->cond);
@@ -218,10 +208,13 @@ out_unlock:
 void lightrec_recompiler_remove(struct recompiler *rec, struct block *block)
 {
 	struct block_rec *block_rec;
+	struct slist_elm *elm;
 
 	pthread_mutex_lock(&rec->mutex);
 
-	for (block_rec = rec->list; block_rec; block_rec = block_rec->next) {
+	for (elm = slist_first(&rec->slist); elm; elm = elm->next) {
+		block_rec = container_of(elm, struct block_rec, slist);
+
 		if (block_rec->block == block) {
 			if (block == rec->current_block) {
 				/* Block is being recompiled - wait for
@@ -233,7 +226,7 @@ void lightrec_recompiler_remove(struct recompiler *rec, struct block *block)
 			} else {
 				/* Block is not yet being processed - remove it
 				 * from the list */
-				slist_remove(rec, block_rec);
+				slist_remove(&rec->slist, elm);
 				lightrec_free(rec->state, MEM_FOR_LIGHTREC,
 					      sizeof(*block_rec), block_rec);
 			}
