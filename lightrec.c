@@ -20,6 +20,7 @@
 #include "interpreter.h"
 #include "lightrec.h"
 #include "memmanager.h"
+#include "reaper.h"
 #include "recompiler.h"
 #include "regcache.h"
 #include "optimizer.h"
@@ -977,6 +978,9 @@ u32 lightrec_execute(struct lightrec_state *state, u32 pc, u32 target_cycle)
 		state->current_cycle = state->target_cycle - cycles_delta;
 	}
 
+	if (ENABLE_THREADED_COMPILER)
+		lightrec_reaper_reap(state->reaper);
+
 	return state->next_pc;
 }
 
@@ -1052,6 +1056,10 @@ struct lightrec_state * lightrec_init(char *argv0,
 		state->rec = lightrec_recompiler_init(state);
 		if (!state->rec)
 			goto err_free_reg_cache;
+
+		state->reaper = lightrec_reaper_init(state);
+		if (!state->reaper)
+			goto err_free_recompiler;
 	}
 
 	state->nb_maps = nb;
@@ -1061,7 +1069,7 @@ struct lightrec_state * lightrec_init(char *argv0,
 
 	state->dispatcher = generate_dispatcher(state);
 	if (!state->dispatcher)
-		goto err_free_recompiler;
+		goto err_free_reaper;
 
 	state->rw_generic_wrapper = generate_wrapper(state,
 						     lightrec_rw_generic_cb,
@@ -1140,6 +1148,9 @@ err_free_generic_rw_wrapper:
 	lightrec_free_block(state->rw_generic_wrapper);
 err_free_dispatcher:
 	lightrec_free_block(state->dispatcher);
+err_free_reaper:
+	if (ENABLE_THREADED_COMPILER)
+		lightrec_reaper_destroy(state->reaper);
 err_free_recompiler:
 	if (ENABLE_THREADED_COMPILER)
 		lightrec_free_recompiler(state->rec);
@@ -1162,8 +1173,10 @@ err_finish_jit:
 
 void lightrec_destroy(struct lightrec_state *state)
 {
-	if (ENABLE_THREADED_COMPILER)
+	if (ENABLE_THREADED_COMPILER) {
 		lightrec_free_recompiler(state->rec);
+		lightrec_reaper_destroy(state->reaper);
+	}
 
 	lightrec_free_regcache(state->reg_cache);
 	lightrec_free_block_cache(state->block_cache);

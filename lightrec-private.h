@@ -67,6 +67,7 @@ struct recompiler;
 struct regcache;
 struct opcode;
 struct tinymm;
+struct reaper;
 
 struct block {
 	jit_state_t *_jit;
@@ -116,6 +117,7 @@ struct lightrec_state {
 	struct blockcache *block_cache;
 	struct regcache *reg_cache;
 	struct recompiler *rec;
+	struct reaper *reaper;
 	void (*eob_wrapper_func)(void);
 	void (*get_next_block)(void);
 	struct lightrec_ops ops;
