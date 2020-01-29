@@ -169,6 +169,11 @@ int lightrec_recompiler_add(struct recompiler *rec, struct block *block)
 
 	pthread_mutex_lock(&rec->mutex);
 
+	/* If the block is marked as dead, don't compile it, it will be removed
+	 * as soon as it's safe. */
+	if (block->flags & BLOCK_IS_DEAD)
+		goto out_unlock;
+
 	for (block_rec = rec->list, prev = NULL; block_rec;
 	     prev = block_rec, block_rec = block_rec->next) {
 		if (block_rec->block == block) {
