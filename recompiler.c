@@ -165,6 +165,7 @@ void lightrec_free_recompiler(struct recompiler *rec)
 int lightrec_recompiler_add(struct recompiler *rec, struct block *block)
 {
 	struct block_rec *block_rec, *prev;
+	int ret = 0;
 
 	pthread_mutex_lock(&rec->mutex);
 
@@ -179,23 +180,20 @@ int lightrec_recompiler_add(struct recompiler *rec, struct block *block)
 				rec->list = block_rec;
 			}
 
-			pthread_mutex_unlock(&rec->mutex);
-			return 0;
+			goto out_unlock;
 		}
 	}
 
 	/* By the time this function was called, the block has been recompiled
 	 * and ins't in the wait list anymore. Just return here. */
-	if (block->function) {
-		pthread_mutex_unlock(&rec->mutex);
-		return 0;
-	}
+	if (block->function)
+		goto out_unlock;
 
 	block_rec = lightrec_malloc(rec->state, MEM_FOR_LIGHTREC,
 				    sizeof(*block_rec));
 	if (!block_rec) {
-		pthread_mutex_unlock(&rec->mutex);
-		return -ENOMEM;
+		ret = -ENOMEM;
+		goto out_unlock;
 	}
 
 	pr_debug("Adding block PC 0x%x to recompiler\n", block->pc);
@@ -206,9 +204,10 @@ int lightrec_recompiler_add(struct recompiler *rec, struct block *block)
 
 	/* Signal the thread */
 	pthread_cond_signal(&rec->cond);
-	pthread_mutex_unlock(&rec->mutex);
 
-	return 0;
+out_unlock:
+	pthread_mutex_unlock(&rec->mutex);
+	return ret;
 }
 
 void lightrec_recompiler_remove(struct recompiler *rec, struct block *block)
