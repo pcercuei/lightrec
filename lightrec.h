@@ -16,6 +16,7 @@
 #define __LIGHTREC_H__
 
 #ifdef __cplusplus
+#define _Bool bool
 extern "C" {
 #endif
 
