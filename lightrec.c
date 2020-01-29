@@ -387,7 +387,8 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 		if (unlikely(!block))
 			return NULL;
 
-		should_recompile = block->flags & BLOCK_SHOULD_RECOMPILE;
+		should_recompile = block->flags & BLOCK_SHOULD_RECOMPILE &&
+			!(block->flags & BLOCK_IS_DEAD);
 
 		if (unlikely(should_recompile)) {
 			pr_debug("Block at PC 0x%08x should recompile"
