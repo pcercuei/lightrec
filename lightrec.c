@@ -392,19 +392,14 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 			!(block->flags & BLOCK_IS_DEAD);
 
 		if (unlikely(should_recompile)) {
-			pr_debug("Block at PC 0x%08x should recompile"
-				 " - freeing old code\n", pc);
+			pr_debug("Block at PC 0x%08x should recompile\n", pc);
+
+			lightrec_unregister(MEM_FOR_CODE, block->code_size);
 
 			if (ENABLE_THREADED_COMPILER)
-				lightrec_recompiler_remove(state->rec, block);
-
-			remove_from_code_lut(state->block_cache, block);
-			lightrec_unregister(MEM_FOR_CODE, block->code_size);
-			if (block->_jit)
-				_jit_destroy_state(block->_jit);
-			block->_jit = NULL;
-			block->function = NULL;
-			block->flags &= ~BLOCK_SHOULD_RECOMPILE;
+				lightrec_recompiler_add(state->rec, block);
+			else
+				lightrec_compile_block(block);
 		}
 
 		if (ENABLE_THREADED_COMPILER && likely(!should_recompile))
@@ -828,12 +823,17 @@ static bool lightrec_block_is_fully_tagged(struct block *block)
 	return true;
 }
 
+static void lightrec_reap_jit(void *data)
+{
+	_jit_destroy_state(data);
+}
+
 int lightrec_compile_block(struct block *block)
 {
 	struct lightrec_state *state = block->state;
 	bool op_list_freed = false, fully_tagged = false;
 	struct opcode *elm;
-	jit_state_t *_jit;
+	jit_state_t *_jit, *oldjit;
 	jit_node_t *start_of_block;
 	bool skip_next = false;
 	jit_word_t code_size;
@@ -848,6 +848,7 @@ int lightrec_compile_block(struct block *block)
 	if (!_jit)
 		return -ENOMEM;
 
+	oldjit = block->_jit;
 	block->_jit = _jit;
 
 	lightrec_regcache_reset(state->reg_cache);
@@ -925,6 +926,7 @@ int lightrec_compile_block(struct block *block)
 	jit_epilog();
 
 	block->function = jit_emit();
+	block->flags &= ~BLOCK_SHOULD_RECOMPILE;
 
 	/* Add compiled function to the LUT */
 	state->code_lut[lut_offset(block->pc)] = block->function;
@@ -950,6 +952,17 @@ int lightrec_compile_block(struct block *block)
 			 " - free opcode list\n", block->pc);
 		lightrec_free_opcode_list(state, block->opcode_list);
 		block->opcode_list = NULL;
+	}
+
+	if (oldjit) {
+		pr_debug("Block 0x%08x recompiled, reaping old jit context.\n",
+			 block->pc);
+
+		if (ENABLE_THREADED_COMPILER)
+			lightrec_reaper_add(state->reaper,
+					    lightrec_reap_jit, oldjit);
+		else
+			_jit_destroy_state(oldjit);
 	}
 
 	return 0;

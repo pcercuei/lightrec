@@ -183,7 +183,7 @@ int lightrec_recompiler_add(struct recompiler *rec, struct block *block)
 
 	/* By the time this function was called, the block has been recompiled
 	 * and ins't in the wait list anymore. Just return here. */
-	if (block->function)
+	if (block->function && !(block->flags & BLOCK_SHOULD_RECOMPILE))
 		goto out_unlock;
 
 	block_rec = lightrec_malloc(rec->state, MEM_FOR_LIGHTREC,
