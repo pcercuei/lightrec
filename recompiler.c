@@ -170,8 +170,9 @@ int lightrec_recompiler_add(struct recompiler *rec, struct block *block)
 
 		if (block_rec->block == block) {
 			/* The block to compile is already in the queue - bump
-			 * it to the top of the list */
-			if (prev) {
+			 * it to the top of the list, unless the block is being
+			 * recompiled. */
+			if (prev && !(block->flags & BLOCK_SHOULD_RECOMPILE)) {
 				slist_remove_next(prev);
 				slist_append(&rec->slist, elm);
 			}
@@ -195,7 +196,15 @@ int lightrec_recompiler_add(struct recompiler *rec, struct block *block)
 	pr_debug("Adding block PC 0x%x to recompiler\n", block->pc);
 
 	block_rec->block = block;
-	slist_append(&rec->slist, &block_rec->slist);
+
+	elm = &rec->slist;
+
+	/* If the block is being recompiled, push it to the end of the queue;
+	 * otherwise push it to the front of the queue. */
+	if (block->flags & BLOCK_SHOULD_RECOMPILE)
+		for (; elm->next; elm = elm->next);
+
+	slist_append(elm, &block_rec->slist);
 
 	/* Signal the thread */
 	pthread_cond_signal(&rec->cond);
