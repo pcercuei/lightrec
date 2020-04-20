@@ -247,7 +247,7 @@ static void lightrec_rw_generic_cb(struct lightrec_state *state,
 			 "tagged - flag for recompilation\n",
 			 block->pc, op->offset << 2);
 
-		lightrec_mark_for_recompilation(state->block_cache, block);
+		block->flags |= BLOCK_SHOULD_RECOMPILE;
 	}
 }
 

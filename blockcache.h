@@ -29,7 +29,4 @@ void lightrec_free_block_cache(struct blockcache *cache);
 u32 lightrec_calculate_block_hash(const struct block *block);
 _Bool lightrec_block_is_outdated(struct block *block);
 
-void lightrec_mark_for_recompilation(struct blockcache *cache,
-				     struct block *block);
-
 #endif /* __BLOCKCACHE_H__ */
