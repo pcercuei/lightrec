@@ -53,7 +53,7 @@ static void __segfault_cb(struct lightrec_state *state, u32 addr)
 
 static void lightrec_swl(struct lightrec_state *state,
 			 const struct lightrec_mem_map_ops *ops,
-			 u32 addr, u32 data)
+			 void *host, u32 addr, u32 data)
 {
 	unsigned int shift = addr & 0x3;
 	unsigned int mask = UINT_MAX << ((shift + 1) * 8);
@@ -61,17 +61,18 @@ static void lightrec_swl(struct lightrec_state *state,
 
 	/* Align to 32 bits */
 	addr &= ~3;
+	host = (void *)((uintptr_t)host & ~3);
 
-	old_data = ops->lw(state, addr);
+	old_data = ops->lw(state, host, addr);
 
 	data = (data >> ((3 - shift) * 8)) | (old_data & mask);
 
-	ops->sw(state, addr, data);
+	ops->sw(state, host, addr, data);
 }
 
 static void lightrec_swr(struct lightrec_state *state,
 			 const struct lightrec_mem_map_ops *ops,
-			 u32 addr, u32 data)
+			 void *host, u32 addr, u32 data)
 {
 	unsigned int shift = addr & 0x3;
 	unsigned int mask = (1 << (shift * 8)) - 1;
@@ -79,66 +80,70 @@ static void lightrec_swr(struct lightrec_state *state,
 
 	/* Align to 32 bits */
 	addr &= ~3;
+	host = (void *)((uintptr_t)host & ~3);
 
-	old_data = ops->lw(state, addr);
+	old_data = ops->lw(state, host, addr);
 
 	data = (data << (shift * 8)) | (old_data & mask);
 
-	ops->sw(state, addr, data);
+	ops->sw(state, host, addr, data);
 }
 
 static void lightrec_swc2(struct lightrec_state *state, union code op,
-			  const struct lightrec_mem_map_ops *ops, u32 addr)
+			  const struct lightrec_mem_map_ops *ops,
+			  void *host, u32 addr)
 {
 	u32 data = state->ops.cop2_ops.mfc(state, op.i.rt);
 
-	ops->sw(state, addr, data);
+	ops->sw(state, host, addr, data);
 }
 
 static void lightrec_lwc2(struct lightrec_state *state, union code op,
-			  const struct lightrec_mem_map_ops *ops, u32 addr)
+			  const struct lightrec_mem_map_ops *ops,
+			  void *host, u32 addr)
 {
-	u32 data = ops->lw(state, addr);
+	u32 data = ops->lw(state, host, addr);
 
 	state->ops.cop2_ops.mtc(state, op.i.rt, data);
 }
 
 static u32 lightrec_rw_ops(struct lightrec_state *state, union code op,
-		const struct lightrec_mem_map_ops *ops, u32 addr, u32 data)
+			   const struct lightrec_mem_map_ops *ops,
+			   void *host, u32 addr, u32 data)
 {
 	switch (op.i.op) {
 	case OP_SB:
-		ops->sb(state, addr, (u8) data);
+		ops->sb(state, host, addr, (u8) data);
 		return 0;
 	case OP_SH:
-		ops->sh(state, addr, (u16) data);
+		ops->sh(state, host, addr, (u16) data);
 		return 0;
 	case OP_SWL:
-		lightrec_swl(state, ops, addr, data);
+		lightrec_swl(state, ops, host, addr, data);
 		return 0;
 	case OP_SWR:
-		lightrec_swr(state, ops, addr, data);
+		lightrec_swr(state, ops, host, addr, data);
 		return 0;
 	case OP_SW:
-		ops->sw(state, addr, data);
+		ops->sw(state, host, addr, data);
 		return 0;
 	case OP_SWC2:
-		lightrec_swc2(state, op, ops, addr);
+		lightrec_swc2(state, op, ops, host, addr);
 		return 0;
 	case OP_LB:
-		return (s32) (s8) ops->lb(state, addr);
+		return (s32) (s8) ops->lb(state, host, addr);
 	case OP_LBU:
-		return ops->lb(state, addr);
+		return ops->lb(state, host, addr);
 	case OP_LH:
-		return (s32) (s16) ops->lh(state, addr);
+		return (s32) (s16) ops->lh(state, host, addr);
 	case OP_LHU:
-		return ops->lh(state, addr);
+		return ops->lh(state, host, addr);
 	case OP_LWC2:
-		lightrec_lwc2(state, op, ops, addr);
+		lightrec_lwc2(state, op, ops, host, addr);
 		return 0;
 	case OP_LW:
 	default:
-		return ops->lw(state, addr);
+		return ops->lw(state, host, addr);
 	}
 }
 
@@ -171,6 +176,7 @@ u32 lightrec_rw(struct lightrec_state *state, union code op,
 	u32 shift, mem_data, mask, pc;
 	uintptr_t new_addr;
 	u32 kaddr;
+	void *host;
 
 	addr += (s16) op.i.imm;
 	kaddr = kunseg(addr);
@@ -186,11 +192,13 @@ u32 lightrec_rw(struct lightrec_state *state, union code op,
 	while (map->mirror_of)
 		map = map->mirror_of;
 
+	host = (void *)((uintptr_t)map->address + kaddr - pc);
+
 	if (unlikely(map->ops)) {
 		if (flags)
 			*flags |= LIGHTREC_HW_IO;
 
-		return lightrec_rw_ops(state, op, map->ops, addr, data);
+		return lightrec_rw_ops(state, op, map->ops, host, addr, data);
 	}
 
 	if (flags)

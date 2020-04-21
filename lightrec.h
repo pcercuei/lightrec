@@ -78,12 +78,12 @@ enum mem_type {
 };
 
 struct lightrec_mem_map_ops {
-	void (*sb)(struct lightrec_state *, u32 addr, u8 data);
-	void (*sh)(struct lightrec_state *, u32 addr, u16 data);
-	void (*sw)(struct lightrec_state *, u32 addr, u32 data);
-	u8 (*lb)(struct lightrec_state *, u32 addr);
-	u16 (*lh)(struct lightrec_state *, u32 addr);
-	u32 (*lw)(struct lightrec_state *, u32 addr);
+	void (*sb)(struct lightrec_state *, void *host, u32 addr, u8 data);
+	void (*sh)(struct lightrec_state *, void *host, u32 addr, u16 data);
+	void (*sw)(struct lightrec_state *, void *host, u32 addr, u32 data);
+	u8 (*lb)(struct lightrec_state *, void *host, u32 addr);
+	u16 (*lh)(struct lightrec_state *, void *host, u32 addr);
+	u32 (*lw)(struct lightrec_state *, void *host, u32 addr);
 };
 
 struct lightrec_mem_map {
