@@ -121,15 +121,15 @@ u32 lightrec_rw(struct lightrec_state *state, union code op,
 
 	pc = map->pc;
 
+	while (map->mirror_of)
+		map = map->mirror_of;
+
 	if (unlikely(map->ops)) {
 		if (flags)
 			*flags |= LIGHTREC_HW_IO;
 
 		return lightrec_rw_ops(state, op, map->ops, addr, data);
 	}
-
-	while (map->mirror_of)
-		map = map->mirror_of;
 
 	if (flags)
 		*flags |= LIGHTREC_DIRECT_IO;
