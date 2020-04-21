@@ -44,6 +44,51 @@
 static struct block * lightrec_precompile_block(struct lightrec_state *state,
 						u32 pc);
 
+static void lightrec_default_sb(struct lightrec_state *state, void *host,
+				u32 addr, u8 data)
+{
+	*(u8 *)host = data;
+}
+
+static void lightrec_default_sh(struct lightrec_state *state, void *host,
+				u32 addr, u16 data)
+{
+	*(u16 *)host = HTOLE16(data);
+}
+
+static void lightrec_default_sw(struct lightrec_state *state, void *host,
+				u32 addr, u32 data)
+{
+	*(u32 *)host = HTOLE32(data);
+}
+
+static u8 lightrec_default_lb(struct lightrec_state *state,
+			      void *host, u32 addr)
+{
+	return *(u8 *)host;
+}
+
+static u16 lightrec_default_lh(struct lightrec_state *state,
+			       void *host, u32 addr)
+{
+	return LE16TOH(*(u16 *)host);
+}
+
+static u32 lightrec_default_lw(struct lightrec_state *state,
+			       void *host, u32 addr)
+{
+	return LE32TOH(*(u32 *)host);
+}
+
+static const struct lightrec_mem_map_ops lightrec_default_ops = {
+	.sb = lightrec_default_sb,
+	.sh = lightrec_default_sh,
+	.sw = lightrec_default_sw,
+	.lb = lightrec_default_lb,
+	.lh = lightrec_default_lh,
+	.lw = lightrec_default_lw,
+};
+
 static void __segfault_cb(struct lightrec_state *state, u32 addr)
 {
 	lightrec_set_exit_flags(state, LIGHTREC_EXIT_SEGFAULT);
@@ -173,9 +218,8 @@ u32 lightrec_rw(struct lightrec_state *state, union code op,
 		u32 addr, u32 data, u16 *flags)
 {
 	const struct lightrec_mem_map *map;
-	u32 shift, mem_data, mask, pc;
-	uintptr_t new_addr;
-	u32 kaddr;
+	const struct lightrec_mem_map_ops *ops;
+	u32 kaddr, pc;
 	void *host;
 
 	addr += (s16) op.i.imm;
@@ -198,85 +242,15 @@ u32 lightrec_rw(struct lightrec_state *state, union code op,
 		if (flags)
 			*flags |= LIGHTREC_HW_IO;
 
-		return lightrec_rw_ops(state, op, map->ops, host, addr, data);
+		ops = map->ops;
+	} else {
+		if (flags)
+			*flags |= LIGHTREC_DIRECT_IO;
+
+		ops = &lightrec_default_ops;
 	}
 
-	if (flags)
-		*flags |= LIGHTREC_DIRECT_IO;
-
-	kaddr -= pc;
-	new_addr = (uintptr_t) map->address + kaddr;
-
-	switch (op.i.op) {
-	case OP_SB:
-		*(u8 *) new_addr = (u8) data;
-		if (!state->invalidate_from_dma_only)
-			lightrec_invalidate_map(state, map, kaddr);
-		return 0;
-	case OP_SH:
-		*(u16 *) new_addr = HTOLE16((u16) data);
-		if (!state->invalidate_from_dma_only)
-			lightrec_invalidate_map(state, map, kaddr);
-		return 0;
-	case OP_SWL:
-		shift = kaddr & 3;
-		mem_data = LE32TOH(*(u32 *)(new_addr & ~3));
-		mask = GENMASK(31, (shift + 1) * 8);
-
-		*(u32 *)(new_addr & ~3) = HTOLE32((data >> ((3 - shift) * 8))
-						  | (mem_data & mask));
-		if (!state->invalidate_from_dma_only)
-			lightrec_invalidate_map(state, map, kaddr & ~0x3);
-		return 0;
-	case OP_SWR:
-		shift = kaddr & 3;
-		mem_data = LE32TOH(*(u32 *)(new_addr & ~3));
-		mask = (1 << (shift * 8)) - 1;
-
-		*(u32 *)(new_addr & ~3) = HTOLE32((data << (shift * 8))
-						  | (mem_data & mask));
-		if (!state->invalidate_from_dma_only)
-			lightrec_invalidate_map(state, map, kaddr & ~0x3);
-		return 0;
-	case OP_SW:
-		*(u32 *) new_addr = HTOLE32(data);
-		if (!state->invalidate_from_dma_only)
-			lightrec_invalidate_map(state, map, kaddr);
-		return 0;
-	case OP_SWC2:
-		*(u32 *) new_addr = HTOLE32(state->ops.cop2_ops.mfc(state,
-								    op.i.rt));
-		if (!state->invalidate_from_dma_only)
-			lightrec_invalidate_map(state, map, kaddr);
-		return 0;
-	case OP_LB:
-		return (s32) *(s8 *) new_addr;
-	case OP_LBU:
-		return *(u8 *) new_addr;
-	case OP_LH:
-		return (s32)(s16) LE16TOH(*(u16 *) new_addr);
-	case OP_LHU:
-		return LE16TOH(*(u16 *) new_addr);
-	case OP_LWL:
-		shift = kaddr & 3;
-		mem_data = LE32TOH(*(u32 *)(new_addr & ~3));
-		mask = (1 << (24 - shift * 8)) - 1;
-
-		return (data & mask) | (mem_data << (24 - shift * 8));
-	case OP_LWR:
-		shift = kaddr & 3;
-		mem_data = LE32TOH(*(u32 *)(new_addr & ~3));
-		mask = GENMASK(31, 32 - shift * 8);
-
-		return (data & mask) | (mem_data >> (shift * 8));
-	case OP_LWC2:
-		state->ops.cop2_ops.mtc(state, op.i.rt,
-					LE32TOH(*(u32 *) new_addr));
-		return 0;
-	case OP_LW:
-	default:
-		return LE32TOH(*(u32 *) new_addr);
-	}
+	return lightrec_rw_ops(state, op, ops, host, addr, data);
 }
 
 static void lightrec_rw_helper(struct lightrec_state *state,
