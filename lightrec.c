@@ -51,6 +51,58 @@ static void __segfault_cb(struct lightrec_state *state, u32 addr)
 	       "load/store at address 0x%08x\n", addr);
 }
 
+static void lightrec_swl(struct lightrec_state *state,
+			 const struct lightrec_mem_map_ops *ops,
+			 u32 addr, u32 data)
+{
+	unsigned int shift = addr & 0x3;
+	unsigned int mask = UINT_MAX << ((shift + 1) * 8);
+	u32 old_data;
+
+	/* Align to 32 bits */
+	addr &= ~3;
+
+	old_data = ops->lw(state, addr);
+
+	data = (data >> ((3 - shift) * 8)) | (old_data & mask);
+
+	ops->sw(state, addr, data);
+}
+
+static void lightrec_swr(struct lightrec_state *state,
+			 const struct lightrec_mem_map_ops *ops,
+			 u32 addr, u32 data)
+{
+	unsigned int shift = addr & 0x3;
+	unsigned int mask = (1 << (shift * 8)) - 1;
+	u32 old_data;
+
+	/* Align to 32 bits */
+	addr &= ~3;
+
+	old_data = ops->lw(state, addr);
+
+	data = (data << (shift * 8)) | (old_data & mask);
+
+	ops->sw(state, addr, data);
+}
+
+static void lightrec_swc2(struct lightrec_state *state, union code op,
+			  const struct lightrec_mem_map_ops *ops, u32 addr)
+{
+	u32 data = state->ops.cop2_ops.mfc(state, op.i.rt);
+
+	ops->sw(state, addr, data);
+}
+
+static void lightrec_lwc2(struct lightrec_state *state, union code op,
+			  const struct lightrec_mem_map_ops *ops, u32 addr)
+{
+	u32 data = ops->lw(state, addr);
+
+	state->ops.cop2_ops.mtc(state, op.i.rt, data);
+}
+
 static u32 lightrec_rw_ops(struct lightrec_state *state, union code op,
 		const struct lightrec_mem_map_ops *ops, u32 addr, u32 data)
 {
@@ -62,9 +114,16 @@ static u32 lightrec_rw_ops(struct lightrec_state *state, union code op,
 		ops->sh(state, addr, (u16) data);
 		return 0;
 	case OP_SWL:
+		lightrec_swl(state, ops, addr, data);
+		return 0;
 	case OP_SWR:
+		lightrec_swr(state, ops, addr, data);
+		return 0;
 	case OP_SW:
 		ops->sw(state, addr, data);
+		return 0;
+	case OP_SWC2:
+		lightrec_swc2(state, op, ops, addr);
 		return 0;
 	case OP_LB:
 		return (s32) (s8) ops->lb(state, addr);
@@ -74,6 +133,9 @@ static u32 lightrec_rw_ops(struct lightrec_state *state, union code op,
 		return (s32) (s16) ops->lh(state, addr);
 	case OP_LHU:
 		return ops->lh(state, addr);
+	case OP_LWC2:
+		lightrec_lwc2(state, op, ops, addr);
+		return 0;
 	case OP_LW:
 	default:
 		return ops->lw(state, addr);
