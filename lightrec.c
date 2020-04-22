@@ -143,6 +143,40 @@ static void lightrec_swc2(struct lightrec_state *state, union code op,
 	ops->sw(state, opcode, host, addr, data);
 }
 
+static u32 lightrec_lwl(struct lightrec_state *state,
+			const struct lightrec_mem_map_ops *ops,
+			u32 opcode, void *host, u32 addr, u32 data)
+{
+	unsigned int shift = addr & 0x3;
+	unsigned int mask = (1 << (24 - shift * 8)) - 1;
+	u32 old_data;
+
+	/* Align to 32 bits */
+	addr &= ~3;
+	host = (void *)((uintptr_t)host & ~3);
+
+	old_data = ops->lw(state, opcode, host, addr);
+
+	return (data & mask) | (old_data << (24 - shift * 8));
+}
+
+static u32 lightrec_lwr(struct lightrec_state *state,
+			const struct lightrec_mem_map_ops *ops,
+			u32 opcode, void *host, u32 addr, u32 data)
+{
+	unsigned int shift = addr & 0x3;
+	unsigned int mask = UINT_MAX << (32 - shift * 8);
+	u32 old_data;
+
+	/* Align to 32 bits */
+	addr &= ~3;
+	host = (void *)((uintptr_t)host & ~3);
+
+	old_data = ops->lw(state, opcode, host, addr);
+
+	return (data & mask) | (old_data >> (shift * 8));
+}
+
 static void lightrec_lwc2(struct lightrec_state *state, union code op,
 			  const struct lightrec_mem_map_ops *ops,
 			  u32 opcode, void *host, u32 addr)
@@ -240,6 +274,10 @@ u32 lightrec_rw(struct lightrec_state *state, union code op,
 	case OP_LWC2:
 		lightrec_lwc2(state, op, ops, opcode, host, addr);
 		return 0;
+	case OP_LWL:
+		return lightrec_lwl(state, ops, opcode, host, addr, data);
+	case OP_LWR:
+		return lightrec_lwr(state, ops, opcode, host, addr, data);
 	case OP_LW:
 	default:
 		return ops->lw(state, opcode, host, addr);
