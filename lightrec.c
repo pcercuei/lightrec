@@ -48,18 +48,27 @@ static void lightrec_default_sb(struct lightrec_state *state, u32 opcode,
 				void *host, u32 addr, u8 data)
 {
 	*(u8 *)host = data;
+
+	if (!state->invalidate_from_dma_only)
+		lightrec_invalidate(state, addr, 1);
 }
 
 static void lightrec_default_sh(struct lightrec_state *state, u32 opcode,
 				void *host, u32 addr, u16 data)
 {
 	*(u16 *)host = HTOLE16(data);
+
+	if (!state->invalidate_from_dma_only)
+		lightrec_invalidate(state, addr, 2);
 }
 
 static void lightrec_default_sw(struct lightrec_state *state, u32 opcode,
 				void *host, u32 addr, u32 data)
 {
 	*(u32 *)host = HTOLE32(data);
+
+	if (!state->invalidate_from_dma_only)
+		lightrec_invalidate(state, addr, 4);
 }
 
 static u8 lightrec_default_lb(struct lightrec_state *state,
