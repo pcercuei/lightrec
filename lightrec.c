@@ -152,46 +152,6 @@ static void lightrec_lwc2(struct lightrec_state *state, union code op,
 	state->ops.cop2_ops.mtc(state, op.i.rt, data);
 }
 
-static u32 lightrec_rw_ops(struct lightrec_state *state, union code op,
-			   const struct lightrec_mem_map_ops *ops,
-			   void *host, u32 addr, u32 data)
-{
-	switch (op.i.op) {
-	case OP_SB:
-		ops->sb(state, host, addr, (u8) data);
-		return 0;
-	case OP_SH:
-		ops->sh(state, host, addr, (u16) data);
-		return 0;
-	case OP_SWL:
-		lightrec_swl(state, ops, host, addr, data);
-		return 0;
-	case OP_SWR:
-		lightrec_swr(state, ops, host, addr, data);
-		return 0;
-	case OP_SW:
-		ops->sw(state, host, addr, data);
-		return 0;
-	case OP_SWC2:
-		lightrec_swc2(state, op, ops, host, addr);
-		return 0;
-	case OP_LB:
-		return (s32) (s8) ops->lb(state, host, addr);
-	case OP_LBU:
-		return ops->lb(state, host, addr);
-	case OP_LH:
-		return (s32) (s16) ops->lh(state, host, addr);
-	case OP_LHU:
-		return ops->lh(state, host, addr);
-	case OP_LWC2:
-		lightrec_lwc2(state, op, ops, host, addr);
-		return 0;
-	case OP_LW:
-	default:
-		return ops->lw(state, host, addr);
-	}
-}
-
 static void lightrec_invalidate_map(struct lightrec_state *state,
 		const struct lightrec_mem_map *map, u32 addr)
 {
@@ -250,7 +210,40 @@ u32 lightrec_rw(struct lightrec_state *state, union code op,
 		ops = &lightrec_default_ops;
 	}
 
-	return lightrec_rw_ops(state, op, ops, host, addr, data);
+	switch (op.i.op) {
+	case OP_SB:
+		ops->sb(state, host, addr, (u8) data);
+		return 0;
+	case OP_SH:
+		ops->sh(state, host, addr, (u16) data);
+		return 0;
+	case OP_SWL:
+		lightrec_swl(state, ops, host, addr, data);
+		return 0;
+	case OP_SWR:
+		lightrec_swr(state, ops, host, addr, data);
+		return 0;
+	case OP_SW:
+		ops->sw(state, host, addr, data);
+		return 0;
+	case OP_SWC2:
+		lightrec_swc2(state, op, ops, host, addr);
+		return 0;
+	case OP_LB:
+		return (s32) (s8) ops->lb(state, host, addr);
+	case OP_LBU:
+		return ops->lb(state, host, addr);
+	case OP_LH:
+		return (s32) (s16) ops->lh(state, host, addr);
+	case OP_LHU:
+		return ops->lh(state, host, addr);
+	case OP_LWC2:
+		lightrec_lwc2(state, op, ops, host, addr);
+		return 0;
+	case OP_LW:
+	default:
+		return ops->lw(state, host, addr);
+	}
 }
 
 static void lightrec_rw_helper(struct lightrec_state *state,
