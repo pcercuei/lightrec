@@ -145,11 +145,11 @@ static void lightrec_swr(struct lightrec_state *state,
 
 static void lightrec_swc2(struct lightrec_state *state, union code op,
 			  const struct lightrec_mem_map_ops *ops,
-			  u32 opcode, void *host, u32 addr)
+			  void *host, u32 addr)
 {
 	u32 data = state->ops.cop2_ops.mfc(state, op.i.rt);
 
-	ops->sw(state, opcode, host, addr, data);
+	ops->sw(state, op.opcode, host, addr, data);
 }
 
 static u32 lightrec_lwl(struct lightrec_state *state,
@@ -188,9 +188,9 @@ static u32 lightrec_lwr(struct lightrec_state *state,
 
 static void lightrec_lwc2(struct lightrec_state *state, union code op,
 			  const struct lightrec_mem_map_ops *ops,
-			  u32 opcode, void *host, u32 addr)
+			  void *host, u32 addr)
 {
-	u32 data = ops->lw(state, opcode, host, addr);
+	u32 data = ops->lw(state, op.opcode, host, addr);
 
 	state->ops.cop2_ops.mtc(state, op.i.rt, data);
 }
@@ -270,7 +270,7 @@ u32 lightrec_rw(struct lightrec_state *state, union code op,
 		ops->sw(state, opcode, host, addr, data);
 		return 0;
 	case OP_SWC2:
-		lightrec_swc2(state, op, ops, opcode, host, addr);
+		lightrec_swc2(state, op, ops, host, addr);
 		return 0;
 	case OP_LB:
 		return (s32) (s8) ops->lb(state, opcode, host, addr);
@@ -281,7 +281,7 @@ u32 lightrec_rw(struct lightrec_state *state, union code op,
 	case OP_LHU:
 		return ops->lh(state, opcode, host, addr);
 	case OP_LWC2:
-		lightrec_lwc2(state, op, ops, opcode, host, addr);
+		lightrec_lwc2(state, op, ops, host, addr);
 		return 0;
 	case OP_LWL:
 		return lightrec_lwl(state, ops, opcode, host, addr, data);
