@@ -44,38 +44,38 @@
 static struct block * lightrec_precompile_block(struct lightrec_state *state,
 						u32 pc);
 
-static void lightrec_default_sb(struct lightrec_state *state, void *host,
-				u32 addr, u8 data)
+static void lightrec_default_sb(struct lightrec_state *state, u32 opcode,
+				void *host, u32 addr, u8 data)
 {
 	*(u8 *)host = data;
 }
 
-static void lightrec_default_sh(struct lightrec_state *state, void *host,
-				u32 addr, u16 data)
+static void lightrec_default_sh(struct lightrec_state *state, u32 opcode,
+				void *host, u32 addr, u16 data)
 {
 	*(u16 *)host = HTOLE16(data);
 }
 
-static void lightrec_default_sw(struct lightrec_state *state, void *host,
-				u32 addr, u32 data)
+static void lightrec_default_sw(struct lightrec_state *state, u32 opcode,
+				void *host, u32 addr, u32 data)
 {
 	*(u32 *)host = HTOLE32(data);
 }
 
 static u8 lightrec_default_lb(struct lightrec_state *state,
-			      void *host, u32 addr)
+			      u32 opcode, void *host, u32 addr)
 {
 	return *(u8 *)host;
 }
 
 static u16 lightrec_default_lh(struct lightrec_state *state,
-			       void *host, u32 addr)
+			       u32 opcode, void *host, u32 addr)
 {
 	return LE16TOH(*(u16 *)host);
 }
 
 static u32 lightrec_default_lw(struct lightrec_state *state,
-			       void *host, u32 addr)
+			       u32 opcode, void *host, u32 addr)
 {
 	return LE32TOH(*(u32 *)host);
 }
@@ -98,7 +98,7 @@ static void __segfault_cb(struct lightrec_state *state, u32 addr)
 
 static void lightrec_swl(struct lightrec_state *state,
 			 const struct lightrec_mem_map_ops *ops,
-			 void *host, u32 addr, u32 data)
+			 u32 opcode, void *host, u32 addr, u32 data)
 {
 	unsigned int shift = addr & 0x3;
 	unsigned int mask = UINT_MAX << ((shift + 1) * 8);
@@ -108,16 +108,16 @@ static void lightrec_swl(struct lightrec_state *state,
 	addr &= ~3;
 	host = (void *)((uintptr_t)host & ~3);
 
-	old_data = ops->lw(state, host, addr);
+	old_data = ops->lw(state, opcode, host, addr);
 
 	data = (data >> ((3 - shift) * 8)) | (old_data & mask);
 
-	ops->sw(state, host, addr, data);
+	ops->sw(state, opcode, host, addr, data);
 }
 
 static void lightrec_swr(struct lightrec_state *state,
 			 const struct lightrec_mem_map_ops *ops,
-			 void *host, u32 addr, u32 data)
+			 u32 opcode, void *host, u32 addr, u32 data)
 {
 	unsigned int shift = addr & 0x3;
 	unsigned int mask = (1 << (shift * 8)) - 1;
@@ -127,27 +127,27 @@ static void lightrec_swr(struct lightrec_state *state,
 	addr &= ~3;
 	host = (void *)((uintptr_t)host & ~3);
 
-	old_data = ops->lw(state, host, addr);
+	old_data = ops->lw(state, opcode, host, addr);
 
 	data = (data << (shift * 8)) | (old_data & mask);
 
-	ops->sw(state, host, addr, data);
+	ops->sw(state, opcode, host, addr, data);
 }
 
 static void lightrec_swc2(struct lightrec_state *state, union code op,
 			  const struct lightrec_mem_map_ops *ops,
-			  void *host, u32 addr)
+			  u32 opcode, void *host, u32 addr)
 {
 	u32 data = state->ops.cop2_ops.mfc(state, op.i.rt);
 
-	ops->sw(state, host, addr, data);
+	ops->sw(state, opcode, host, addr, data);
 }
 
 static void lightrec_lwc2(struct lightrec_state *state, union code op,
 			  const struct lightrec_mem_map_ops *ops,
-			  void *host, u32 addr)
+			  u32 opcode, void *host, u32 addr)
 {
-	u32 data = ops->lw(state, host, addr);
+	u32 data = ops->lw(state, opcode, host, addr);
 
 	state->ops.cop2_ops.mtc(state, op.i.rt, data);
 }
@@ -179,7 +179,7 @@ u32 lightrec_rw(struct lightrec_state *state, union code op,
 {
 	const struct lightrec_mem_map *map;
 	const struct lightrec_mem_map_ops *ops;
-	u32 kaddr, pc;
+	u32 kaddr, pc, opcode = op.opcode;
 	void *host;
 
 	addr += (s16) op.i.imm;
@@ -212,37 +212,37 @@ u32 lightrec_rw(struct lightrec_state *state, union code op,
 
 	switch (op.i.op) {
 	case OP_SB:
-		ops->sb(state, host, addr, (u8) data);
+		ops->sb(state, opcode, host, addr, (u8) data);
 		return 0;
 	case OP_SH:
-		ops->sh(state, host, addr, (u16) data);
+		ops->sh(state, opcode, host, addr, (u16) data);
 		return 0;
 	case OP_SWL:
-		lightrec_swl(state, ops, host, addr, data);
+		lightrec_swl(state, ops, opcode, host, addr, data);
 		return 0;
 	case OP_SWR:
-		lightrec_swr(state, ops, host, addr, data);
+		lightrec_swr(state, ops, opcode, host, addr, data);
 		return 0;
 	case OP_SW:
-		ops->sw(state, host, addr, data);
+		ops->sw(state, opcode, host, addr, data);
 		return 0;
 	case OP_SWC2:
-		lightrec_swc2(state, op, ops, host, addr);
+		lightrec_swc2(state, op, ops, opcode, host, addr);
 		return 0;
 	case OP_LB:
-		return (s32) (s8) ops->lb(state, host, addr);
+		return (s32) (s8) ops->lb(state, opcode, host, addr);
 	case OP_LBU:
-		return ops->lb(state, host, addr);
+		return ops->lb(state, opcode, host, addr);
 	case OP_LH:
-		return (s32) (s16) ops->lh(state, host, addr);
+		return (s32) (s16) ops->lh(state, opcode, host, addr);
 	case OP_LHU:
-		return ops->lh(state, host, addr);
+		return ops->lh(state, opcode, host, addr);
 	case OP_LWC2:
-		lightrec_lwc2(state, op, ops, host, addr);
+		lightrec_lwc2(state, op, ops, opcode, host, addr);
 		return 0;
 	case OP_LW:
 	default:
-		return ops->lw(state, host, addr);
+		return ops->lw(state, opcode, host, addr);
 	}
 }
 
