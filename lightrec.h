@@ -98,11 +98,11 @@ struct lightrec_mem_map {
 };
 
 struct lightrec_cop_ops {
-	u32 (*mfc)(struct lightrec_state *state, u8 reg);
-	u32 (*cfc)(struct lightrec_state *state, u8 reg);
-	void (*mtc)(struct lightrec_state *state, u8 reg, u32 value);
-	void (*ctc)(struct lightrec_state *state, u8 reg, u32 value);
-	void (*op)(struct lightrec_state *state, u32 opcode);
+	u32 (*mfc)(struct lightrec_state *state, u32 op, u8 reg);
+	u32 (*cfc)(struct lightrec_state *state, u32 op, u8 reg);
+	void (*mtc)(struct lightrec_state *state, u32 op, u8 reg, u32 value);
+	void (*ctc)(struct lightrec_state *state, u32 op, u8 reg, u32 value);
+	void (*op)(struct lightrec_state *state, u32 op);
 };
 
 struct lightrec_ops {

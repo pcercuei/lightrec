@@ -147,7 +147,7 @@ static void lightrec_swc2(struct lightrec_state *state, union code op,
 			  const struct lightrec_mem_map_ops *ops,
 			  void *host, u32 addr)
 {
-	u32 data = state->ops.cop2_ops.mfc(state, op.i.rt);
+	u32 data = state->ops.cop2_ops.mfc(state, op.opcode, op.i.rt);
 
 	ops->sw(state, op.opcode, host, addr, data);
 }
@@ -192,7 +192,7 @@ static void lightrec_lwc2(struct lightrec_state *state, union code op,
 {
 	u32 data = ops->lw(state, op.opcode, host, addr);
 
-	state->ops.cop2_ops.mtc(state, op.i.rt, data);
+	state->ops.cop2_ops.mtc(state, op.opcode, op.i.rt, data);
 }
 
 static void lightrec_invalidate_map(struct lightrec_state *state,
@@ -340,7 +340,7 @@ u32 lightrec_mfc(struct lightrec_state *state, union code op)
 {
 	bool is_cfc = (op.i.op == OP_CP0 && op.r.rs == OP_CP0_CFC0) ||
 		      (op.i.op == OP_CP2 && op.r.rs == OP_CP2_BASIC_CFC2);
-	u32 (*func)(struct lightrec_state *, u8);
+	u32 (*func)(struct lightrec_state *, u32, u8);
 	const struct lightrec_cop_ops *ops;
 
 	if (op.i.op == OP_CP0)
@@ -353,7 +353,7 @@ u32 lightrec_mfc(struct lightrec_state *state, union code op)
 	else
 		func = ops->mfc;
 
-	return (*func)(state, op.r.rd);
+	return (*func)(state, op.opcode, op.r.rd);
 }
 
 static void lightrec_mfc_cb(struct lightrec_state *state, union code op)
@@ -368,7 +368,7 @@ void lightrec_mtc(struct lightrec_state *state, union code op, u32 data)
 {
 	bool is_ctc = (op.i.op == OP_CP0 && op.r.rs == OP_CP0_CTC0) ||
 		      (op.i.op == OP_CP2 && op.r.rs == OP_CP2_BASIC_CTC2);
-	void (*func)(struct lightrec_state *, u8, u32);
+	void (*func)(struct lightrec_state *, u32, u8, u32);
 	const struct lightrec_cop_ops *ops;
 
 	if (op.i.op == OP_CP0)
@@ -381,7 +381,7 @@ void lightrec_mtc(struct lightrec_state *state, union code op, u32 data)
 	else
 		func = ops->mtc;
 
-	(*func)(state, op.r.rd, data);
+	(*func)(state, op.opcode, op.r.rd, data);
 }
 
 static void lightrec_mtc_cb(struct lightrec_state *state, union code op)
@@ -394,13 +394,13 @@ static void lightrec_rfe_cb(struct lightrec_state *state, union code op)
 	u32 status;
 
 	/* Read CP0 Status register (r12) */
-	status = state->ops.cop0_ops.mfc(state, 12);
+	status = state->ops.cop0_ops.mfc(state, op.opcode, 12);
 
 	/* Switch the bits */
 	status = ((status & 0x3c) >> 2) | (status & ~0xf);
 
 	/* Write it back */
-	state->ops.cop0_ops.ctc(state, 12, status);
+	state->ops.cop0_ops.ctc(state, op.opcode, 12, status);
 }
 
 static void lightrec_cp_cb(struct lightrec_state *state, union code op)
