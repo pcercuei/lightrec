@@ -75,6 +75,11 @@ static inline u32 jump_after_branch(struct interpreter *inter)
 	return jump_skip(inter);
 }
 
+static inline u32 lightrec_int_op(struct interpreter *inter)
+{
+	return execute(int_standard[inter->op->i.op], inter);
+}
+
 static void update_cycles_before_branch(struct interpreter *inter)
 {
 	u32 cycles;
@@ -228,7 +233,7 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 			inter2.op = &new_op;
 
 			/* Execute the first opcode of the next block */
-			(*int_standard[inter2.op->i.op])(&inter2);
+			lightrec_int_op(&inter2);
 
 			if (save_rs) {
 				new_rs = reg_cache[op->r.rs];
@@ -250,7 +255,7 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 		new_rt = reg_cache[op->r.rt];
 
 	/* Execute delay slot opcode */
-	ds_next_pc = (*int_standard[inter2.op->i.op])(&inter2);
+	ds_next_pc = lightrec_int_op(&inter2);
 
 	if (branch_at_addr) {
 		if (op_next.i.op == OP_SPECIAL)
@@ -295,7 +300,7 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 
 		pr_debug("Running delay slot of branch at target of impossible "
 			 "branch\n");
-		(*int_standard[inter2.op->i.op])(&inter2);
+		lightrec_int_op(&inter2);
 	}
 
 	return next_pc;
@@ -1099,11 +1104,6 @@ static u32 int_CP2(struct interpreter *inter)
 	}
 
 	return int_CP(inter);
-}
-
-static u32 lightrec_int_op(struct interpreter *inter)
-{
-	return execute(int_standard[inter->op->i.op], inter);
 }
 
 static u32 lightrec_emulate_block_list(struct block *block, struct opcode *op)
