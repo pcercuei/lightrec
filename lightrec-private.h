@@ -46,6 +46,12 @@
 #	define HTOLE16(x)	(x)
 #endif
 
+#if HAS_DEFAULT_ELM
+#define SET_DEFAULT_ELM(table, value) [0 ... ARRAY_SIZE(table) - 1] = value
+#else
+#define SET_DEFAULT_ELM(table, value) [0] = NULL
+#endif
+
 /* Flags for (struct block *)->flags */
 #define BLOCK_NEVER_COMPILE	BIT(0)
 #define BLOCK_SHOULD_RECOMPILE	BIT(1)

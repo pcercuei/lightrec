@@ -1432,6 +1432,7 @@ static void rec_meta_sync(const struct block *block,
 }
 
 static const lightrec_rec_func_t rec_standard[64] = {
+	SET_DEFAULT_ELM(rec_standard, unknown_opcode),
 	[OP_SPECIAL]		= rec_SPECIAL,
 	[OP_REGIMM]		= rec_REGIMM,
 	[OP_J]			= rec_J,
@@ -1473,6 +1474,7 @@ static const lightrec_rec_func_t rec_standard[64] = {
 };
 
 static const lightrec_rec_func_t rec_special[64] = {
+	SET_DEFAULT_ELM(rec_special, unknown_opcode),
 	[OP_SPECIAL_SLL]	= rec_special_SLL,
 	[OP_SPECIAL_SRL]	= rec_special_SRL,
 	[OP_SPECIAL_SRA]	= rec_special_SRA,
@@ -1504,6 +1506,7 @@ static const lightrec_rec_func_t rec_special[64] = {
 };
 
 static const lightrec_rec_func_t rec_regimm[64] = {
+	SET_DEFAULT_ELM(rec_regimm, unknown_opcode),
 	[OP_REGIMM_BLTZ]	= rec_regimm_BLTZ,
 	[OP_REGIMM_BGEZ]	= rec_regimm_BGEZ,
 	[OP_REGIMM_BLTZAL]	= rec_regimm_BLTZAL,
@@ -1511,6 +1514,7 @@ static const lightrec_rec_func_t rec_regimm[64] = {
 };
 
 static const lightrec_rec_func_t rec_cp0[64] = {
+	SET_DEFAULT_ELM(rec_cp0, rec_CP),
 	[OP_CP0_MFC0]		= rec_cp0_MFC0,
 	[OP_CP0_CFC0]		= rec_cp0_CFC0,
 	[OP_CP0_MTC0]		= rec_cp0_MTC0,
@@ -1519,6 +1523,7 @@ static const lightrec_rec_func_t rec_cp0[64] = {
 };
 
 static const lightrec_rec_func_t rec_cp2_basic[64] = {
+	SET_DEFAULT_ELM(rec_cp2_basic, rec_CP),
 	[OP_CP2_BASIC_MFC2]	= rec_cp2_basic_MFC2,
 	[OP_CP2_BASIC_CFC2]	= rec_cp2_basic_CFC2,
 	[OP_CP2_BASIC_MTC2]	= rec_cp2_basic_MTC2,
@@ -1529,36 +1534,40 @@ static void rec_SPECIAL(const struct block *block,
 			const struct opcode *op, u32 pc)
 {
 	lightrec_rec_func_t f = rec_special[op->r.op];
-	if (likely(f))
-		(*f)(block, op, pc);
-	else
+
+	if (!HAS_DEFAULT_ELM && unlikely(!f))
 		unknown_opcode(block, op, pc);
+	else
+		(*f)(block, op, pc);
 }
 
 static void rec_REGIMM(const struct block *block,
 		       const struct opcode *op, u32 pc)
 {
 	lightrec_rec_func_t f = rec_regimm[op->r.rt];
-	if (likely(f))
-		(*f)(block, op, pc);
-	else
+
+	if (!HAS_DEFAULT_ELM && unlikely(!f))
 		unknown_opcode(block, op, pc);
+	else
+		(*f)(block, op, pc);
 }
 
 static void rec_CP0(const struct block *block, const struct opcode *op, u32 pc)
 {
 	lightrec_rec_func_t f = rec_cp0[op->r.rs];
-	if (likely(f))
-		(*f)(block, op, pc);
-	else
+
+	if (!HAS_DEFAULT_ELM && unlikely(!f))
 		rec_CP(block, op, pc);
+	else
+		(*f)(block, op, pc);
 }
 
 static void rec_CP2(const struct block *block, const struct opcode *op, u32 pc)
 {
 	if (op->r.op == OP_CP2_BASIC) {
 		lightrec_rec_func_t f = rec_cp2_basic[op->r.rs];
-		if (likely(f)) {
+
+		if (HAS_DEFAULT_ELM || likely(f)) {
 			(*f)(block, op, pc);
 			return;
 		}
@@ -1571,8 +1580,9 @@ void lightrec_rec_opcode(const struct block *block,
 			 const struct opcode *op, u32 pc)
 {
 	lightrec_rec_func_t f = rec_standard[op->i.op];
-	if (likely(f))
-		(*f)(block, op, pc);
-	else
+
+	if (!HAS_DEFAULT_ELM && unlikely(!f))
 		unknown_opcode(block, op, pc);
+	else
+		(*f)(block, op, pc);
 }
