@@ -68,6 +68,7 @@ enum standard_opcodes {
 	OP_SWC2			= 0x3a,
 
 	OP_META_REG_UNLOAD	= 0x11,
+	OP_META_EXIT		= 0x13,
 
 	OP_META_BEQZ		= 0x14,
 	OP_META_BNEZ		= 0x15,

@@ -25,6 +25,10 @@ if (CMAKE_COMPILER_IS_GNUCC)
 	add_compile_options(-fvisibility=hidden)
 endif()
 
+if (CMAKE_C_COMPILER_ID MATCHES "Clang")
+	add_compile_options(-Wno-initializer-overrides)
+endif()
+
 set(HAS_DEFAULT_ELM ${CMAKE_COMPILER_IS_GNUCC})
 
 list(APPEND LIGHTREC_SOURCES
