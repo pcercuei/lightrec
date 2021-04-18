@@ -30,6 +30,7 @@
 #define LIGHTREC_LOCAL_BRANCH	(1 << 5)
 #define LIGHTREC_HW_IO		(1 << 6)
 #define LIGHTREC_MULT32		(1 << 7)
+#define LIGHTREC_NO_DIV_CHECK	(1 << 8)
 
 struct block;
 

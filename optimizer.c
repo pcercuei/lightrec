@@ -997,7 +997,100 @@ static int lightrec_flag_mults(struct block *block)
 	return 0;
 }
 
+static bool remove_div_sequence(struct opcode *list)
+{
+	struct opcode *op;
+	unsigned int i, found = 0;
+
+	/*
+	 * Scan for the zero-checking sequence that GCC automatically introduced
+	 * after most DIV/DIVU opcodes. This sequence checks the value of the
+	 * divisor, and if zero, executes a BREAK opcode, causing the BIOS
+	 * handler to crash the PS1.
+	 *
+	 * For DIV opcodes, this sequence additionally checks that the signed
+	 * operation does not overflow.
+	 *
+	 * With the assumption that the games never crashed the PS1, we can
+	 * therefore assume that the games never divided by zero or overflowed,
+	 * and these sequences can be removed.
+	 */
+
+	for (op = list; op; op = op->next) {
+		if (!found) {
+			if (op->i.op == OP_SPECIAL &&
+			    (op->r.op == OP_SPECIAL_DIV || op->r.op == OP_SPECIAL_DIVU))
+				break;
+
+			if ((op->opcode & 0xfc1fffff) == 0x14000002) {
+				/* BNE ???, zero, +8 */
+				found++;
+			} else {
+				list = list->next;
+			}
+		} else if (found == 1 && !op->opcode) {
+			/* NOP */
+			found++;
+		} else if (found == 2 && op->opcode == 0x0007000d) {
+			/* BREAK 0x1c00 */
+			found++;
+		} else if (found == 3 && op->opcode == 0x2401ffff) {
+			/* LI at, -1 */
+			found++;
+		} else if (found == 4 && (op->opcode & 0xfc1fffff) == 0x14010004) {
+			/* BNE ???, at, +16 */
+			found++;
+		} else if (found == 5 && op->opcode == 0x3c018000) {
+			/* LUI at, 0x8000 */
+			found++;
+		} else if (found == 6 && (op->opcode & 0x141fffff) == 0x14010002) {
+			/* BNE ???, at, +16 */
+			found++;
+		} else if (found == 7 && !op->opcode) {
+			/* NOP */
+			found++;
+		} else if (found == 8 && op->opcode == 0x0006000d) {
+			/* BREAK 0x1800 */
+			found++;
+			break;
+		} else {
+			break;
+		}
+	}
+
+	if (found >= 3) {
+		if (found != 9)
+			found = 3;
+
+		pr_debug("Removing DIV%s sequence at offset 0x%x\n",
+			 found == 9 ? "" : "U",
+			 list->offset << 2);
+
+		for (i = 0; list && i < found; i++) {
+			list->opcode = 0;
+			list = list->next;
+		}
+
+		return true;
+	}
+
+	return false;
+}
+
+static int lightrec_remove_div_by_zero_check_sequence(struct block *block)
+{
+	struct opcode *op;
+
+	for (op = block->opcode_list; op; op = op->next) {
+		if (op->i.op == OP_SPECIAL &&
+		    (op->r.op == OP_SPECIAL_DIVU || op->r.op == OP_SPECIAL_DIV) &&
+		    remove_div_sequence(op->next))
+			op->flags |= LIGHTREC_NO_DIV_CHECK;
+	}
+}
+
 static int (*lightrec_optimizers[])(struct block *) = {
+	&lightrec_remove_div_by_zero_check_sequence,
 	&lightrec_detect_impossible_branches,
 	&lightrec_transform_ops,
 	&lightrec_local_branches,
