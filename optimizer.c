@@ -196,6 +196,9 @@ static bool is_nop(union code op)
 		case OP_SPECIAL_SRA:
 		case OP_SPECIAL_SRL:
 			return op.r.rd == op.r.rt && op.r.imm == 0;
+		case OP_SPECIAL_MFHI:
+		case OP_SPECIAL_MFLO:
+			return op.r.rd == 0;
 		default:
 			return false;
 		}
