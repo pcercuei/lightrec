@@ -727,7 +727,7 @@ static int lightrec_local_branches(struct block *block)
 	int ret;
 
 	for (list = block->opcode_list; list; list = list->next) {
-		if (list->flags & LIGHTREC_EMULATE_BRANCH)
+		if (should_emulate(list))
 			continue;
 
 		switch (list->i.op) {
@@ -753,7 +753,7 @@ static int lightrec_local_branches(struct block *block)
 			    target->j.op == OP_META_SYNC)
 				continue;
 
-			if (target->flags & LIGHTREC_EMULATE_BRANCH) {
+			if (should_emulate(target)) {
 				pr_debug("Branch target must be emulated"
 					 " - skip\n");
 				break;
@@ -807,6 +807,12 @@ bool has_delay_slot(union code op)
 	default:
 		return false;
 	}
+}
+
+bool should_emulate(struct opcode *list)
+{
+	return has_delay_slot(list->c) &&
+		(list->flags & LIGHTREC_EMULATE_BRANCH);
 }
 
 static int lightrec_add_unload(struct block *block, struct opcode *op, u8 reg)
