@@ -24,7 +24,6 @@
 #endif
 
 #define ARRAY_SIZE(x) (sizeof(x) ? sizeof(x) / sizeof((x)[0]) : 0)
-#define BIT(x) (1 << (x))
 
 #ifdef __GNUC__
 #	define likely(x)       __builtin_expect(!!(x),1)
