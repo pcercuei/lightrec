@@ -917,7 +917,7 @@ static bool is_mult32(const struct block *block, const struct opcode *op)
 	const struct opcode *next, *last = NULL;
 	u32 offset;
 
-	for (op = op->next; op != last; op = op->next) {
+	for (; op != last; op = op->next) {
 		switch (op->i.op) {
 		case OP_BEQ:
 		case OP_BNE:
@@ -990,7 +990,7 @@ static int lightrec_flag_mults(struct block *block)
 		if (prev && has_delay_slot(prev->c))
 			continue;
 
-		if (is_mult32(block, list)) {
+		if (is_mult32(block, list->next)) {
 			pr_debug("Mark MULT(U) opcode at offset 0x%x as"
 				 " 32-bit\n", list->offset << 2);
 			list->flags |= LIGHTREC_MULT32;
