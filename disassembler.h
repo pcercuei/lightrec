@@ -38,7 +38,7 @@
 #define LIGHTREC_LOCAL_BRANCH	BIT(2)
 
 /* Flags for div/mult opcodes */
-#define LIGHTREC_MULT32		BIT(1)
+#define LIGHTREC_NO_HI		BIT(1)
 #define LIGHTREC_NO_DIV_CHECK	BIT(2)
 
 struct block;

@@ -605,7 +605,7 @@ static void rec_alu_mult(const struct block *block,
 	jit_note(__FILE__, __LINE__);
 
 	lo = lightrec_alloc_reg_out(reg_cache, _jit, REG_LO);
-	if (!(op->flags & LIGHTREC_MULT32))
+	if (!(op->flags & LIGHTREC_NO_HI))
 		hi = lightrec_alloc_reg_out_ext(reg_cache, _jit, REG_HI);
 	else if (__WORDSIZE == 64)
 		hi = lightrec_alloc_reg_temp(reg_cache, _jit);
@@ -621,7 +621,7 @@ static void rec_alu_mult(const struct block *block,
 #if __WORDSIZE == 32
 	/* On 32-bit systems, do a 32*32->64 bit operation, or a 32*32->32 bit
 	 * operation if the MULT was detected a 32-bit only. */
-	if (!(op->flags & LIGHTREC_MULT32)) {
+	if (!(op->flags & LIGHTREC_NO_HI)) {
 		if (is_signed)
 			jit_qmulr(lo, hi, rs, rt);
 		else
@@ -642,14 +642,14 @@ static void rec_alu_mult(const struct block *block,
 	}
 
 	/* The 64-bit output value is in $lo, store the upper 32 bits in $hi */
-	if (!(op->flags & LIGHTREC_MULT32))
+	if (!(op->flags & LIGHTREC_NO_HI))
 		jit_rshi(hi, lo, 32);
 #endif
 
 	lightrec_free_reg(reg_cache, rs);
 	lightrec_free_reg(reg_cache, rt);
 	lightrec_free_reg(reg_cache, lo);
-	if (__WORDSIZE == 64 || !(op->flags & LIGHTREC_MULT32))
+	if (__WORDSIZE == 64 || !(op->flags & LIGHTREC_NO_HI))
 		lightrec_free_reg(reg_cache, hi);
 }
 

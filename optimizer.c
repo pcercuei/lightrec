@@ -1023,7 +1023,7 @@ static int lightrec_flag_mults(struct block *block)
 		if (reg_hi == 0) {
 			pr_debug("Mark MULT(U) opcode at offset 0x%x as"
 				 " 32-bit\n", list->offset << 2);
-			list->flags |= LIGHTREC_MULT32;
+			list->flags |= LIGHTREC_NO_HI;
 		}
 	}
 

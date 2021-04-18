@@ -775,7 +775,7 @@ static u32 int_special_MULT(struct interpreter *inter)
 	s32 rt = reg_cache[inter->op->r.rt];
 	u64 res = (s64)rs * (s64)rt;
 
-	if (!(inter->op->flags & LIGHTREC_MULT32))
+	if (!(inter->op->flags & LIGHTREC_NO_HI))
 		reg_cache[REG_HI] = res >> 32;
 	reg_cache[REG_LO] = res;
 
@@ -789,7 +789,7 @@ static u32 int_special_MULTU(struct interpreter *inter)
 	u32 rt = reg_cache[inter->op->r.rt];
 	u64 res = (u64)rs * (u64)rt;
 
-	if (!(inter->op->flags & LIGHTREC_MULT32))
+	if (!(inter->op->flags & LIGHTREC_NO_HI))
 		reg_cache[REG_HI] = res >> 32;
 	reg_cache[REG_LO] = res;
 
