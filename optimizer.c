@@ -912,12 +912,13 @@ static int lightrec_flag_stores(struct block *block)
 	return 0;
 }
 
-static bool is_mult32(const struct block *block, const struct opcode *op)
+static u8 get_mfhi_mflo_reg(const struct block *block, const struct opcode *op, bool mflo)
 {
-	const struct opcode *next, *last = NULL;
+	const struct opcode *next;
 	u32 offset;
+	u8 reg2, reg = mflo ? REG_LO : REG_HI;
 
-	for (; op != last; op = op->next) {
+	for (; op; op = op->next) {
 		switch (op->i.op) {
 		case OP_BEQ:
 		case OP_BNE:
@@ -934,30 +935,51 @@ static bool is_mult32(const struct block *block, const struct opcode *op)
 				for (next = op; next->offset != offset;
 				     next = next->next);
 
-				if (!is_mult32(block, next))
-					return false;
-
-				last = next;
-				continue;
-			} else {
-				return false;
+				reg = get_mfhi_mflo_reg(block, next, mflo);
+				reg2 = get_mfhi_mflo_reg(block, op->next, mflo);
+				if (reg > 0 && reg == reg2)
+					return reg;
+				if (!reg && !reg2)
+					return 0;
 			}
+
+			return mflo ? REG_LO : REG_HI;
 		case OP_SPECIAL:
 			switch (op->r.op) {
 			case OP_SPECIAL_MULT:
 			case OP_SPECIAL_MULTU:
 			case OP_SPECIAL_DIV:
 			case OP_SPECIAL_DIVU:
+				return 0;
 			case OP_SPECIAL_MTHI:
-				return true;
+				if (!mflo)
+					return 0;
+				continue;
+			case OP_SPECIAL_MTLO:
+				if (mflo)
+					return 0;
+				continue;
 			case OP_SPECIAL_JR:
-				return op->r.rs == 31 &&
-					((op->flags & LIGHTREC_NO_DS) ||
-					 !(op->next->i.op == OP_SPECIAL &&
-					   op->next->r.op == OP_SPECIAL_MFHI));
+				if (op->r.rs != 31)
+					return reg;
+
+				if (!(op->flags & LIGHTREC_NO_DS) &&
+				    (op->next->i.op == OP_SPECIAL) &&
+				    (!mflo && op->next->r.op == OP_SPECIAL_MFHI) ||
+				    (mflo && op->next->r.op == OP_SPECIAL_MFLO))
+					return op->next->r.rd;
+
+				return 0;
 			case OP_SPECIAL_JALR:
+				return reg;
 			case OP_SPECIAL_MFHI:
-				return false;
+				if (!mflo)
+					return op->r.rd;
+				continue;
+			case OP_SPECIAL_MFLO:
+				if (mflo)
+					return op->r.rd;
+				continue;
 			default:
 				continue;
 			}
@@ -966,12 +988,13 @@ static bool is_mult32(const struct block *block, const struct opcode *op)
 		}
 	}
 
-	return last != NULL;
+	return reg;
 }
 
 static int lightrec_flag_mults(struct block *block)
 {
 	struct opcode *list, *prev;
+	u8 reg_hi;
 
 	for (list = block->opcode_list, prev = NULL; list;
 	     prev = list, list = list->next) {
@@ -990,7 +1013,8 @@ static int lightrec_flag_mults(struct block *block)
 		if (prev && has_delay_slot(prev->c))
 			continue;
 
-		if (is_mult32(block, list->next)) {
+		reg_hi = get_mfhi_mflo_reg(block, list->next, false);
+		if (reg_hi == 0) {
 			pr_debug("Mark MULT(U) opcode at offset 0x%x as"
 				 " 32-bit\n", list->offset << 2);
 			list->flags |= LIGHTREC_MULT32;
