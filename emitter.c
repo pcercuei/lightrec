@@ -657,6 +657,7 @@ static void rec_alu_div(const struct block *block,
 			const struct opcode *op, bool is_signed)
 {
 	struct regcache *reg_cache = block->state->reg_cache;
+	bool no_check = op->flags & LIGHTREC_NO_DIV_CHECK;
 	jit_state_t *_jit = block->_jit;
 	jit_node_t *branch, *to_end;
 	u8 lo, hi, rs, rt;
@@ -674,7 +675,8 @@ static void rec_alu_div(const struct block *block,
 	}
 
 	/* Jump to special handler if dividing by zero  */
-	branch = jit_beqi(rt, 0);
+	if (!no_check)
+		branch = jit_beqi(rt, 0);
 
 #if __WORDSIZE == 32
 	if (is_signed)
@@ -693,22 +695,24 @@ static void rec_alu_div(const struct block *block,
 	}
 #endif
 
-	/* Jump above the div-by-zero handler */
-	to_end = jit_jmpi();
+	if (!no_check) {
+		/* Jump above the div-by-zero handler */
+		to_end = jit_jmpi();
 
-	jit_patch(branch);
+		jit_patch(branch);
 
-	if (is_signed) {
-		jit_lti(lo, rs, 0);
-		jit_lshi(lo, lo, 1);
-		jit_subi(lo, lo, 1);
-	} else {
-		jit_movi(lo, 0xffffffff);
+		if (is_signed) {
+			jit_lti(lo, rs, 0);
+			jit_lshi(lo, lo, 1);
+			jit_subi(lo, lo, 1);
+		} else {
+			jit_movi(lo, 0xffffffff);
+		}
+
+		jit_movr(hi, rs);
+
+		jit_patch(to_end);
 	}
-
-	jit_movr(hi, rs);
-
-	jit_patch(to_end);
 
 	lightrec_free_reg(reg_cache, rs);
 	lightrec_free_reg(reg_cache, rt);
