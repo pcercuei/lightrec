@@ -997,7 +997,7 @@ static u8 get_mfhi_mflo_reg(const struct block *block, const struct opcode *op, 
 	return reg;
 }
 
-static int lightrec_flag_mults(struct block *block)
+static int lightrec_flag_mults_divs(struct block *block)
 {
 	struct opcode *list, *prev;
 	u8 reg_hi;
@@ -1010,18 +1010,20 @@ static int lightrec_flag_mults(struct block *block)
 		switch (list->r.op) {
 		case OP_SPECIAL_MULT:
 		case OP_SPECIAL_MULTU:
+		case OP_SPECIAL_DIV:
+		case OP_SPECIAL_DIVU:
 			break;
 		default:
 			continue;
 		}
 
-		/* Don't support MULT(U) opcodes in delay slots */
+		/* Don't support opcodes in delay slots */
 		if (prev && has_delay_slot(prev->c))
 			continue;
 
 		reg_hi = get_mfhi_mflo_reg(block, list->next, false);
 		if (reg_hi == 0) {
-			pr_debug("Mark MULT(U) opcode at offset 0x%x as"
+			pr_debug("Mark MULT(U)/DIV(U) opcode at offset 0x%x as"
 				 " 32-bit\n", list->offset << 2);
 			list->flags |= LIGHTREC_NO_HI;
 		}
@@ -1129,7 +1131,7 @@ static int (*lightrec_optimizers[])(struct block *) = {
 	&lightrec_local_branches,
 	&lightrec_switch_delay_slots,
 	&lightrec_flag_stores,
-	&lightrec_flag_mults,
+	&lightrec_flag_mults_divs,
 	&lightrec_early_unload,
 };
 

@@ -664,7 +664,10 @@ static void rec_alu_div(const struct block *block,
 
 	jit_note(__FILE__, __LINE__);
 	lo = lightrec_alloc_reg_out(reg_cache, _jit, REG_LO);
-	hi = lightrec_alloc_reg_out(reg_cache, _jit, REG_HI);
+	if (!(op->flags & LIGHTREC_NO_HI))
+		hi = lightrec_alloc_reg_out(reg_cache, _jit, REG_HI);
+	else if (__WORDSIZE == 64 && !is_signed)
+		hi = lightrec_alloc_reg_temp(reg_cache, _jit);
 
 	if (__WORDSIZE == 32 || !is_signed) {
 		rs = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rs);
@@ -679,19 +682,36 @@ static void rec_alu_div(const struct block *block,
 		branch = jit_beqi(rt, 0);
 
 #if __WORDSIZE == 32
-	if (is_signed)
-		jit_qdivr(lo, hi, rs, rt);
-	else
-		jit_qdivr_u(lo, hi, rs, rt);
+	if (op->flags & LIGHTREC_NO_HI) {
+		if (is_signed)
+			jit_divr(lo, rs, rt);
+		else
+			jit_divr_u(lo, rs, rt);
+	} else {
+		if (is_signed)
+			jit_qdivr(lo, hi, rs, rt);
+		else
+			jit_qdivr_u(lo, hi, rs, rt);
+	}
 #else
 	/* On 64-bit systems, the input registers must be 32 bits, so we first sign-extend
 	 * (if div) or clear (if divu) the input registers. */
-	if (is_signed) {
-		jit_qdivr(lo, hi, rs, rt);
+	if (op->flags & LIGHTREC_NO_HI) {
+		if (is_signed) {
+			jit_divr(lo, rs, rt);
+		} else {
+			jit_extr_ui(lo, rt);
+			jit_extr_ui(hi, rs);
+			jit_divr_u(lo, hi, lo);
+		}
 	} else {
-		jit_extr_ui(lo, rt);
-		jit_extr_ui(hi, rs);
-		jit_qdivr_u(lo, hi, hi, lo);
+		if (is_signed) {
+			jit_qdivr(lo, hi, rs, rt);
+		} else {
+			jit_extr_ui(lo, rt);
+			jit_extr_ui(hi, rs);
+			jit_qdivr_u(lo, hi, hi, lo);
+		}
 	}
 #endif
 
@@ -709,7 +729,8 @@ static void rec_alu_div(const struct block *block,
 			jit_movi(lo, 0xffffffff);
 		}
 
-		jit_movr(hi, rs);
+		if (!(op->flags & LIGHTREC_NO_HI))
+			jit_movr(hi, rs);
 
 		jit_patch(to_end);
 	}
@@ -717,7 +738,10 @@ static void rec_alu_div(const struct block *block,
 	lightrec_free_reg(reg_cache, rs);
 	lightrec_free_reg(reg_cache, rt);
 	lightrec_free_reg(reg_cache, lo);
-	lightrec_free_reg(reg_cache, hi);
+
+	if (!(op->flags & LIGHTREC_NO_HI)
+	    || (__WORDSIZE == 64 && !is_signed))
+		lightrec_free_reg(reg_cache, hi);
 }
 
 static void rec_special_MULT(const struct block *block,
