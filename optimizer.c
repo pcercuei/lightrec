@@ -1122,6 +1122,8 @@ static int lightrec_remove_div_by_zero_check_sequence(struct block *block)
 		    remove_div_sequence(op->next))
 			op->flags |= LIGHTREC_NO_DIV_CHECK;
 	}
+
+	return 0;
 }
 
 static int (*lightrec_optimizers[])(struct block *) = {
