@@ -46,6 +46,11 @@ static inline u32 jump_skip(struct interpreter *inter)
 {
 	inter->op = inter->op->next;
 
+	if (inter->op->flags & LIGHTREC_SYNC) {
+		inter->state->current_cycle += inter->cycles;
+		inter->cycles = 0;
+	}
+
 	return lightrec_int_op(inter);
 }
 
@@ -958,14 +963,6 @@ static u32 int_META_MOV(struct interpreter *inter)
 	return jump_next(inter);
 }
 
-static u32 int_META_SYNC(struct interpreter *inter)
-{
-	inter->state->current_cycle += inter->cycles;
-	inter->cycles = 0;
-
-	return jump_skip(inter);
-}
-
 static const lightrec_int_func_t int_standard[64] = {
 	SET_DEFAULT_ELM(int_standard, int_unimplemented),
 	[OP_SPECIAL]		= int_SPECIAL,
@@ -1004,7 +1001,6 @@ static const lightrec_int_func_t int_standard[64] = {
 	[OP_META_BEQZ]		= int_BEQ,
 	[OP_META_BNEZ]		= int_BNE,
 	[OP_META_MOV]		= int_META_MOV,
-	[OP_META_SYNC]		= int_META_SYNC,
 };
 
 static const lightrec_int_func_t int_special[64] = {

@@ -542,38 +542,6 @@ static u32 lightrec_propagate_consts(union code c, u32 known, u32 *v)
 	return known;
 }
 
-static int lightrec_add_meta(struct block *block,
-			     struct opcode *op, union code code)
-{
-	struct opcode *meta;
-
-	meta = lightrec_malloc(block->state, MEM_FOR_IR, sizeof(*meta));
-	if (!meta)
-		return -ENOMEM;
-
-	meta->c = code;
-	meta->flags = 0;
-
-	if (op) {
-		meta->offset = op->offset;
-		meta->next = op->next;
-		op->next = meta;
-	} else {
-		meta->offset = 0;
-		meta->next = block->opcode_list;
-		block->opcode_list = meta;
-	}
-
-	return 0;
-}
-
-static int lightrec_add_sync(struct block *block, struct opcode *prev)
-{
-	return lightrec_add_meta(block, prev, (union code){
-				 .j.op = OP_META_SYNC,
-				 });
-}
-
 static int lightrec_transform_ops(struct block *block)
 {
 	struct opcode *list = block->opcode_list;
@@ -680,6 +648,10 @@ static int lightrec_switch_delay_slots(struct block *block)
 
 		if (prev && has_delay_slot(prev->c) &&
 		    !(prev->flags & LIGHTREC_NO_DS))
+			continue;
+
+		if ((list->flags & LIGHTREC_SYNC) ||
+		    (list->next->flags & LIGHTREC_SYNC))
 			continue;
 
 		switch (list->i.op) {
@@ -813,8 +785,7 @@ static int lightrec_local_branches(struct block *block)
 
 		for (target = block->opcode_list, prev = NULL;
 		     target; prev = target, target = target->next) {
-			if (target->offset != offset ||
-			    target->j.op == OP_META_SYNC)
+			if (target->offset != offset)
 				continue;
 
 			if (should_emulate(target)) {
@@ -829,16 +800,9 @@ static int lightrec_local_branches(struct block *block)
 				break;
 			}
 
-			if (prev && prev->j.op != OP_META_SYNC) {
-				pr_debug("Adding sync before offset "
-					 "0x%x\n", offset << 2);
-				ret = lightrec_add_sync(block, prev);
-				if (ret)
-					return ret;
+			pr_debug("Adding sync at offset 0x%x\n", offset << 2);
 
-				prev->next->offset = target->offset;
-			}
-
+			target->flags |= LIGHTREC_SYNC;
 			list->flags |= LIGHTREC_LOCAL_BRANCH;
 			break;
 		}
@@ -1000,10 +964,10 @@ static u8 get_mfhi_mflo_reg(const struct opcode *op, const struct opcode *last,
 		mask |= opcode_read_mask(op->c);
 		mask |= opcode_write_mask(op->c);
 
-		switch (op->i.op) {
-		case OP_META_SYNC:
+		if (op->flags & LIGHTREC_SYNC)
 			sync = true;
-			continue;
+
+		switch (op->i.op) {
 		case OP_BEQ:
 		case OP_BNE:
 		case OP_BLEZ:

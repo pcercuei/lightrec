@@ -1548,29 +1548,6 @@ static void rec_meta_MOV(const struct block *block,
 	lightrec_free_reg(state->reg_cache, rd);
 }
 
-static void rec_meta_sync(const struct block *block,
-			  const struct opcode *op, u32 pc)
-{
-	struct lightrec_state *state = block->state;
-	struct lightrec_branch_target *target;
-	jit_state_t *_jit = block->_jit;
-
-	jit_name(__func__);
-	jit_note(__FILE__, __LINE__);
-
-	jit_subi(LIGHTREC_REG_CYCLE, LIGHTREC_REG_CYCLE, state->cycles);
-	state->cycles = 0;
-
-	lightrec_storeback_regs(state->reg_cache, _jit);
-	lightrec_regcache_reset(state->reg_cache);
-
-	pr_debug("Adding branch target at offset 0x%x\n",
-		 op->offset << 2);
-	target = &state->targets[state->nb_targets++];
-	target->offset = op->offset;
-	target->label = jit_indirect();
-}
-
 static const lightrec_rec_func_t rec_standard[64] = {
 	SET_DEFAULT_ELM(rec_standard, unknown_opcode),
 	[OP_SPECIAL]		= rec_SPECIAL,
@@ -1609,7 +1586,6 @@ static const lightrec_rec_func_t rec_standard[64] = {
 	[OP_META_BEQZ]		= rec_meta_BEQZ,
 	[OP_META_BNEZ]		= rec_meta_BNEZ,
 	[OP_META_MOV]		= rec_meta_MOV,
-	[OP_META_SYNC]		= rec_meta_sync,
 };
 
 static const lightrec_rec_func_t rec_special[64] = {
@@ -1718,9 +1694,25 @@ static void rec_CP2(const struct block *block, const struct opcode *op, u32 pc)
 void lightrec_rec_opcode(const struct block *block,
 			 const struct opcode *op, u32 pc)
 {
-	struct regcache *reg_cache = block->state->reg_cache;
+	struct lightrec_state *state = block->state;
+	struct regcache *reg_cache = state->reg_cache;
+	struct lightrec_branch_target *target;
 	jit_state_t *_jit = block->_jit;
 	lightrec_rec_func_t f;
+
+	if (op->flags & LIGHTREC_SYNC) {
+		jit_subi(LIGHTREC_REG_CYCLE, LIGHTREC_REG_CYCLE, state->cycles);
+		state->cycles = 0;
+
+		lightrec_storeback_regs(reg_cache, _jit);
+		lightrec_regcache_reset(reg_cache);
+
+		pr_debug("Adding branch target at offset 0x%x\n",
+			 op->offset << 2);
+		target = &state->targets[state->nb_targets++];
+		target->offset = op->offset;
+		target->label = jit_indirect();
+	}
 
 	if (likely(op->opcode)) {
 		f = rec_standard[op->i.op];

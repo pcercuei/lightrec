@@ -20,6 +20,7 @@
 #define LIGHTREC_UNLOAD_RS	BIT(14)
 #define LIGHTREC_UNLOAD_RT	BIT(13)
 #define LIGHTREC_UNLOAD_RD	BIT(12)
+#define LIGHTREC_SYNC		BIT(11)
 
 /* Flags for load/store opcodes */
 #define LIGHTREC_DIRECT_IO	BIT(1)
@@ -76,7 +77,6 @@ enum standard_opcodes {
 	OP_META_BNEZ		= 0x15,
 
 	OP_META_MOV		= 0x16,
-	OP_META_SYNC		= 0x17,
 };
 
 enum special_opcodes {

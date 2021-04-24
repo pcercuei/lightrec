@@ -102,12 +102,7 @@ struct opcode * lightrec_disassemble(struct lightrec_state *state,
 
 unsigned int lightrec_cycles_of_opcode(union code code)
 {
-	switch (code.i.op) {
-	case OP_META_SYNC:
-		return 0;
-	default:
-		return 2;
-	}
+	return 2;
 }
 
 #if ENABLE_DISASSEMBLER
