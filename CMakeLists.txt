@@ -62,6 +62,15 @@ if (ENABLE_THREADED_COMPILER)
 	endif (NOT ENABLE_FIRST_PASS)
 endif (ENABLE_THREADED_COMPILER)
 
+option(OPT_REMOVE_DIV_BY_ZERO_SEQ "(optimization) Remove div-by-zero check sequence" ON)
+option(OPT_DETECT_IMPOSSIBLE_BRANCHES "(optimization) Detect impossible branches" ON)
+option(OPT_TRANSFORM_OPS "(optimization) Transform opcodes" ON)
+option(OPT_LOCAL_BRANCHES "(optimization) Detect local branches" ON)
+option(OPT_SWITCH_DELAY_SLOTS "(optimization) Switch delay slots" ON)
+option(OPT_FLAG_STORES "(optimization) Flag stores that don't require invalidation" ON)
+option(OPT_FLAG_MULT_DIV "(optimization) Flag MULT/DIV that only use one of HI/LO" ON)
+option(OPT_EARLY_UNLOAD "(optimization) Unload registers early" ON)
+
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
 add_library(${PROJECT_NAME} ${LIGHTREC_SOURCES} ${LIGHTREC_HEADERS})

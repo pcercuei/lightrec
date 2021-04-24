@@ -13,5 +13,14 @@
 
 #cmakedefine01 HAS_DEFAULT_ELM
 
+#cmakedefine01 OPT_REMOVE_DIV_BY_ZERO_SEQ
+#cmakedefine01 OPT_DETECT_IMPOSSIBLE_BRANCHES
+#cmakedefine01 OPT_TRANSFORM_OPS
+#cmakedefine01 OPT_LOCAL_BRANCHES
+#cmakedefine01 OPT_SWITCH_DELAY_SLOTS
+#cmakedefine01 OPT_FLAG_STORES
+#cmakedefine01 OPT_FLAG_MULT_DIV
+#cmakedefine01 OPT_EARLY_UNLOAD
+
 #endif /* __LIGHTREC_CONFIG_H__ */
 

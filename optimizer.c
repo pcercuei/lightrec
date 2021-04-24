@@ -3,6 +3,7 @@
  * Copyright (C) 2014-2021 Paul Cercueil <paul@crapouillou.net>
  */
 
+#include "config.h"
 #include "disassembler.h"
 #include "lightrec.h"
 #include "memmanager.h"
@@ -12,6 +13,8 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <stdlib.h>
+
+#define IF_OPT(opt, ptr) ((opt) ? (ptr) : NULL)
 
 struct optimizer_list {
 	void (**optimizers)(struct opcode *);
@@ -1118,25 +1121,27 @@ static int lightrec_remove_div_by_zero_check_sequence(struct block *block)
 }
 
 static int (*lightrec_optimizers[])(struct block *) = {
-	&lightrec_remove_div_by_zero_check_sequence,
-	&lightrec_detect_impossible_branches,
-	&lightrec_transform_ops,
-	&lightrec_local_branches,
-	&lightrec_switch_delay_slots,
-	&lightrec_flag_stores,
-	&lightrec_flag_mults_divs,
-	&lightrec_early_unload,
+	IF_OPT(OPT_REMOVE_DIV_BY_ZERO_SEQ, &lightrec_remove_div_by_zero_check_sequence),
+	IF_OPT(OPT_DETECT_IMPOSSIBLE_BRANCHES, &lightrec_detect_impossible_branches),
+	IF_OPT(OPT_TRANSFORM_OPS, &lightrec_transform_ops),
+	IF_OPT(OPT_LOCAL_BRANCHES, &lightrec_local_branches),
+	IF_OPT(OPT_SWITCH_DELAY_SLOTS, &lightrec_switch_delay_slots),
+	IF_OPT(OPT_FLAG_STORES, &lightrec_flag_stores),
+	IF_OPT(OPT_FLAG_MULT_DIV, &lightrec_flag_mults_divs),
+	IF_OPT(OPT_EARLY_UNLOAD, &lightrec_early_unload),
 };
 
 int lightrec_optimize(struct block *block)
 {
 	unsigned int i;
+	int ret;
 
 	for (i = 0; i < ARRAY_SIZE(lightrec_optimizers); i++) {
-		int ret = lightrec_optimizers[i](block);
-
-		if (ret)
-			return ret;
+		if (lightrec_optimizers[i]) {
+			ret = (*lightrec_optimizers[i])(block);
+			if (ret)
+				return ret;
+		}
 	}
 
 	return 0;
