@@ -16,7 +16,10 @@
 #define BIT(x) (1ULL << (x))
 
 /* Flags for all opcodes */
-#define LIGHTREC_NO_DS		BIT(0)
+#define LIGHTREC_NO_DS		BIT(15)
+#define LIGHTREC_UNLOAD_RS	BIT(14)
+#define LIGHTREC_UNLOAD_RT	BIT(13)
+#define LIGHTREC_UNLOAD_RD	BIT(12)
 
 /* Flags for load/store opcodes */
 #define LIGHTREC_DIRECT_IO	BIT(1)
@@ -68,8 +71,6 @@ enum standard_opcodes {
 	OP_SWR			= 0x2e,
 	OP_LWC2			= 0x32,
 	OP_SWC2			= 0x3a,
-
-	OP_META_REG_UNLOAD	= 0x11,
 
 	OP_META_BEQZ		= 0x14,
 	OP_META_BNEZ		= 0x15,

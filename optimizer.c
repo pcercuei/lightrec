@@ -879,12 +879,15 @@ bool should_emulate(const struct opcode *list)
 		(list->flags & LIGHTREC_EMULATE_BRANCH);
 }
 
-static int lightrec_add_unload(struct block *block, struct opcode *op, u8 reg)
+static int lightrec_add_unload(struct opcode *op, u8 reg)
 {
-	return lightrec_add_meta(block, op, (union code){
-				 .i.op = OP_META_REG_UNLOAD,
-				 .i.rs = reg,
-				 });
+	if (op->i.op == OP_SPECIAL && reg == op->r.rd)
+		op->flags |= LIGHTREC_UNLOAD_RD;
+
+	if (op->i.rs == reg)
+		op->flags |= LIGHTREC_UNLOAD_RS;
+	if (op->i.rt == reg)
+		op->flags |= LIGHTREC_UNLOAD_RT;
 }
 
 static int lightrec_early_unload(struct block *block)
@@ -915,7 +918,7 @@ static int lightrec_early_unload(struct block *block)
 				last_w = last_w->next;
 
 			if (last_w->next) {
-				ret = lightrec_add_unload(block, last_w, i);
+				ret = lightrec_add_unload(last_w, i);
 				if (ret)
 					return ret;
 			}
@@ -925,7 +928,7 @@ static int lightrec_early_unload(struct block *block)
 				last_r = last_r->next;
 
 			if (last_r->next) {
-				ret = lightrec_add_unload(block, last_r, i);
+				ret = lightrec_add_unload(last_r, i);
 				if (ret)
 					return ret;
 			}

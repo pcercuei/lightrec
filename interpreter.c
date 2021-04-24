@@ -947,11 +947,6 @@ static u32 int_special_SLTU(struct interpreter *inter)
 	return jump_next(inter);
 }
 
-static u32 int_META_SKIP(struct interpreter *inter)
-{
-	return jump_skip(inter);
-}
-
 static u32 int_META_MOV(struct interpreter *inter)
 {
 	u32 *reg_cache = inter->state->native_reg_cache;
@@ -1006,7 +1001,6 @@ static const lightrec_int_func_t int_standard[64] = {
 	[OP_LWC2]		= int_LWC2,
 	[OP_SWC2]		= int_store,
 
-	[OP_META_REG_UNLOAD]	= int_META_SKIP,
 	[OP_META_BEQZ]		= int_BEQ,
 	[OP_META_BNEZ]		= int_BNE,
 	[OP_META_MOV]		= int_META_MOV,

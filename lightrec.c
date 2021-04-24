@@ -968,7 +968,7 @@ int lightrec_compile_block(struct block *block)
 				 elm->offset << 2);
 			lightrec_emit_eob(block, elm, next_pc);
 			skip_next = !(elm->flags & LIGHTREC_NO_DS);
-		} else if (elm->opcode) {
+		} else {
 			lightrec_rec_opcode(block, elm, next_pc);
 			skip_next = has_delay_slot(elm->c) &&
 				!(elm->flags & LIGHTREC_NO_DS);

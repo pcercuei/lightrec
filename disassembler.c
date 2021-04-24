@@ -103,7 +103,6 @@ struct opcode * lightrec_disassemble(struct lightrec_state *state,
 unsigned int lightrec_cycles_of_opcode(union code code)
 {
 	switch (code.i.op) {
-	case OP_META_REG_UNLOAD:
 	case OP_META_SYNC:
 		return 0;
 	default:

@@ -1507,20 +1507,6 @@ static void rec_CP(const struct block *block, const struct opcode *op, u32 pc)
 	lightrec_regcache_mark_live(reg_cache, _jit);
 }
 
-static void rec_meta_unload(const struct block *block,
-			    const struct opcode *op, u32 pc)
-{
-	struct lightrec_state *state = block->state;
-	struct regcache *reg_cache = state->reg_cache;
-	jit_state_t *_jit = block->_jit;
-
-	jit_name(__func__);
-	jit_note(__FILE__, __LINE__);
-
-	pr_debug("Unloading reg %s\n", lightrec_reg_name(op->i.rs));
-	lightrec_clean_reg_if_loaded(reg_cache, _jit, op->i.rs, true);
-}
-
 static void rec_meta_BEQZ(const struct block *block,
 			  const struct opcode *op, u32 pc)
 {
@@ -1620,7 +1606,6 @@ static const lightrec_rec_func_t rec_standard[64] = {
 	[OP_LWC2]		= rec_LWC2,
 	[OP_SWC2]		= rec_SWC2,
 
-	[OP_META_REG_UNLOAD]	= rec_meta_unload,
 	[OP_META_BEQZ]		= rec_meta_BEQZ,
 	[OP_META_BNEZ]		= rec_meta_BNEZ,
 	[OP_META_MOV]		= rec_meta_MOV,
@@ -1733,10 +1718,29 @@ static void rec_CP2(const struct block *block, const struct opcode *op, u32 pc)
 void lightrec_rec_opcode(const struct block *block,
 			 const struct opcode *op, u32 pc)
 {
-	lightrec_rec_func_t f = rec_standard[op->i.op];
+	struct regcache *reg_cache = block->state->reg_cache;
+	jit_state_t *_jit = block->_jit;
+	lightrec_rec_func_t f;
 
-	if (!HAS_DEFAULT_ELM && unlikely(!f))
-		unknown_opcode(block, op, pc);
-	else
-		(*f)(block, op, pc);
+	if (likely(op->opcode)) {
+		f = rec_standard[op->i.op];
+
+		if (!HAS_DEFAULT_ELM && unlikely(!f))
+			unknown_opcode(block, op, pc);
+		else
+			(*f)(block, op, pc);
+	}
+
+	if (unlikely(op->flags & LIGHTREC_UNLOAD_RD)) {
+		lightrec_clean_reg_if_loaded(reg_cache, _jit, op->r.rd, true);
+		pr_debug("Cleaning RD reg %s\n", lightrec_reg_name(op->r.rd));
+	}
+	if (unlikely(op->flags & LIGHTREC_UNLOAD_RS)) {
+		lightrec_clean_reg_if_loaded(reg_cache, _jit, op->i.rs, true);
+		pr_debug("Cleaning RS reg %s\n", lightrec_reg_name(op->i.rt));
+	}
+	if (unlikely(op->flags & LIGHTREC_UNLOAD_RT)) {
+		lightrec_clean_reg_if_loaded(reg_cache, _jit, op->i.rt, true);
+		pr_debug("Cleaning RT reg %s\n", lightrec_reg_name(op->i.rt));
+	}
 }
