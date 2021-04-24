@@ -17,31 +17,31 @@
 #include "lightrec-private.h"
 #include "memmanager.h"
 
-static bool is_unconditional_jump(const struct opcode *op)
+static bool is_unconditional_jump(union code c)
 {
-	switch (op->i.op) {
+	switch (c.i.op) {
 	case OP_SPECIAL:
-		return op->r.op == OP_SPECIAL_JR || op->r.op == OP_SPECIAL_JALR;
+		return c.r.op == OP_SPECIAL_JR || c.r.op == OP_SPECIAL_JALR;
 	case OP_J:
 	case OP_JAL:
 		return true;
 	case OP_BEQ:
 	case OP_BLEZ:
-		return op->i.rs == op->i.rt;
+		return c.i.rs == c.i.rt;
 	case OP_REGIMM:
-		return (op->r.rt == OP_REGIMM_BGEZ ||
-			op->r.rt == OP_REGIMM_BGEZAL) && op->i.rs == 0;
+		return (c.r.rt == OP_REGIMM_BGEZ ||
+			c.r.rt == OP_REGIMM_BGEZAL) && c.i.rs == 0;
 	default:
 		return false;
 	}
 }
 
-static bool is_syscall(const struct opcode *op)
+static bool is_syscall(union code c)
 {
-	return (op->i.op == OP_SPECIAL && op->r.op == OP_SPECIAL_SYSCALL) ||
-		(op->i.op == OP_CP0 && (op->r.rs == OP_CP0_MTC0 ||
-					op->r.rs == OP_CP0_CTC0) &&
-		 (op->r.rd == 12 || op->r.rd == 13));
+	return (c.i.op == OP_SPECIAL && c.r.op == OP_SPECIAL_SYSCALL) ||
+		(c.i.op == OP_CP0 && (c.r.rs == OP_CP0_MTC0 ||
+					c.r.rs == OP_CP0_CTC0) &&
+		 (c.r.rd == 12 || c.r.rd == 13));
 }
 
 void lightrec_free_opcode_list(struct lightrec_state *state, struct opcode *list)
@@ -82,9 +82,9 @@ struct opcode * lightrec_disassemble(struct lightrec_state *state,
 
 		/* NOTE: The block disassembly ends after the opcode that
 		 * follows an unconditional jump (delay slot) */
-		if (stop_next || is_syscall(curr))
+		if (stop_next || is_syscall(curr->c))
 			break;
-		else if (is_unconditional_jump(curr))
+		else if (is_unconditional_jump(curr->c))
 			stop_next = true;
 	}
 
