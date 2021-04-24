@@ -803,7 +803,7 @@ bool has_delay_slot(union code op)
 	}
 }
 
-bool should_emulate(struct opcode *list)
+bool should_emulate(const struct opcode *list)
 {
 	return has_delay_slot(list->c) &&
 		(list->flags & LIGHTREC_EMULATE_BRANCH);
