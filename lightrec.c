@@ -398,7 +398,7 @@ static void lightrec_cp_cb(struct lightrec_state *state, union code op)
 {
 	void (*func)(struct lightrec_state *, u32);
 
-	if ((op.opcode >> 25) & 1)
+	if (op.i.op == OP_CP2)
 		func = state->ops.cop2_ops.op;
 	else
 		func = state->ops.cop0_ops.op;
