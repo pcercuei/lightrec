@@ -44,60 +44,54 @@ static bool is_syscall(union code c)
 		 (c.r.rd == 12 || c.r.rd == 13));
 }
 
-static void lightrec_free_opcodes(struct lightrec_state *state,
-				  struct opcode *list)
-{
-	struct opcode *next;
-
-	while (list) {
-		next = list->next;
-		lightrec_free(state, MEM_FOR_IR, sizeof(*list), list);
-		list = next;
-	}
-}
-
 void lightrec_free_opcode_list(struct block *block)
 {
-	lightrec_free_opcodes(block->state, block->opcode_list);
+	lightrec_free(block->state, MEM_FOR_IR,
+		      sizeof(*block->opcode_list) * block->nb_ops,
+		      block->opcode_list);
+}
+
+unsigned int lightrec_get_mips_block_len(const u32 *src)
+{
+	unsigned int i;
+	union code c;
+
+	for (i = 1; ; i++) {
+		c.opcode = LE32TOH(*src++);
+
+		if (is_syscall(c))
+			return i;
+
+		if (is_unconditional_jump(c))
+			return i + 1;
+	}
 }
 
 struct opcode * lightrec_disassemble(struct lightrec_state *state,
 				     const u32 *src, unsigned int *len)
 {
-	struct opcode *head = NULL;
-	bool stop_next = false;
-	struct opcode *curr, *last;
-	unsigned int i;
+	struct opcode *list;
+	unsigned int i, length;
 
-	for (i = 0, last = NULL; ; i++, last = curr) {
-		curr = lightrec_calloc(state, MEM_FOR_IR, sizeof(*curr));
-		if (!curr) {
-			pr_err("Unable to allocate memory\n");
-			lightrec_free_opcodes(state, head);
-			return NULL;
-		}
+	length = lightrec_get_mips_block_len(src);
 
-		if (!last)
-			head = curr;
-		else
-			last->next = curr;
-
-		/* TODO: Take care of endianness */
-		curr->opcode = LE32TOH(*src++);
-		curr->offset = i;
-
-		/* NOTE: The block disassembly ends after the opcode that
-		 * follows an unconditional jump (delay slot) */
-		if (stop_next || is_syscall(curr->c))
-			break;
-		else if (is_unconditional_jump(curr->c))
-			stop_next = true;
+	list = lightrec_malloc(state, MEM_FOR_IR, sizeof(*list) * length);
+	if (!list) {
+		pr_err("Unable to allocate memory\n");
+		return NULL;
 	}
 
-	if (len)
-		*len = (i + 1) * sizeof(u32);
+	for (i = 0; i < length; i++) {
+		list[i].opcode = LE32TOH(src[i]);
+		list[i].offset = i;
+		list[i].flags = 0;
+		list[i].next = &list[i + 1];
+	}
 
-	return head;
+	list[length - 1].next = NULL;
+	*len = length * sizeof(u32);
+
+	return list;
 }
 
 unsigned int lightrec_cycles_of_opcode(union code code)
