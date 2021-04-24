@@ -511,7 +511,7 @@ static u32 int_CP(struct interpreter *inter)
 	const struct lightrec_cop_ops *ops;
 	const struct opcode *op = inter->op;
 
-	if ((op->j.imm >> 25) & 1)
+	if (op->i.op == OP_CP2)
 		ops = &state->ops.cop2_ops;
 	else
 		ops = &state->ops.cop0_ops;
