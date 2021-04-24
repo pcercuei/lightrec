@@ -912,13 +912,14 @@ static int lightrec_flag_stores(struct block *block)
 	return 0;
 }
 
-static u8 get_mfhi_mflo_reg(const struct opcode *op, bool mflo)
+static u8 get_mfhi_mflo_reg(const struct opcode *op,
+			    const struct opcode *last, bool mflo)
 {
 	const struct opcode *next;
 	u32 offset;
 	u8 reg2, reg = mflo ? REG_LO : REG_HI;
 
-	for (; op; op = op->next) {
+	for (; op != last; op = op->next) {
 		switch (op->i.op) {
 		case OP_BEQ:
 		case OP_BNE:
@@ -935,8 +936,8 @@ static u8 get_mfhi_mflo_reg(const struct opcode *op, bool mflo)
 				for (next = op; next->offset != offset;
 				     next = next->next);
 
-				reg = get_mfhi_mflo_reg(next, mflo);
-				reg2 = get_mfhi_mflo_reg(op->next, mflo);
+				reg = get_mfhi_mflo_reg(next, NULL, mflo);
+				reg2 = get_mfhi_mflo_reg(op->next, next, mflo);
 				if (reg > 0 && reg == reg2)
 					return reg;
 				if (!reg && !reg2)
@@ -965,8 +966,8 @@ static u8 get_mfhi_mflo_reg(const struct opcode *op, bool mflo)
 
 				if (!(op->flags & LIGHTREC_NO_DS) &&
 				    (op->next->i.op == OP_SPECIAL) &&
-				    (!mflo && op->next->r.op == OP_SPECIAL_MFHI) ||
-				    (mflo && op->next->r.op == OP_SPECIAL_MFLO))
+				    ((!mflo && op->next->r.op == OP_SPECIAL_MFHI) ||
+				    (mflo && op->next->r.op == OP_SPECIAL_MFLO)))
 					return op->next->r.rd;
 
 				return 0;
@@ -1015,7 +1016,7 @@ static int lightrec_flag_mults_divs(struct block *block)
 		if (prev && has_delay_slot(prev->c))
 			continue;
 
-		reg_hi = get_mfhi_mflo_reg(list->next, false);
+		reg_hi = get_mfhi_mflo_reg(list->next, NULL, false);
 		if (reg_hi == 0) {
 			pr_debug("Mark MULT(U)/DIV(U) opcode at offset 0x%x as"
 				 " 32-bit\n", list->offset << 2);
