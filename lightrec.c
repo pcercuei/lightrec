@@ -1082,7 +1082,7 @@ int lightrec_compile_block(struct block *block)
 	if (fully_tagged && !op_list_freed) {
 		pr_debug("Block PC 0x%08x is fully tagged"
 			 " - free opcode list\n", block->pc);
-		lightrec_free_opcode_list(state, block->opcode_list);
+		lightrec_free_opcode_list(block);
 		block->opcode_list = NULL;
 	}
 
@@ -1149,7 +1149,7 @@ void lightrec_free_block(struct block *block)
 {
 	lightrec_unregister(MEM_FOR_MIPS_CODE, block->nb_ops * sizeof(u32));
 	if (block->opcode_list)
-		lightrec_free_opcode_list(block->state, block->opcode_list);
+		lightrec_free_opcode_list(block);
 	if (block->_jit)
 		_jit_destroy_state(block->_jit);
 	lightrec_unregister(MEM_FOR_CODE, block->code_size);

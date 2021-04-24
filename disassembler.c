@@ -44,7 +44,8 @@ static bool is_syscall(union code c)
 		 (c.r.rd == 12 || c.r.rd == 13));
 }
 
-void lightrec_free_opcode_list(struct lightrec_state *state, struct opcode *list)
+static void lightrec_free_opcodes(struct lightrec_state *state,
+				  struct opcode *list)
 {
 	struct opcode *next;
 
@@ -53,6 +54,11 @@ void lightrec_free_opcode_list(struct lightrec_state *state, struct opcode *list
 		lightrec_free(state, MEM_FOR_IR, sizeof(*list), list);
 		list = next;
 	}
+}
+
+void lightrec_free_opcode_list(struct block *block)
+{
+	lightrec_free_opcodes(block->state, block->opcode_list);
 }
 
 struct opcode * lightrec_disassemble(struct lightrec_state *state,
@@ -67,7 +73,7 @@ struct opcode * lightrec_disassemble(struct lightrec_state *state,
 		curr = lightrec_calloc(state, MEM_FOR_IR, sizeof(*curr));
 		if (!curr) {
 			pr_err("Unable to allocate memory\n");
-			lightrec_free_opcode_list(state, head);
+			lightrec_free_opcodes(state, head);
 			return NULL;
 		}
 
