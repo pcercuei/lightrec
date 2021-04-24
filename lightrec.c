@@ -698,7 +698,7 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 	/* Slow path: call C function get_next_block_func() */
 	jit_patch(to_c);
 
-	if (ENABLE_FIRST_PASS) {
+	if (ENABLE_FIRST_PASS || OPT_DETECT_IMPOSSIBLE_BRANCHES) {
 		/* We may call the interpreter - update state->current_cycle */
 		jit_ldxi_i(JIT_R2, LIGHTREC_REG_STATE,
 			   offsetof(struct lightrec_state, target_cycle));
@@ -719,7 +719,7 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 	jit_finishi(&get_next_block_func);
 	jit_retval(JIT_R0);
 
-	if (ENABLE_FIRST_PASS) {
+	if (ENABLE_FIRST_PASS || OPT_DETECT_IMPOSSIBLE_BRANCHES) {
 		/* The interpreter may have updated state->current_cycle and
 		 * state->target_cycle - recalc the delta */
 		jit_ldxi_i(JIT_R1, LIGHTREC_REG_STATE,
