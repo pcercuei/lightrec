@@ -1027,6 +1027,57 @@ static u8 get_mfhi_mflo_reg(const struct opcode *op, const struct opcode *last,
 	return reg;
 }
 
+static void lightrec_replace_lo_hi(struct opcode *op,
+				   const struct opcode *last, bool lo)
+{
+	struct opcode *next;
+	u32 offset;
+
+	/* This function will remove the following MFLO/MFHI. It must be called
+	 * only if get_mfhi_mflo_reg() returned a non-zero value. */
+
+	for (; op != last; op = op->next) {
+		switch (op->i.op) {
+		case OP_BEQ:
+		case OP_BNE:
+		case OP_BLEZ:
+		case OP_BGTZ:
+		case OP_REGIMM:
+		case OP_META_BEQZ:
+		case OP_META_BNEZ:
+			/* TODO: handle backwards branches too */
+			if ((op->flags & LIGHTREC_LOCAL_BRANCH) &&
+			    (s16)op->c.i.imm >= 0) {
+				offset = op->offset + 1 + (s16)op->c.i.imm;
+
+				for (next = op; next->offset != offset;
+				     next = next->next);
+
+				lightrec_replace_lo_hi(next, last, lo);
+				lightrec_replace_lo_hi(op->next, next, lo);
+			}
+			break;
+
+		case OP_SPECIAL:
+			if (lo && op->r.op == OP_SPECIAL_MFLO) {
+				pr_debug("Removing MFLO opcode at offset 0x%x\n",
+					 op->offset << 2);
+				op->opcode = 0;
+				return;
+			} else if (!lo && op->r.op == OP_SPECIAL_MFHI) {
+				pr_debug("Removing MFHI opcode at offset 0x%x\n",
+					 op->offset << 2);
+				op->opcode = 0;
+				return;
+			}
+
+			/* fall-through */
+		default:
+			break;
+		}
+	}
+}
+
 static int lightrec_flag_mults_divs(struct block *block)
 {
 	struct opcode *list, *prev;
@@ -1069,6 +1120,26 @@ static int lightrec_flag_mults_divs(struct block *block)
 			pr_debug("Removing DIV(U) at offset 0x%x as LO/HI are unused\n",
 				 list->offset << 2);
 			list->opcode = 0;
+		}
+
+		if (reg_lo > 0 && reg_lo != REG_LO) {
+			pr_debug("Found register %s to hold LO rs = %u, rt = %u)\n",
+				 lightrec_reg_name(reg_lo), list->r.rs, list->r.rt);
+
+			lightrec_replace_lo_hi(list->next, NULL, true);
+			list->r.rd = reg_lo;
+		} else {
+			list->r.rd = 0;
+		}
+
+		if (reg_hi > 0 && reg_hi != REG_HI) {
+			pr_debug("Found register %s to hold HI rs = %u, rt = %u)\n",
+				 lightrec_reg_name(reg_hi), list->r.rs, list->r.rt);
+
+			lightrec_replace_lo_hi(list->next, NULL, false);
+			list->r.imm = reg_hi;
+		} else {
+			list->r.imm = 0;
 		}
 	}
 

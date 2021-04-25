@@ -53,6 +53,9 @@
 
 #define CODE_LUT_SIZE	((RAM_SIZE + BIOS_SIZE) >> 2)
 
+#define REG_LO 32
+#define REG_HI 33
+
 /* Definition of jit_state_t (avoids inclusion of <lightning.h>) */
 struct jit_node;
 struct jit_state;
@@ -157,5 +160,15 @@ union code lightrec_read_opcode(struct lightrec_state *state, u32 pc);
 
 struct block * lightrec_get_block(struct lightrec_state *state, u32 pc);
 int lightrec_compile_block(struct block *block);
+
+static inline u8 get_mult_div_lo(union code c)
+{
+	return (OPT_FLAG_MULT_DIV && c.r.rd) ? c.r.rd : REG_LO;
+}
+
+static inline u8 get_mult_div_hi(union code c)
+{
+	return (OPT_FLAG_MULT_DIV && c.r.imm) ? c.r.imm : REG_HI;
+}
 
 #endif /* __LIGHTREC_PRIVATE_H__ */

@@ -764,11 +764,13 @@ static u32 int_special_MULT(struct interpreter *inter)
 	u32 *reg_cache = inter->state->native_reg_cache;
 	s32 rs = reg_cache[inter->op->r.rs];
 	s32 rt = reg_cache[inter->op->r.rt];
+	u8 reg_lo = get_mult_div_lo(inter->op->c);
+	u8 reg_hi = get_mult_div_hi(inter->op->c);
 	u64 res = (s64)rs * (s64)rt;
 
 	if (!(inter->op->flags & LIGHTREC_NO_HI))
-		reg_cache[REG_HI] = res >> 32;
-	reg_cache[REG_LO] = res;
+		reg_cache[reg_hi] = res >> 32;
+	reg_cache[reg_lo] = res;
 
 	return jump_next(inter);
 }
@@ -778,11 +780,13 @@ static u32 int_special_MULTU(struct interpreter *inter)
 	u32 *reg_cache = inter->state->native_reg_cache;
 	u32 rs = reg_cache[inter->op->r.rs];
 	u32 rt = reg_cache[inter->op->r.rt];
+	u8 reg_lo = get_mult_div_lo(inter->op->c);
+	u8 reg_hi = get_mult_div_hi(inter->op->c);
 	u64 res = (u64)rs * (u64)rt;
 
 	if (!(inter->op->flags & LIGHTREC_NO_HI))
-		reg_cache[REG_HI] = res >> 32;
-	reg_cache[REG_LO] = res;
+		reg_cache[reg_hi] = res >> 32;
+	reg_cache[reg_lo] = res;
 
 	return jump_next(inter);
 }
@@ -792,6 +796,8 @@ static u32 int_special_DIV(struct interpreter *inter)
 	u32 *reg_cache = inter->state->native_reg_cache;
 	s32 rs = reg_cache[inter->op->r.rs];
 	s32 rt = reg_cache[inter->op->r.rt];
+	u8 reg_lo = get_mult_div_lo(inter->op->c);
+	u8 reg_hi = get_mult_div_hi(inter->op->c);
 	u32 lo, hi;
 
 	if (rt == 0) {
@@ -802,8 +808,8 @@ static u32 int_special_DIV(struct interpreter *inter)
 		hi = rs % rt;
 	}
 
-	reg_cache[REG_HI] = hi;
-	reg_cache[REG_LO] = lo;
+	reg_cache[reg_hi] = hi;
+	reg_cache[reg_lo] = lo;
 
 	return jump_next(inter);
 }
@@ -813,6 +819,8 @@ static u32 int_special_DIVU(struct interpreter *inter)
 	u32 *reg_cache = inter->state->native_reg_cache;
 	u32 rs = reg_cache[inter->op->r.rs];
 	u32 rt = reg_cache[inter->op->r.rt];
+	u8 reg_lo = get_mult_div_lo(inter->op->c);
+	u8 reg_hi = get_mult_div_hi(inter->op->c);
 	u32 lo, hi;
 
 	if (rt == 0) {
@@ -823,8 +831,8 @@ static u32 int_special_DIVU(struct interpreter *inter)
 		hi = rs % rt;
 	}
 
-	reg_cache[REG_HI] = hi;
-	reg_cache[REG_LO] = lo;
+	reg_cache[reg_hi] = hi;
+	reg_cache[reg_lo] = lo;
 
 	return jump_next(inter);
 }

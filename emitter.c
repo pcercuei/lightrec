@@ -688,6 +688,8 @@ static void rec_alu_mult(const struct block *block,
 			 const struct opcode *op, bool is_signed)
 {
 	struct regcache *reg_cache = block->state->reg_cache;
+	u8 reg_lo = get_mult_div_lo(op->c);
+	u8 reg_hi = get_mult_div_hi(op->c);
 	jit_state_t *_jit = block->_jit;
 	u8 lo, hi, rs, rt, flags = 0;
 
@@ -702,12 +704,12 @@ static void rec_alu_mult(const struct block *block,
 	rt = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rt, flags);
 
 	if (!(op->flags & LIGHTREC_NO_LO))
-		lo = lightrec_alloc_reg_out(reg_cache, _jit, REG_LO, 0);
+		lo = lightrec_alloc_reg_out(reg_cache, _jit, reg_lo, 0);
 	else if (__WORDSIZE == 32)
 		lo = lightrec_alloc_reg_temp(reg_cache, _jit);
 
 	if (!(op->flags & LIGHTREC_NO_HI))
-		hi = lightrec_alloc_reg_out(reg_cache, _jit, REG_HI, REG_EXT);
+		hi = lightrec_alloc_reg_out(reg_cache, _jit, reg_hi, REG_EXT);
 
 #if __WORDSIZE == 32
 	/* On 32-bit systems, do a 32*32->64 bit operation, or a 32*32->32 bit
@@ -747,6 +749,8 @@ static void rec_alu_div(const struct block *block,
 {
 	struct regcache *reg_cache = block->state->reg_cache;
 	bool no_check = op->flags & LIGHTREC_NO_DIV_CHECK;
+	u8 reg_lo = get_mult_div_lo(op->c);
+	u8 reg_hi = get_mult_div_hi(op->c);
 	jit_state_t *_jit = block->_jit;
 	jit_node_t *branch, *to_end;
 	u8 lo, hi, rs, rt, flags = 0;
@@ -762,10 +766,10 @@ static void rec_alu_div(const struct block *block,
 	rt = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rt, flags);
 
 	if (!(op->flags & LIGHTREC_NO_LO))
-		lo = lightrec_alloc_reg_out(reg_cache, _jit, REG_LO, 0);
+		lo = lightrec_alloc_reg_out(reg_cache, _jit, reg_lo, 0);
 
 	if (!(op->flags & LIGHTREC_NO_HI))
-		hi = lightrec_alloc_reg_out(reg_cache, _jit, REG_HI, 0);
+		hi = lightrec_alloc_reg_out(reg_cache, _jit, reg_hi, 0);
 
 	/* Jump to special handler if dividing by zero  */
 	if (!no_check) {
