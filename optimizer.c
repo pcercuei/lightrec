@@ -929,7 +929,8 @@ static u8 get_mfhi_mflo_reg(const struct opcode *op,
 		case OP_META_BEQZ:
 		case OP_META_BNEZ:
 			/* TODO: handle backwards branches too */
-			if ((op->flags & LIGHTREC_LOCAL_BRANCH) &&
+			if (!last &&
+			    (op->flags & LIGHTREC_LOCAL_BRANCH) &&
 			    (s16)op->c.i.imm >= 0) {
 				offset = op->offset + 1 + (s16)op->c.i.imm;
 
