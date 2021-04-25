@@ -395,16 +395,35 @@ static void rec_ANDI(const struct block *block, const struct opcode *op, u32 pc)
 	lightrec_free_reg(reg_cache, rt);
 }
 
+static void rec_alu_or_xor(const struct block *block, const struct opcode *op,
+			   jit_code_t code)
+{
+	struct regcache *reg_cache = block->state->reg_cache;
+	jit_state_t *_jit = block->_jit;
+	u8 rs, rt, flags;
+
+	jit_note(__FILE__, __LINE__);
+	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rs, 0);
+	rt = lightrec_alloc_reg_out(reg_cache, _jit, op->i.rt, 0);
+	lightrec_copy_reg_flags(reg_cache, rt, rs);
+
+	jit_new_node_www(code, rt, rs, (u32)(u16) op->i.imm);
+
+	lightrec_free_reg(reg_cache, rs);
+	lightrec_free_reg(reg_cache, rt);
+}
+
+
 static void rec_ORI(const struct block *block, const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_alu_imm(block, op, jit_code_ori, false);
+	rec_alu_or_xor(block, op, jit_code_ori);
 }
 
 static void rec_XORI(const struct block *block, const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_alu_imm(block, op, jit_code_xori, false);
+	rec_alu_or_xor(block, op, jit_code_xori);
 }
 
 static void rec_LUI(const struct block *block, const struct opcode *op, u32 pc)
