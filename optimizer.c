@@ -929,14 +929,21 @@ static int lightrec_flag_stores(struct block *block)
 	return 0;
 }
 
-static u8 get_mfhi_mflo_reg(const struct opcode *op,
-			    const struct opcode *last, bool mflo)
+static u8 get_mfhi_mflo_reg(const struct opcode *op, const struct opcode *last,
+			    u32 mask, bool mflo)
 {
 	const struct opcode *next;
-	u32 offset;
+	u32 offset, old_mask;
 	u8 reg2, reg = mflo ? REG_LO : REG_HI;
 
 	for (; op != last; op = op->next) {
+		old_mask = mask;
+
+		/* If any other opcode writes or reads to the register
+		 * we'd use, then we cannot use it anymore. */
+		mask |= opcode_read_mask(op->c);
+		mask |= opcode_write_mask(op->c);
+
 		switch (op->i.op) {
 		case OP_BEQ:
 		case OP_BNE:
@@ -954,8 +961,8 @@ static u8 get_mfhi_mflo_reg(const struct opcode *op,
 				for (next = op; next->offset != offset;
 				     next = next->next);
 
-				reg = get_mfhi_mflo_reg(next, NULL, mflo);
-				reg2 = get_mfhi_mflo_reg(op->next, next, mflo);
+				reg = get_mfhi_mflo_reg(next, NULL, mask, mflo);
+				reg2 = get_mfhi_mflo_reg(op->next, next, mask, mflo);
 				if (reg > 0 && reg == reg2)
 					return reg;
 				if (!reg && !reg2)
@@ -992,16 +999,26 @@ static u8 get_mfhi_mflo_reg(const struct opcode *op,
 			case OP_SPECIAL_JALR:
 				return reg;
 			case OP_SPECIAL_MFHI:
-				if (!mflo)
-					return op->r.rd;
+				if (!mflo) {
+					if (!(old_mask & BIT(op->r.rd)))
+						return op->r.rd;
+					else
+						return REG_HI;
+				}
 				continue;
 			case OP_SPECIAL_MFLO:
-				if (mflo)
-					return op->r.rd;
+				if (mflo) {
+					if (!(old_mask & BIT(op->r.rd)))
+						return op->r.rd;
+					else
+						return REG_LO;
+				}
 				continue;
 			default:
-				continue;
+				break;
 			}
+
+			/* fall-through */
 		default:
 			continue;
 		}
@@ -1034,7 +1051,7 @@ static int lightrec_flag_mults_divs(struct block *block)
 		if (prev && has_delay_slot(prev->c))
 			continue;
 
-		reg_hi = get_mfhi_mflo_reg(list->next, NULL, false);
+		reg_hi = get_mfhi_mflo_reg(list->next, NULL, 0, false);
 		if (reg_hi == 0) {
 			pr_debug("Mark MULT(U)/DIV(U) opcode at offset 0x%x as"
 				 " 32-bit\n", list->offset << 2);
