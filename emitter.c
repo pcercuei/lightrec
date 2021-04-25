@@ -410,11 +410,15 @@ static void rec_LUI(const struct block *block, const struct opcode *op, u32 pc)
 {
 	struct regcache *reg_cache = block->state->reg_cache;
 	jit_state_t *_jit = block->_jit;
-	u8 rt;
+	u8 rt, flags = REG_EXT;
 
 	jit_name(__func__);
 	jit_note(__FILE__, __LINE__);
-	rt = lightrec_alloc_reg_out(reg_cache, _jit, op->i.rt, REG_EXT);
+
+	if (!(op->i.imm & BIT(15)))
+		flags |= REG_ZEXT;
+
+	rt = lightrec_alloc_reg_out(reg_cache, _jit, op->i.rt, flags);
 
 	jit_movi(rt, (s32)(op->i.imm << 16));
 
