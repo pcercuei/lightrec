@@ -379,7 +379,8 @@ static void rec_ANDI(const struct block *block, const struct opcode *op, u32 pc)
 	_jit_name(block->_jit, __func__);
 	jit_note(__FILE__, __LINE__);
 	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rs, 0);
-	rt = lightrec_alloc_reg_out(reg_cache, _jit, op->i.rt, REG_EXT);
+	rt = lightrec_alloc_reg_out(reg_cache, _jit, op->i.rt,
+				    REG_EXT | REG_ZEXT);
 
 	/* PSX code uses ANDI 0xff / ANDI 0xffff a lot, which are basically
 	 * casts to uint8_t / uint16_t. */
