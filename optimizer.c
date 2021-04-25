@@ -120,6 +120,8 @@ static u64 opcode_write_mask(union code op)
 	case OP_LHU:
 	case OP_LWR:
 		return BIT(op.i.rt);
+	case OP_JAL:
+		return BIT(31);
 	case OP_CP0:
 		switch (op.r.rs) {
 		case OP_CP0_MFC0:
