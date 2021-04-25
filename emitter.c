@@ -276,20 +276,20 @@ static void rec_regimm_BGEZAL(const struct block *block,
 }
 
 static void rec_alu_imm(const struct block *block, const struct opcode *op,
-			jit_code_t code, bool sign_extend)
+			jit_code_t code, bool slti)
 {
 	struct regcache *reg_cache = block->state->reg_cache;
 	jit_state_t *_jit = block->_jit;
-	u8 rs, rt;
+	u8 rs, rt, out_flags = REG_EXT;
+
+	if (slti)
+		out_flags |= REG_ZEXT;
 
 	jit_note(__FILE__, __LINE__);
 	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rs, REG_EXT);
-	rt = lightrec_alloc_reg_out(reg_cache, _jit, op->i.rt, REG_EXT);
+	rt = lightrec_alloc_reg_out(reg_cache, _jit, op->i.rt, out_flags);
 
-	if (sign_extend)
-		jit_new_node_www(code, rt, rs, (s32)(s16) op->i.imm);
-	else
-		jit_new_node_www(code, rt, rs, (u32)(u16) op->i.imm);
+	jit_new_node_www(code, rt, rs, (s32)(s16) op->i.imm);
 
 	lightrec_free_reg(reg_cache, rs);
 	lightrec_free_reg(reg_cache, rt);
@@ -347,14 +347,14 @@ static void rec_ADDIU(const struct block *block,
 		      const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_alu_imm(block, op, jit_code_addi, true);
+	rec_alu_imm(block, op, jit_code_addi, false);
 }
 
 static void rec_ADDI(const struct block *block, const struct opcode *op, u32 pc)
 {
 	/* TODO: Handle the exception? */
 	_jit_name(block->_jit, __func__);
-	rec_alu_imm(block, op, jit_code_addi, true);
+	rec_alu_imm(block, op, jit_code_addi, false);
 }
 
 static void rec_SLTIU(const struct block *block,
