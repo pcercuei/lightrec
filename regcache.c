@@ -71,6 +71,15 @@ static inline struct native_register * lightning_reg_to_lightrec(
 	}
 }
 
+u8 lightrec_copy_reg_flags(struct regcache *cache, u8 reg_out, u8 reg_in)
+{
+	struct native_register *out = lightning_reg_to_lightrec(cache, reg_out);
+	struct native_register *in = lightning_reg_to_lightrec(cache, reg_in);
+
+	out->extend = in->extended;
+	out->zero_extend = in->zero_extended;
+}
+
 static struct native_register * alloc_temp(struct regcache *cache)
 {
 	unsigned int i;
