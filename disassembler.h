@@ -13,7 +13,7 @@
 #define __packed __attribute__((packed))
 #endif
 
-#define BIT(x) (1 << (x))
+#define BIT(x) (1ULL << (x))
 
 /* Flags for all opcodes */
 #define LIGHTREC_NO_DS		BIT(0)

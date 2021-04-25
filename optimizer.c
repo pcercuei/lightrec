@@ -21,54 +21,53 @@ struct optimizer_list {
 	unsigned int nb_optimizers;
 };
 
-bool opcode_reads_register(union code op, u8 reg)
+static u64 opcode_read_mask(union code op)
 {
 	switch (op.i.op) {
 	case OP_SPECIAL:
 		switch (op.r.op) {
 		case OP_SPECIAL_SYSCALL:
 		case OP_SPECIAL_BREAK:
-			return false;
+			return 0;
 		case OP_SPECIAL_JR:
 		case OP_SPECIAL_JALR:
 		case OP_SPECIAL_MTHI:
 		case OP_SPECIAL_MTLO:
-			return op.r.rs == reg;
+			return BIT(op.r.rs);
 		case OP_SPECIAL_MFHI:
-			return reg == REG_HI;
+			return BIT(REG_HI);
 		case OP_SPECIAL_MFLO:
-			return reg == REG_LO;
+			return BIT(REG_LO);
 		case OP_SPECIAL_SLL:
 		case OP_SPECIAL_SRL:
 		case OP_SPECIAL_SRA:
-			return op.r.rt == reg;
+			return BIT(op.r.rt);
 		default:
-			return op.r.rs == reg || op.r.rt == reg;
+			return BIT(op.r.rs) | BIT(op.r.rt);
 		}
 	case OP_CP0:
 		switch (op.r.rs) {
 		case OP_CP0_MTC0:
 		case OP_CP0_CTC0:
-			return op.r.rt == reg;
+			return BIT(op.r.rt);
 		default:
-			return false;
+			return 0;
 		}
 	case OP_CP2:
 		if (op.r.op == OP_CP2_BASIC) {
 			switch (op.r.rs) {
 			case OP_CP2_BASIC_MTC2:
 			case OP_CP2_BASIC_CTC2:
-				return op.r.rt == reg;
+				return BIT(op.r.rt);
 			default:
-				return false;
+				break;
 			}
-		} else {
-			return false;
 		}
+		return 0;
 	case OP_J:
 	case OP_JAL:
 	case OP_LUI:
-		return false;
+		return 0;
 	case OP_BEQ:
 	case OP_BNE:
 	case OP_LWL:
@@ -78,13 +77,13 @@ bool opcode_reads_register(union code op, u8 reg)
 	case OP_SWL:
 	case OP_SW:
 	case OP_SWR:
-		return op.i.rs == reg || op.i.rt == reg;
+		return BIT(op.i.rs) | BIT(op.i.rt);
 	default:
-		return op.i.rs == reg;
+		return BIT(op.i.rs);
 	}
 }
 
-bool opcode_writes_register(union code op, u8 reg)
+static u64 opcode_write_mask(union code op)
 {
 	switch (op.i.op) {
 	case OP_SPECIAL:
@@ -93,18 +92,18 @@ bool opcode_writes_register(union code op, u8 reg)
 		case OP_SPECIAL_JALR:
 		case OP_SPECIAL_SYSCALL:
 		case OP_SPECIAL_BREAK:
-			return false;
+			return 0;
 		case OP_SPECIAL_MULT:
 		case OP_SPECIAL_MULTU:
 		case OP_SPECIAL_DIV:
 		case OP_SPECIAL_DIVU:
-			return reg == REG_LO || reg == REG_HI;
+			return BIT(REG_LO) | BIT(REG_HI);
 		case OP_SPECIAL_MTHI:
-			return reg == REG_HI;
+			return BIT(REG_HI);
 		case OP_SPECIAL_MTLO:
-			return reg == REG_LO;
+			return BIT(REG_LO);
 		default:
-			return op.r.rd == reg;
+			return BIT(op.r.rd);
 		}
 	case OP_ADDI:
 	case OP_ADDIU:
@@ -121,32 +120,41 @@ bool opcode_writes_register(union code op, u8 reg)
 	case OP_LBU:
 	case OP_LHU:
 	case OP_LWR:
-		return op.i.rt == reg;
+		return BIT(op.i.rt);
 	case OP_CP0:
 		switch (op.r.rs) {
 		case OP_CP0_MFC0:
 		case OP_CP0_CFC0:
-			return op.i.rt == reg;
+			return BIT(op.i.rt);
 		default:
-			return false;
+			return 0;
 		}
 	case OP_CP2:
 		if (op.r.op == OP_CP2_BASIC) {
 			switch (op.r.rs) {
 			case OP_CP2_BASIC_MFC2:
 			case OP_CP2_BASIC_CFC2:
-				return op.i.rt == reg;
+				return BIT(op.i.rt);
 			default:
-				return false;
+				break;
 			}
-		} else {
-			return false;
 		}
+		return 0;
 	case OP_META_MOV:
-		return op.r.rd == reg;
+		return BIT(op.r.rd);
 	default:
-		return false;
+		return 0;
 	}
+}
+
+bool opcode_reads_register(union code op, u8 reg)
+{
+	return opcode_read_mask(op) & BIT(reg);
+}
+
+bool opcode_writes_register(union code op, u8 reg)
+{
+	return opcode_write_mask(op) & BIT(reg);
 }
 
 /* TODO: Complete */
