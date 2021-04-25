@@ -328,21 +328,14 @@ static void rec_alu_shiftv(const struct block *block,
 
 	if (code == jit_code_rshr)
 		flags = REG_EXT;
+	else if (code == jit_code_rshr_u)
+		flags = REG_ZEXT;
 
 	rt = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rt, flags);
 	rd = lightrec_alloc_reg_out(reg_cache, _jit, op->r.rd, flags);
 
 	jit_andi(temp, rs, 0x1f);
-
-#if __WORDSIZE == 64
-	if (code == jit_code_rshr_u) {
-		jit_extr_ui(rd, rt);
-		jit_new_node_www(code, rd, rd, temp);
-	}
-#endif
-
-	if (__WORDSIZE == 32 || code != jit_code_rshr_u)
-		jit_new_node_www(code, rd, rt, temp);
+	jit_new_node_www(code, rd, rt, temp);
 
 	lightrec_free_reg(reg_cache, rs);
 	lightrec_free_reg(reg_cache, temp);
@@ -541,18 +534,13 @@ static void rec_alu_shift(const struct block *block,
 
 	if (code == jit_code_rshi)
 		flags = REG_EXT;
+	else if (code == jit_code_rshi_u)
+		flags = REG_ZEXT;
 
 	rt = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rt, flags);
 	rd = lightrec_alloc_reg_out(reg_cache, _jit, op->r.rd, flags);
 
-#if __WORDSIZE == 64
-	if (code == jit_code_rshi_u) {
-		jit_extr_ui(rd, rt);
-		jit_new_node_www(code, rd, rd, op->r.imm);
-	}
-#endif
-	if (__WORDSIZE == 32 || code != jit_code_rshi_u)
-		jit_new_node_www(code, rd, rt, op->r.imm);
+	jit_new_node_www(code, rd, rt, op->r.imm);
 
 	lightrec_free_reg(reg_cache, rt);
 	lightrec_free_reg(reg_cache, rd);
@@ -594,8 +582,10 @@ static void rec_alu_mult(const struct block *block,
 	else if (__WORDSIZE == 64)
 		hi = lightrec_alloc_reg_temp(reg_cache, _jit);
 
-	if (__WORDSIZE == 64 && is_signed)
+	if (is_signed)
 		flags = REG_EXT;
+	else
+		flags = REG_ZEXT;
 
 	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rs, flags);
 	rt = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rt, flags);
@@ -612,16 +602,8 @@ static void rec_alu_mult(const struct block *block,
 		jit_mulr(lo, rs, rt);
 	}
 #else
-	/* On 64-bit systems, do a 64*64->64 bit operation.
-	 * The input registers must be 32 bits, so we first sign-extend (if
-	 * mult) or clear (if multu) the input registers. */
-	if (is_signed) {
-		jit_mulr(lo, rs, rt);
-	} else {
-		jit_extr_ui(lo, rt);
-		jit_extr_ui(hi, rs);
-		jit_mulr(lo, hi, lo);
-	}
+	/* On 64-bit systems, do a 64*64->64 bit operation. */
+	jit_mulr(lo, rs, rt);
 
 	/* The 64-bit output value is in $lo, store the upper 32 bits in $hi */
 	if (!(op->flags & LIGHTREC_NO_HI))
@@ -651,8 +633,10 @@ static void rec_alu_div(const struct block *block,
 	else if (__WORDSIZE == 64 && !is_signed)
 		hi = lightrec_alloc_reg_temp(reg_cache, _jit);
 
-	if (__WORDSIZE == 64 && is_signed)
+	if (is_signed)
 		flags = REG_EXT;
+	else
+		flags = REG_ZEXT;
 
 	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rs, flags);
 	rt = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rt, flags);
@@ -677,21 +661,15 @@ static void rec_alu_div(const struct block *block,
 	/* On 64-bit systems, the input registers must be 32 bits, so we first sign-extend
 	 * (if div) or clear (if divu) the input registers. */
 	if (op->flags & LIGHTREC_NO_HI) {
-		if (is_signed) {
+		if (is_signed)
 			jit_divr(lo, rs, rt);
-		} else {
-			jit_extr_ui(lo, rt);
-			jit_extr_ui(hi, rs);
-			jit_divr_u(lo, hi, lo);
-		}
+		else
+			jit_divr_u(lo, rs, rt);
 	} else {
-		if (is_signed) {
+		if (is_signed)
 			jit_qdivr(lo, hi, rs, rt);
-		} else {
-			jit_extr_ui(lo, rt);
-			jit_extr_ui(hi, rs);
-			jit_qdivr_u(lo, hi, hi, lo);
-		}
+		else
+			jit_qdivr_u(lo, hi, rs, rt);
 	}
 #endif
 
