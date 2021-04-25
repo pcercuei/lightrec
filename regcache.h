@@ -18,6 +18,7 @@
 
 /* Flags for lightrec_alloc_reg_in / lightrec_alloc_reg_out. */
 #define REG_EXT		BIT(0) /* register is sign-extended */
+#define REG_ZEXT	BIT(1) /* register is zero-extended */
 
 struct register_value {
 	_Bool known;

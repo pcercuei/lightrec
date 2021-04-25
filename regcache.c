@@ -12,7 +12,8 @@
 #include <stddef.h>
 
 struct native_register {
-	bool used, loaded, dirty, output, extend, extended, locked;
+	bool used, loaded, dirty, output, extend, extended,
+	     zero_extend, zero_extended, locked;
 	s8 emulated_register;
 };
 
@@ -148,6 +149,7 @@ static struct native_register * alloc_in_out(struct regcache *cache,
 static void lightrec_discard_nreg(struct native_register *nreg)
 {
 	nreg->extended = false;
+	nreg->zero_extended = false;
 	nreg->loaded = false;
 	nreg->output = false;
 	nreg->dirty = false;
@@ -236,6 +238,7 @@ u8 lightrec_alloc_reg_out(struct regcache *cache, jit_state_t *_jit,
 	nreg->output = true;
 	nreg->emulated_register = reg;
 	nreg->extend = flags & REG_EXT;
+	nreg->zero_extend = flags & REG_ZEXT;
 	return jit_reg;
 }
 
@@ -263,16 +266,23 @@ u8 lightrec_alloc_reg_in(struct regcache *cache, jit_state_t *_jit,
 		s16 offset = offsetof(struct lightrec_state, native_reg_cache)
 			+ (reg << 2);
 
+		nreg->zero_extended = flags & REG_ZEXT;
+		nreg->extended = !nreg->zero_extended;
+
 		/* Load previous value from register cache */
-		jit_ldxi_i(jit_reg, LIGHTREC_REG_STATE, offset);
+		if (nreg->zero_extended)
+			jit_ldxi_ui(jit_reg, LIGHTREC_REG_STATE, offset);
+		else
+			jit_ldxi_i(jit_reg, LIGHTREC_REG_STATE, offset);
+
 		nreg->loaded = true;
-		nreg->extended = true;
 	}
 
 	/* Clear register r0 before use */
 	if (reg == 0 && (!nreg->loaded || nreg->dirty)) {
 		jit_movi(jit_reg, 0);
 		nreg->extended = true;
+		nreg->zero_extended = true;
 		nreg->loaded = true;
 	}
 
@@ -280,10 +290,19 @@ u8 lightrec_alloc_reg_in(struct regcache *cache, jit_state_t *_jit,
 	nreg->output = false;
 	nreg->emulated_register = reg;
 
-	if ((flags & REG_EXT) && !nreg->extended) {
+	if ((flags & REG_EXT) && !nreg->extended &&
+	    (!nreg->zero_extended || !(flags & REG_ZEXT))) {
 		nreg->extended = true;
+		nreg->zero_extended = false;
 #if __WORDSIZE == 64
 		jit_extr_i(jit_reg, jit_reg);
+#endif
+	} else if (!(flags & REG_EXT) && (flags & REG_ZEXT) &&
+		   !nreg->zero_extended) {
+		nreg->zero_extended = true;
+		nreg->extended = false;
+#if __WORDSIZE == 64
+		jit_extr_ui(jit_reg, jit_reg);
 #endif
 	}
 
@@ -311,6 +330,7 @@ u8 lightrec_request_reg_in(struct regcache *cache, jit_state_t *_jit,
 	jit_ldxi_i(jit_reg, LIGHTREC_REG_STATE, offset);
 
 	nreg->extended = true;
+	nreg->zero_extended = false;
 	nreg->used = true;
 	nreg->loaded = true;
 	nreg->emulated_register = reg;
@@ -323,8 +343,10 @@ static void free_reg(struct native_register *nreg)
 	/* Set output registers as dirty */
 	if (nreg->used && nreg->output && nreg->emulated_register > 0)
 		nreg->dirty = true;
-	if (nreg->output)
+	if (nreg->output) {
 		nreg->extended = nreg->extend;
+		nreg->zero_extended = nreg->zero_extend;
+	}
 	nreg->used = false;
 }
 
