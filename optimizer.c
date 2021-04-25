@@ -89,7 +89,6 @@ static u64 opcode_write_mask(union code op)
 	case OP_SPECIAL:
 		switch (op.r.op) {
 		case OP_SPECIAL_JR:
-		case OP_SPECIAL_JALR:
 		case OP_SPECIAL_SYSCALL:
 		case OP_SPECIAL_BREAK:
 			return 0;
