@@ -1064,6 +1064,12 @@ static int lightrec_flag_mults_divs(struct block *block)
 				 " not writing HI\n", list->offset << 2);
 			list->flags |= LIGHTREC_NO_HI;
 		}
+
+		if (!reg_lo && !reg_hi) {
+			pr_debug("Removing DIV(U) at offset 0x%x as LO/HI are unused\n",
+				 list->offset << 2);
+			list->opcode = 0;
+		}
 	}
 
 	return 0;
