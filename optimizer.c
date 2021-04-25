@@ -141,6 +141,14 @@ static u64 opcode_write_mask(union code op)
 			}
 		}
 		return 0;
+	case OP_REGIMM:
+		switch (op.r.rt) {
+		case OP_REGIMM_BLTZAL:
+		case OP_REGIMM_BGEZAL:
+			return BIT(31);
+		default:
+			return 0;
+		}
 	case OP_META_MOV:
 		return BIT(op.r.rd);
 	default:
