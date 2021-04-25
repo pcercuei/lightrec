@@ -214,7 +214,8 @@ u8 lightrec_alloc_reg_temp(struct regcache *cache, jit_state_t *_jit)
 	return jit_reg;
 }
 
-u8 lightrec_alloc_reg_out(struct regcache *cache, jit_state_t *_jit, u8 reg)
+u8 lightrec_alloc_reg_out(struct regcache *cache, jit_state_t *_jit,
+			  u8 reg, u8 flags)
 {
 	u8 jit_reg;
 	struct native_register *nreg = alloc_in_out(cache, reg, true);
@@ -231,14 +232,15 @@ u8 lightrec_alloc_reg_out(struct regcache *cache, jit_state_t *_jit, u8 reg)
 	if (nreg->emulated_register != reg)
 		lightrec_unload_nreg(cache, _jit, nreg, jit_reg);
 
-	nreg->extend = false;
 	nreg->used = true;
 	nreg->output = true;
 	nreg->emulated_register = reg;
+	nreg->extend = flags & REG_EXT;
 	return jit_reg;
 }
 
-u8 lightrec_alloc_reg_in(struct regcache *cache, jit_state_t *_jit, u8 reg)
+u8 lightrec_alloc_reg_in(struct regcache *cache, jit_state_t *_jit,
+			 u8 reg, u8 flags)
 {
 	u8 jit_reg;
 	bool reg_changed;
@@ -277,36 +279,13 @@ u8 lightrec_alloc_reg_in(struct regcache *cache, jit_state_t *_jit, u8 reg)
 	nreg->used = true;
 	nreg->output = false;
 	nreg->emulated_register = reg;
-	return jit_reg;
-}
 
-u8 lightrec_alloc_reg_out_ext(struct regcache *cache, jit_state_t *_jit, u8 reg)
-{
-	struct native_register *nreg;
-	u8 jit_reg;
-
-	jit_reg = lightrec_alloc_reg_out(cache, _jit, reg);
-	nreg = lightning_reg_to_lightrec(cache, jit_reg);
-
-	nreg->extend = true;
-
-	return jit_reg;
-}
-
-u8 lightrec_alloc_reg_in_ext(struct regcache *cache, jit_state_t *_jit, u8 reg)
-{
-	struct native_register *nreg;
-	u8 jit_reg;
-
-	jit_reg = lightrec_alloc_reg_in(cache, _jit, reg);
-	nreg = lightning_reg_to_lightrec(cache, jit_reg);
-
-#if __WORDSIZE == 64
-	if (!nreg->extended) {
+	if ((flags & REG_EXT) && !nreg->extended) {
 		nreg->extended = true;
+#if __WORDSIZE == 64
 		jit_extr_i(jit_reg, jit_reg);
-	}
 #endif
+	}
 
 	return jit_reg;
 }

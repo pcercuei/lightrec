@@ -46,7 +46,7 @@ static void lightrec_emit_end_of_block(const struct block *block,
 
 	if (link) {
 		/* Update the $ra register */
-		u8 link_reg = lightrec_alloc_reg_out(reg_cache, _jit, ra_reg);
+		u8 link_reg = lightrec_alloc_reg_out(reg_cache, _jit, ra_reg, 0);
 		jit_movi(link_reg, link);
 		lightrec_free_reg(reg_cache, link_reg);
 	}
@@ -159,9 +159,9 @@ static void rec_b(const struct block *block, const struct opcode *op, u32 pc,
 		jit_subi(LIGHTREC_REG_CYCLE, LIGHTREC_REG_CYCLE, cycles);
 
 	if (!unconditional) {
-		u8 rs = lightrec_alloc_reg_in_ext(reg_cache, _jit, op->i.rs),
-		   rt = bz ? 0 : lightrec_alloc_reg_in_ext(reg_cache,
-							   _jit, op->i.rt);
+		u8 rs = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rs, REG_EXT),
+		   rt = bz ? 0 : lightrec_alloc_reg_in(reg_cache,
+						       _jit, op->i.rt, REG_EXT);
 
 		/* Generate the branch opcode */
 		addr = jit_new_node_pww(code, NULL, rs, rt);
@@ -179,7 +179,7 @@ static void rec_b(const struct block *block, const struct opcode *op, u32 pc,
 
 		if (link) {
 			/* Update the $ra register */
-			link_reg = lightrec_alloc_reg_out(reg_cache, _jit, 31);
+			link_reg = lightrec_alloc_reg_out(reg_cache, _jit, 31, 0);
 			jit_movi(link_reg, link);
 			lightrec_free_reg(reg_cache, link_reg);
 		}
@@ -211,8 +211,8 @@ static void rec_b(const struct block *block, const struct opcode *op, u32 pc,
 
 		if (bz && link) {
 			/* Update the $ra register */
-			link_reg = lightrec_alloc_reg_out_ext(reg_cache,
-							      _jit, 31);
+			link_reg = lightrec_alloc_reg_out(reg_cache, _jit,
+							  31, REG_EXT);
 			jit_movi(link_reg, (s32)link);
 			lightrec_free_reg(reg_cache, link_reg);
 		}
@@ -283,8 +283,8 @@ static void rec_alu_imm(const struct block *block, const struct opcode *op,
 	u8 rs, rt;
 
 	jit_note(__FILE__, __LINE__);
-	rs = lightrec_alloc_reg_in_ext(reg_cache, _jit, op->i.rs);
-	rt = lightrec_alloc_reg_out_ext(reg_cache, _jit, op->i.rt);
+	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rs, REG_EXT);
+	rt = lightrec_alloc_reg_out(reg_cache, _jit, op->i.rt, REG_EXT);
 
 	if (sign_extend)
 		jit_new_node_www(code, rt, rs, (s32)(s16) op->i.imm);
@@ -303,13 +303,10 @@ static void rec_alu_special(const struct block *block, const struct opcode *op,
 	u8 rd, rt, rs;
 
 	jit_note(__FILE__, __LINE__);
-	rs = lightrec_alloc_reg_in_ext(reg_cache, _jit, op->r.rs);
-	rt = lightrec_alloc_reg_in_ext(reg_cache, _jit, op->r.rt);
-
-	if (out_ext)
-	   rd = lightrec_alloc_reg_out_ext(reg_cache, _jit, op->r.rd);
-	else
-	   rd = lightrec_alloc_reg_out(reg_cache, _jit, op->r.rd);
+	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rs, REG_EXT);
+	rt = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rt, REG_EXT);
+	rd = lightrec_alloc_reg_out(reg_cache, _jit, op->r.rd,
+				    out_ext ? REG_EXT : 0);
 
 	jit_new_node_www(code, rd, rs, rt);
 
@@ -323,19 +320,17 @@ static void rec_alu_shiftv(const struct block *block,
 {
 	struct regcache *reg_cache = block->state->reg_cache;
 	jit_state_t *_jit = block->_jit;
-	u8 rd, rt, rs, temp;
+	u8 rd, rt, rs, temp, flags = 0;
 
 	jit_note(__FILE__, __LINE__);
-	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rs);
+	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rs, 0);
 	temp = lightrec_alloc_reg_temp(reg_cache, _jit);
 
-	if (code == jit_code_rshr) {
-		rt = lightrec_alloc_reg_in_ext(reg_cache, _jit, op->r.rt);
-		rd = lightrec_alloc_reg_out_ext(reg_cache, _jit, op->r.rd);
-	} else {
-		rt = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rt);
-		rd = lightrec_alloc_reg_out(reg_cache, _jit, op->r.rd);
-	}
+	if (code == jit_code_rshr)
+		flags = REG_EXT;
+
+	rt = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rt, flags);
+	rd = lightrec_alloc_reg_out(reg_cache, _jit, op->r.rd, flags);
 
 	jit_andi(temp, rs, 0x1f);
 
@@ -390,8 +385,8 @@ static void rec_ANDI(const struct block *block, const struct opcode *op, u32 pc)
 
 	_jit_name(block->_jit, __func__);
 	jit_note(__FILE__, __LINE__);
-	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rs);
-	rt = lightrec_alloc_reg_out_ext(reg_cache, _jit, op->i.rt);
+	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rs, 0);
+	rt = lightrec_alloc_reg_out(reg_cache, _jit, op->i.rt, REG_EXT);
 
 	/* PSX code uses ANDI 0xff / ANDI 0xffff a lot, which are basically
 	 * casts to uint8_t / uint16_t. */
@@ -426,7 +421,7 @@ static void rec_LUI(const struct block *block, const struct opcode *op, u32 pc)
 
 	jit_name(__func__);
 	jit_note(__FILE__, __LINE__);
-	rt = lightrec_alloc_reg_out_ext(reg_cache, _jit, op->i.rt);
+	rt = lightrec_alloc_reg_out(reg_cache, _jit, op->i.rt, REG_EXT);
 
 	jit_movi(rt, (s32)(op->i.imm << 16));
 
@@ -493,7 +488,7 @@ static void rec_special_NOR(const struct block *block,
 
 	jit_name(__func__);
 	rec_alu_special(block, op, jit_code_orr, false);
-	rd = lightrec_alloc_reg_out(reg_cache, _jit, op->r.rd);
+	rd = lightrec_alloc_reg_out(reg_cache, _jit, op->r.rd, 0);
 
 	jit_comr(rd, rd);
 
@@ -540,17 +535,15 @@ static void rec_alu_shift(const struct block *block,
 {
 	struct regcache *reg_cache = block->state->reg_cache;
 	jit_state_t *_jit = block->_jit;
-	u8 rd, rt;
+	u8 rd, rt, flags = 0;
 
 	jit_note(__FILE__, __LINE__);
 
-	if (code == jit_code_rshi) {
-		rt = lightrec_alloc_reg_in_ext(reg_cache, _jit, op->r.rt);
-		rd = lightrec_alloc_reg_out_ext(reg_cache, _jit, op->r.rd);
-	} else {
-		rt = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rt);
-		rd = lightrec_alloc_reg_out(reg_cache, _jit, op->r.rd);
-	}
+	if (code == jit_code_rshi)
+		flags = REG_EXT;
+
+	rt = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rt, flags);
+	rd = lightrec_alloc_reg_out(reg_cache, _jit, op->r.rd, flags);
 
 #if __WORDSIZE == 64
 	if (code == jit_code_rshi_u) {
@@ -591,23 +584,21 @@ static void rec_alu_mult(const struct block *block,
 {
 	struct regcache *reg_cache = block->state->reg_cache;
 	jit_state_t *_jit = block->_jit;
-	u8 lo, hi, rs, rt;
+	u8 lo, hi, rs, rt, flags = 0;
 
 	jit_note(__FILE__, __LINE__);
 
-	lo = lightrec_alloc_reg_out(reg_cache, _jit, REG_LO);
+	lo = lightrec_alloc_reg_out(reg_cache, _jit, REG_LO, 0);
 	if (!(op->flags & LIGHTREC_NO_HI))
-		hi = lightrec_alloc_reg_out_ext(reg_cache, _jit, REG_HI);
+		hi = lightrec_alloc_reg_out(reg_cache, _jit, REG_HI, REG_EXT);
 	else if (__WORDSIZE == 64)
 		hi = lightrec_alloc_reg_temp(reg_cache, _jit);
 
-	if (__WORDSIZE == 32 || !is_signed) {
-		rs = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rs);
-		rt = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rt);
-	} else {
-		rs = lightrec_alloc_reg_in_ext(reg_cache, _jit, op->r.rs);
-		rt = lightrec_alloc_reg_in_ext(reg_cache, _jit, op->r.rt);
-	}
+	if (__WORDSIZE == 64 && is_signed)
+		flags = REG_EXT;
+
+	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rs, flags);
+	rt = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rt, flags);
 
 #if __WORDSIZE == 32
 	/* On 32-bit systems, do a 32*32->64 bit operation, or a 32*32->32 bit
@@ -651,22 +642,20 @@ static void rec_alu_div(const struct block *block,
 	bool no_check = op->flags & LIGHTREC_NO_DIV_CHECK;
 	jit_state_t *_jit = block->_jit;
 	jit_node_t *branch, *to_end;
-	u8 lo, hi, rs, rt;
+	u8 lo, hi, rs, rt, flags = 0;
 
 	jit_note(__FILE__, __LINE__);
-	lo = lightrec_alloc_reg_out(reg_cache, _jit, REG_LO);
+	lo = lightrec_alloc_reg_out(reg_cache, _jit, REG_LO, 0);
 	if (!(op->flags & LIGHTREC_NO_HI))
-		hi = lightrec_alloc_reg_out(reg_cache, _jit, REG_HI);
+		hi = lightrec_alloc_reg_out(reg_cache, _jit, REG_HI, 0);
 	else if (__WORDSIZE == 64 && !is_signed)
 		hi = lightrec_alloc_reg_temp(reg_cache, _jit);
 
-	if (__WORDSIZE == 32 || !is_signed) {
-		rs = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rs);
-		rt = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rt);
-	} else {
-		rs = lightrec_alloc_reg_in_ext(reg_cache, _jit, op->r.rs);
-		rt = lightrec_alloc_reg_in_ext(reg_cache, _jit, op->r.rt);
-	}
+	if (__WORDSIZE == 64 && is_signed)
+		flags = REG_EXT;
+
+	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rs, flags);
+	rt = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rt, flags);
 
 	/* Jump to special handler if dividing by zero  */
 	if (!no_check)
@@ -769,8 +758,8 @@ static void rec_alu_mv_lo_hi(const struct block *block, u8 dst, u8 src)
 	jit_state_t *_jit = block->_jit;
 
 	jit_note(__FILE__, __LINE__);
-	src = lightrec_alloc_reg_in(reg_cache, _jit, src);
-	dst = lightrec_alloc_reg_out_ext(reg_cache, _jit, dst);
+	src = lightrec_alloc_reg_in(reg_cache, _jit, src, 0);
+	dst = lightrec_alloc_reg_out(reg_cache, _jit, dst, REG_EXT);
 
 #if __WORDSIZE == 32
 	jit_movr(dst, src);
@@ -868,7 +857,7 @@ static void rec_store_direct_no_invalidate(const struct block *block,
 	s16 imm;
 
 	jit_note(__FILE__, __LINE__);
-	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rs);
+	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rs, 0);
 	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
 	tmp2 = lightrec_alloc_reg_temp(reg_cache, _jit);
 
@@ -906,7 +895,7 @@ static void rec_store_direct_no_invalidate(const struct block *block,
 
 	lightrec_free_reg(reg_cache, tmp2);
 
-	rt = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rt);
+	rt = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rt, 0);
 	jit_new_node_www(code, imm, tmp, rt);
 
 	lightrec_free_reg(reg_cache, rt);
@@ -924,9 +913,9 @@ static void rec_store_direct(const struct block *block, const struct opcode *op,
 
 	jit_note(__FILE__, __LINE__);
 
-	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rs);
+	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rs, 0);
 	tmp2 = lightrec_alloc_reg_temp(reg_cache, _jit);
-	tmp3 = lightrec_alloc_reg_in(reg_cache, _jit, 0);
+	tmp3 = lightrec_alloc_reg_in(reg_cache, _jit, 0, 0);
 
 	/* Convert to KUNSEG and avoid RAM mirrors */
 	if (op->i.imm) {
@@ -971,7 +960,7 @@ static void rec_store_direct(const struct block *block, const struct opcode *op,
 	lightrec_free_reg(reg_cache, tmp);
 	lightrec_free_reg(reg_cache, tmp3);
 
-	rt = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rt);
+	rt = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rt, 0);
 	jit_new_node_www(code, 0, tmp2, rt);
 
 	lightrec_free_reg(reg_cache, rt);
@@ -1043,8 +1032,8 @@ static void rec_load_direct(const struct block *block, const struct opcode *op,
 		return;
 
 	jit_note(__FILE__, __LINE__);
-	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rs);
-	rt = lightrec_alloc_reg_out_ext(reg_cache, _jit, op->i.rt);
+	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rs, 0);
+	rt = lightrec_alloc_reg_out(reg_cache, _jit, op->i.rt, REG_EXT);
 
 	if ((state->offset_ram == state->offset_bios &&
 	    state->offset_ram == state->offset_scratch &&
@@ -1410,8 +1399,8 @@ static void rec_meta_MOV(const struct block *block,
 
 	_jit_name(block->_jit, __func__);
 	jit_note(__FILE__, __LINE__);
-	rs = op->r.rs ? lightrec_alloc_reg_in(reg_cache, _jit, op->r.rs) : 0;
-	rd = lightrec_alloc_reg_out_ext(reg_cache, _jit, op->r.rd);
+	rs = op->r.rs ? lightrec_alloc_reg_in(reg_cache, _jit, op->r.rs, 0) : 0;
+	rd = lightrec_alloc_reg_out(reg_cache, _jit, op->r.rd, REG_EXT);
 
 	if (op->r.rs == 0) {
 		jit_movi(rd, 0);

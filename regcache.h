@@ -16,6 +16,9 @@
 #define REG_LO 32
 #define REG_HI 33
 
+/* Flags for lightrec_alloc_reg_in / lightrec_alloc_reg_out. */
+#define REG_EXT		BIT(0) /* register is sign-extended */
+
 struct register_value {
 	_Bool known;
 	u32 value;
@@ -26,11 +29,10 @@ struct regcache;
 
 u8 lightrec_alloc_reg(struct regcache *cache, jit_state_t *_jit, u8 jit_reg);
 u8 lightrec_alloc_reg_temp(struct regcache *cache, jit_state_t *_jit);
-u8 lightrec_alloc_reg_out(struct regcache *cache, jit_state_t *_jit, u8 reg);
-u8 lightrec_alloc_reg_in(struct regcache *cache, jit_state_t *_jit, u8 reg);
-u8 lightrec_alloc_reg_out_ext(struct regcache *cache,
-			      jit_state_t *_jit, u8 reg);
-u8 lightrec_alloc_reg_in_ext(struct regcache *cache, jit_state_t *_jit, u8 reg);
+u8 lightrec_alloc_reg_out(struct regcache *cache, jit_state_t *_jit,
+			  u8 reg, u8 flags);
+u8 lightrec_alloc_reg_in(struct regcache *cache, jit_state_t *_jit,
+			 u8 reg, u8 flags);
 
 u8 lightrec_request_reg_in(struct regcache *cache, jit_state_t *_jit,
 			   u8 reg, u8 jit_reg);
