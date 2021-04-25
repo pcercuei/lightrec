@@ -1030,7 +1030,7 @@ static u8 get_mfhi_mflo_reg(const struct opcode *op, const struct opcode *last,
 static int lightrec_flag_mults_divs(struct block *block)
 {
 	struct opcode *list, *prev;
-	u8 reg_hi;
+	u8 reg_hi, reg_lo;
 
 	for (list = block->opcode_list, prev = NULL; list;
 	     prev = list, list = list->next) {
@@ -1051,10 +1051,17 @@ static int lightrec_flag_mults_divs(struct block *block)
 		if (prev && has_delay_slot(prev->c))
 			continue;
 
+		reg_lo = get_mfhi_mflo_reg(list->next, NULL, 0, true);
+		if (reg_lo == 0) {
+			pr_debug("%Mark MULT(U)/DIV(U) opcode at offset 0x%x as"
+				 " not writing LO\n", list->offset << 2);
+			list->flags |= LIGHTREC_NO_LO;
+		}
+
 		reg_hi = get_mfhi_mflo_reg(list->next, NULL, 0, false);
 		if (reg_hi == 0) {
-			pr_debug("Mark MULT(U)/DIV(U) opcode at offset 0x%x as"
-				 " 32-bit\n", list->offset << 2);
+			pr_debug("%Mark MULT(U)/DIV(U) opcode at offset 0x%x as"
+				 " not writing HI\n", list->offset << 2);
 			list->flags |= LIGHTREC_NO_HI;
 		}
 	}

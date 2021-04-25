@@ -29,8 +29,9 @@
 #define LIGHTREC_LOCAL_BRANCH	BIT(2)
 
 /* Flags for div/mult opcodes */
-#define LIGHTREC_NO_HI		BIT(1)
-#define LIGHTREC_NO_DIV_CHECK	BIT(2)
+#define LIGHTREC_NO_LO		BIT(1)
+#define LIGHTREC_NO_HI		BIT(2)
+#define LIGHTREC_NO_DIV_CHECK	BIT(3)
 
 struct block;
 
