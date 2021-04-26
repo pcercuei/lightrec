@@ -405,7 +405,9 @@ static void rec_alu_or_xor(const struct block *block, const struct opcode *op,
 	jit_note(__FILE__, __LINE__);
 	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rs, 0);
 	rt = lightrec_alloc_reg_out(reg_cache, _jit, op->i.rt, 0);
-	lightrec_copy_reg_flags(reg_cache, rt, rs);
+
+	flags = lightrec_get_reg_in_flags(reg_cache, rs);
+	lightrec_set_reg_out_flags(reg_cache, rt, flags);
 
 	jit_new_node_www(code, rt, rs, (u32)(u16) op->i.imm);
 
