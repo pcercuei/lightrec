@@ -306,7 +306,7 @@ static void rec_alu_special(const struct block *block, const struct opcode *op,
 	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rs, REG_EXT);
 	rt = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rt, REG_EXT);
 	rd = lightrec_alloc_reg_out(reg_cache, _jit, op->r.rd,
-				    out_ext ? REG_EXT : 0);
+				    out_ext ? REG_EXT | REG_ZEXT : 0);
 
 	jit_new_node_www(code, rd, rs, rt);
 
