@@ -480,37 +480,118 @@ static void rec_special_SUB(const struct block *block,
 static void rec_special_AND(const struct block *block,
 			    const struct opcode *op, u32 pc)
 {
+	struct regcache *reg_cache = block->state->reg_cache;
+	jit_state_t *_jit = block->_jit;
+	u8 rd, rt, rs, flags_rs, flags_rt, flags_rd;
+
 	_jit_name(block->_jit, __func__);
-	rec_alu_special(block, op, jit_code_andr, false);
+	jit_note(__FILE__, __LINE__);
+	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rs, 0);
+	rt = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rt, 0);
+	rd = lightrec_alloc_reg_out(reg_cache, _jit, op->r.rd, 0);
+
+	flags_rs = lightrec_get_reg_in_flags(reg_cache, rs);
+	flags_rt = lightrec_get_reg_in_flags(reg_cache, rt);
+
+	/* Z(rd) = Z(rs) | Z(rt) */
+	flags_rd = REG_ZEXT & (flags_rs | flags_rt);
+
+	/* E(rd) = (E(rt) & Z(rt)) | (E(rs) & Z(rs)) | (E(rs) & E(rt)) */
+	if (((flags_rs & REG_EXT) && (flags_rt & REG_ZEXT)) ||
+	    ((flags_rt & REG_EXT) && (flags_rs & REG_ZEXT)) ||
+	    (REG_EXT & flags_rs & flags_rt))
+		flags_rd |= REG_EXT;
+
+	lightrec_set_reg_out_flags(reg_cache, rd, flags_rd);
+
+	jit_andr(rd, rs, rt);
+
+	lightrec_free_reg(reg_cache, rs);
+	lightrec_free_reg(reg_cache, rt);
+	lightrec_free_reg(reg_cache, rd);
+}
+
+static void rec_special_or_nor(const struct block *block,
+			       const struct opcode *op, u32 pc, bool nor)
+{
+	struct regcache *reg_cache = block->state->reg_cache;
+	jit_state_t *_jit = block->_jit;
+	u8 rd, rt, rs, flags_rs, flags_rt, flags_rd = 0;
+
+	jit_note(__FILE__, __LINE__);
+	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rs, 0);
+	rt = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rt, 0);
+	rd = lightrec_alloc_reg_out(reg_cache, _jit, op->r.rd, 0);
+
+	flags_rs = lightrec_get_reg_in_flags(reg_cache, rs);
+	flags_rt = lightrec_get_reg_in_flags(reg_cache, rt);
+
+	/* or: Z(rd) = Z(rs) & Z(rt)
+	 * nor: Z(rd) = 0 */
+	if (!nor)
+		flags_rd = REG_ZEXT & flags_rs & flags_rt;
+
+	/* E(rd) = (E(rs) & E(rt)) | (E(rt) & !Z(rt)) | (E(rs) & !Z(rs)) */
+	if ((REG_EXT & flags_rs & flags_rt) ||
+	    (flags_rt & (REG_EXT | REG_ZEXT) == REG_EXT) ||
+	    (flags_rs & (REG_EXT | REG_ZEXT) == REG_EXT))
+		flags_rd |= REG_EXT;
+
+	lightrec_set_reg_out_flags(reg_cache, rd, flags_rd);
+
+	jit_orr(rd, rs, rt);
+
+	if (nor)
+		jit_comr(rd, rd);
+
+	lightrec_free_reg(reg_cache, rs);
+	lightrec_free_reg(reg_cache, rt);
+	lightrec_free_reg(reg_cache, rd);
 }
 
 static void rec_special_OR(const struct block *block,
 			   const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_alu_special(block, op, jit_code_orr, false);
-}
-
-static void rec_special_XOR(const struct block *block,
-			    const struct opcode *op, u32 pc)
-{
-	_jit_name(block->_jit, __func__);
-	rec_alu_special(block, op, jit_code_xorr, false);
+	rec_special_or_nor(block, op, pc, false);
 }
 
 static void rec_special_NOR(const struct block *block,
 			    const struct opcode *op, u32 pc)
 {
+	_jit_name(block->_jit, __func__);
+	rec_special_or_nor(block, op, pc, true);
+}
+
+static void rec_special_XOR(const struct block *block,
+			    const struct opcode *op, u32 pc)
+{
 	struct regcache *reg_cache = block->state->reg_cache;
 	jit_state_t *_jit = block->_jit;
-	u8 rd;
+	u8 rd, rt, rs, flags_rs, flags_rt, flags_rd;
 
-	jit_name(__func__);
-	rec_alu_special(block, op, jit_code_orr, false);
+	_jit_name(block->_jit, __func__);
+
+	jit_note(__FILE__, __LINE__);
+	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rs, 0);
+	rt = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rt, 0);
 	rd = lightrec_alloc_reg_out(reg_cache, _jit, op->r.rd, 0);
 
-	jit_comr(rd, rd);
+	flags_rs = lightrec_get_reg_in_flags(reg_cache, rs);
+	flags_rt = lightrec_get_reg_in_flags(reg_cache, rt);
 
+	/* Z(rd) = Z(rs) & Z(rt) */
+	flags_rd = REG_ZEXT & flags_rs & flags_rt;
+
+	/* E(rd) = E(rs) & E(rt) */
+	flags_rd |= REG_EXT & flags_rs & flags_rt;
+
+	lightrec_set_reg_out_flags(reg_cache, rd, flags_rd);
+
+	jit_xorr(rd, rs, rt);
+
+	lightrec_free_reg(reg_cache, rs);
+	lightrec_free_reg(reg_cache, rt);
 	lightrec_free_reg(reg_cache, rd);
 }
 
