@@ -645,6 +645,11 @@ static void rec_alu_shift(const struct block *block,
 		flags = REG_ZEXT;
 
 	rt = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rt, flags);
+
+	/* Input reg is zero-extended, if we SRL at least by one bit, we know
+	 * the output reg will be both zero-extended and sign-extended. */
+	if (code == jit_code_rshi_u && op->r.imm)
+		flags |= REG_EXT;
 	rd = lightrec_alloc_reg_out(reg_cache, _jit, op->r.rd, flags);
 
 	jit_new_node_www(code, rd, rt, op->r.imm);
