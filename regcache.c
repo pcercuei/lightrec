@@ -291,10 +291,14 @@ u8 lightrec_alloc_reg_in(struct regcache *cache, jit_state_t *_jit,
 		nreg->extended = !nreg->zero_extended;
 
 		/* Load previous value from register cache */
+#if __WORDSIZE == 64
 		if (nreg->zero_extended)
 			jit_ldxi_ui(jit_reg, LIGHTREC_REG_STATE, offset);
 		else
 			jit_ldxi_i(jit_reg, LIGHTREC_REG_STATE, offset);
+#else
+		jit_ldxi_i(jit_reg, LIGHTREC_REG_STATE, offset);
+#endif
 
 		nreg->loaded = true;
 	}
