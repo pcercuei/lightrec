@@ -666,8 +666,11 @@ static void rec_alu_div(const struct block *block,
 	rt = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rt, flags);
 
 	/* Jump to special handler if dividing by zero  */
-	if (!no_check)
+	if (!no_check) {
 		branch = jit_beqi(rt, 0);
+
+		lightrec_regcache_mark_live(reg_cache, _jit);
+	}
 
 #if __WORDSIZE == 32
 	if (op->flags & LIGHTREC_NO_HI) {
