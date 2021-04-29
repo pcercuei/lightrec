@@ -604,7 +604,7 @@ static u32 int_io(struct interpreter *inter, bool is_load)
 
 	val = lightrec_rw(inter->state, inter->op->c,
 			  reg_cache[op->rs], reg_cache[op->rt],
-			  &inter->op->flags);
+			  &inter->op->flags, inter->block);
 
 	if (is_load && op->rt)
 		reg_cache[op->rt] = val;
@@ -627,7 +627,7 @@ static u32 int_store(struct interpreter *inter)
 	lightrec_rw(inter->state, inter->op->c,
 		    inter->state->native_reg_cache[inter->op->i.rs],
 		    inter->state->native_reg_cache[inter->op->i.rt],
-		    &inter->op->flags);
+		    &inter->op->flags, inter->block);
 
 	next_pc = inter->block->pc + (inter->op->offset + 1) * 4;
 

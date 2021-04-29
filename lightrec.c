@@ -89,11 +89,14 @@ static const struct lightrec_mem_map_ops lightrec_default_ops = {
 	.lw = lightrec_default_lw,
 };
 
-static void __segfault_cb(struct lightrec_state *state, u32 addr)
+static void __segfault_cb(struct lightrec_state *state, u32 addr,
+			  const struct block *block)
 {
 	lightrec_set_exit_flags(state, LIGHTREC_EXIT_SEGFAULT);
 	pr_err("Segmentation fault in recompiled code: invalid "
 	       "load/store at address 0x%08x\n", addr);
+	if (block)
+		pr_err("Was executing block PC 0x%08x\n", block->pc);
 }
 
 static void lightrec_swl(struct lightrec_state *state,
@@ -209,7 +212,7 @@ lightrec_get_map(struct lightrec_state *state, u32 kaddr)
 }
 
 u32 lightrec_rw(struct lightrec_state *state, union code op,
-		u32 addr, u32 data, u16 *flags)
+		u32 addr, u32 data, u16 *flags, struct block *block)
 {
 	const struct lightrec_mem_map *map;
 	const struct lightrec_mem_map_ops *ops;
@@ -221,7 +224,7 @@ u32 lightrec_rw(struct lightrec_state *state, union code op,
 
 	map = lightrec_get_map(state, kaddr);
 	if (!map) {
-		__segfault_cb(state, addr);
+		__segfault_cb(state, addr, block);
 		return 0;
 	}
 
@@ -285,11 +288,13 @@ u32 lightrec_rw(struct lightrec_state *state, union code op,
 }
 
 static void lightrec_rw_helper(struct lightrec_state *state,
-			       union code op, u16 *flags)
+			       union code op, u16 *flags,
+			       struct block *block)
 {
 	u32 ret = lightrec_rw(state, op,
 			  state->native_reg_cache[op.i.rs],
-			  state->native_reg_cache[op.i.rt], flags);
+			  state->native_reg_cache[op.i.rt], flags,
+			  block);
 
 	switch (op.i.op) {
 	case OP_LB:
@@ -308,7 +313,7 @@ static void lightrec_rw_helper(struct lightrec_state *state,
 
 static void lightrec_rw_cb(struct lightrec_state *state, union code op)
 {
-	lightrec_rw_helper(state, op, NULL);
+	lightrec_rw_helper(state, op, NULL, NULL);
 }
 
 static void lightrec_rw_generic_cb(struct lightrec_state *state,
@@ -316,7 +321,7 @@ static void lightrec_rw_generic_cb(struct lightrec_state *state,
 {
 	bool was_tagged = op->flags & (LIGHTREC_HW_IO | LIGHTREC_DIRECT_IO);
 
-	lightrec_rw_helper(state, op->c, &op->flags);
+	lightrec_rw_helper(state, op->c, &op->flags, block);
 
 	if (!was_tagged) {
 		pr_debug("Opcode of block at PC 0x%08x offset 0x%x has been "
