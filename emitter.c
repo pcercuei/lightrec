@@ -957,7 +957,9 @@ static void rec_store_direct_no_invalidate(const struct block *block,
 	jit_note(__FILE__, __LINE__);
 	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rs, 0);
 	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
-	tmp2 = lightrec_alloc_reg_temp(reg_cache, _jit);
+
+	if (state->offset_ram || state->offset_scratch)
+		tmp2 = lightrec_alloc_reg_temp(reg_cache, _jit);
 
 	/* Convert to KUNSEG and avoid RAM mirrors */
 	if (state->mirrors_mapped) {
@@ -988,10 +990,10 @@ static void rec_store_direct_no_invalidate(const struct block *block,
 		jit_movi(tmp2, state->offset_ram);
 	}
 
-	if (state->offset_ram || state->offset_scratch)
+	if (state->offset_ram || state->offset_scratch) {
 		jit_addr(tmp, tmp, tmp2);
-
-	lightrec_free_reg(reg_cache, tmp2);
+		lightrec_free_reg(reg_cache, tmp2);
+	}
 
 	rt = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rt, 0);
 	jit_new_node_www(code, imm, tmp, rt);
