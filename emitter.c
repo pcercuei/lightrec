@@ -745,8 +745,6 @@ static void rec_alu_div(const struct block *block,
 	lo = lightrec_alloc_reg_out(reg_cache, _jit, REG_LO, 0);
 	if (!(op->flags & LIGHTREC_NO_HI))
 		hi = lightrec_alloc_reg_out(reg_cache, _jit, REG_HI, 0);
-	else if (__WORDSIZE == 64 && !is_signed)
-		hi = lightrec_alloc_reg_temp(reg_cache, _jit);
 
 	if (is_signed)
 		flags = REG_EXT;
@@ -815,8 +813,7 @@ static void rec_alu_div(const struct block *block,
 	lightrec_free_reg(reg_cache, rt);
 	lightrec_free_reg(reg_cache, lo);
 
-	if (!(op->flags & LIGHTREC_NO_HI)
-	    || (__WORDSIZE == 64 && !is_signed))
+	if (!(op->flags & LIGHTREC_NO_HI))
 		lightrec_free_reg(reg_cache, hi);
 }
 
