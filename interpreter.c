@@ -770,7 +770,8 @@ static u32 int_special_MULT(struct interpreter *inter)
 
 	if (!(inter->op->flags & LIGHTREC_NO_HI))
 		reg_cache[reg_hi] = res >> 32;
-	reg_cache[reg_lo] = res;
+	if (!(inter->op->flags & LIGHTREC_NO_LO))
+		reg_cache[reg_lo] = res;
 
 	return jump_next(inter);
 }
@@ -786,7 +787,8 @@ static u32 int_special_MULTU(struct interpreter *inter)
 
 	if (!(inter->op->flags & LIGHTREC_NO_HI))
 		reg_cache[reg_hi] = res >> 32;
-	reg_cache[reg_lo] = res;
+	if (!(inter->op->flags & LIGHTREC_NO_LO))
+		reg_cache[reg_lo] = res;
 
 	return jump_next(inter);
 }
@@ -808,8 +810,10 @@ static u32 int_special_DIV(struct interpreter *inter)
 		hi = rs % rt;
 	}
 
-	reg_cache[reg_hi] = hi;
-	reg_cache[reg_lo] = lo;
+	if (!(inter->op->flags & LIGHTREC_NO_HI))
+		reg_cache[reg_hi] = hi;
+	if (!(inter->op->flags & LIGHTREC_NO_LO))
+		reg_cache[reg_lo] = lo;
 
 	return jump_next(inter);
 }
@@ -831,8 +835,10 @@ static u32 int_special_DIVU(struct interpreter *inter)
 		hi = rs % rt;
 	}
 
-	reg_cache[reg_hi] = hi;
-	reg_cache[reg_lo] = lo;
+	if (!(inter->op->flags & LIGHTREC_NO_HI))
+		reg_cache[reg_hi] = hi;
+	if (!(inter->op->flags & LIGHTREC_NO_LO))
+		reg_cache[reg_lo] = lo;
 
 	return jump_next(inter);
 }
