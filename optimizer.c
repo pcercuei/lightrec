@@ -1116,7 +1116,8 @@ static int lightrec_flag_mults_divs(struct block *block)
 		}
 
 		/* Don't support opcodes in delay slots */
-		if (prev && has_delay_slot(prev->c))
+		if ((prev && has_delay_slot(prev->c)) ||
+		    (list->flags & LIGHTREC_NO_DS))
 			continue;
 
 		reg_lo = get_mfhi_mflo_reg(list->next, NULL, 0, false, true);
