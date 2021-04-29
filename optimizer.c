@@ -85,6 +85,8 @@ static u64 opcode_read_mask(union code op)
 
 static u64 opcode_write_mask(union code op)
 {
+	u64 flags;
+
 	switch (op.i.op) {
 	case OP_SPECIAL:
 		switch (op.r.op) {
@@ -96,7 +98,18 @@ static u64 opcode_write_mask(union code op)
 		case OP_SPECIAL_MULTU:
 		case OP_SPECIAL_DIV:
 		case OP_SPECIAL_DIVU:
-			return BIT(REG_LO) | BIT(REG_HI);
+			if (!OPT_FLAG_MULT_DIV)
+				return BIT(REG_LO) | BIT(REG_HI);
+
+			if (op.r.rd)
+				flags = BIT(op.r.rd);
+			else
+				flags = BIT(REG_LO);
+			if (op.r.imm)
+				flags |= BIT(op.r.imm);
+			else
+				flags |= BIT(REG_HI);
+			return flags;
 		case OP_SPECIAL_MTHI:
 			return BIT(REG_HI);
 		case OP_SPECIAL_MTLO:
