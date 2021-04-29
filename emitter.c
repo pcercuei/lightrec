@@ -693,14 +693,6 @@ static void rec_alu_mult(const struct block *block,
 
 	jit_note(__FILE__, __LINE__);
 
-	if (!(op->flags & LIGHTREC_NO_LO))
-		lo = lightrec_alloc_reg_out(reg_cache, _jit, REG_LO, 0);
-	else if (__WORDSIZE == 32)
-		lo = lightrec_alloc_reg_temp(reg_cache, _jit);
-
-	if (!(op->flags & LIGHTREC_NO_HI))
-		hi = lightrec_alloc_reg_out(reg_cache, _jit, REG_HI, REG_EXT);
-
 	if (is_signed)
 		flags = REG_EXT;
 	else
@@ -708,6 +700,14 @@ static void rec_alu_mult(const struct block *block,
 
 	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rs, flags);
 	rt = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rt, flags);
+
+	if (!(op->flags & LIGHTREC_NO_LO))
+		lo = lightrec_alloc_reg_out(reg_cache, _jit, REG_LO, 0);
+	else if (__WORDSIZE == 32)
+		lo = lightrec_alloc_reg_temp(reg_cache, _jit);
+
+	if (!(op->flags & LIGHTREC_NO_HI))
+		hi = lightrec_alloc_reg_out(reg_cache, _jit, REG_HI, REG_EXT);
 
 #if __WORDSIZE == 32
 	/* On 32-bit systems, do a 32*32->64 bit operation, or a 32*32->32 bit
@@ -753,12 +753,6 @@ static void rec_alu_div(const struct block *block,
 
 	jit_note(__FILE__, __LINE__);
 
-	if (!(op->flags & LIGHTREC_NO_LO))
-		lo = lightrec_alloc_reg_out(reg_cache, _jit, REG_LO, 0);
-
-	if (!(op->flags & LIGHTREC_NO_HI))
-		hi = lightrec_alloc_reg_out(reg_cache, _jit, REG_HI, 0);
-
 	if (is_signed)
 		flags = REG_EXT;
 	else
@@ -766,6 +760,12 @@ static void rec_alu_div(const struct block *block,
 
 	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rs, flags);
 	rt = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rt, flags);
+
+	if (!(op->flags & LIGHTREC_NO_LO))
+		lo = lightrec_alloc_reg_out(reg_cache, _jit, REG_LO, 0);
+
+	if (!(op->flags & LIGHTREC_NO_HI))
+		hi = lightrec_alloc_reg_out(reg_cache, _jit, REG_HI, 0);
 
 	/* Jump to special handler if dividing by zero  */
 	if (!no_check) {
