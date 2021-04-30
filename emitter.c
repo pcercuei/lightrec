@@ -819,7 +819,7 @@ static void rec_alu_div(const struct block *block,
 
 		jit_patch(branch);
 
-		if (op->flags & LIGHTREC_NO_LO) {
+		if (!(op->flags & LIGHTREC_NO_LO)) {
 			if (is_signed) {
 				jit_lti(lo, rs, 0);
 				jit_lshi(lo, lo, 1);
