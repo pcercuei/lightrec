@@ -97,27 +97,45 @@ void lightrec_emit_eob(const struct block *block,
 	state->branches[state->nb_branches++] = jit_jmpi();
 }
 
-static void rec_special_JR(const struct block *block,
-			   const struct opcode *op, u32 pc)
+static u8 get_jr_jalr_reg(const struct block *block, const struct opcode *op)
 {
 	struct regcache *reg_cache = block->state->reg_cache;
 	jit_state_t *_jit = block->_jit;
 	u8 rs = lightrec_request_reg_in(reg_cache, _jit, op->r.rs, JIT_V0);
 
-	_jit_name(block->_jit, __func__);
+	/* If the source register is already mapped to JIT_R0 or JIT_R1, and the
+	 * delay slot is a I/O operation, unload the register, since JIT_R0 and
+	 * JIT_R1 are explicitely used by the I/O opcode generators. */
+	if ((rs == JIT_R0 || rs == JIT_R1) &&
+	    !(op->flags & LIGHTREC_NO_DS) &&
+	    opcode_is_io(op->next->c) &&
+	    !(op->next->flags & (LIGHTREC_NO_INVALIDATE | LIGHTREC_DIRECT_IO))) {
+		lightrec_unload_reg(reg_cache, _jit, rs);
+		lightrec_free_reg(reg_cache, rs);
+
+		rs = lightrec_request_reg_in(reg_cache, _jit, op->r.rs, JIT_V0);
+	}
+
 	lightrec_lock_reg(reg_cache, _jit, rs);
+
+	return rs;
+}
+
+static void rec_special_JR(const struct block *block,
+			   const struct opcode *op, u32 pc)
+{
+	u8 rs = get_jr_jalr_reg(block, op);
+
+	_jit_name(block->_jit, __func__);
 	lightrec_emit_end_of_block(block, op, pc, rs, 0, 31, 0, true);
 }
 
 static void rec_special_JALR(const struct block *block,
 			     const struct opcode *op, u32 pc)
 {
-	struct regcache *reg_cache = block->state->reg_cache;
-	jit_state_t *_jit = block->_jit;
-	u8 rs = lightrec_request_reg_in(reg_cache, _jit, op->r.rs, JIT_V0);
+	u8 rs = get_jr_jalr_reg(block, op);
 
 	_jit_name(block->_jit, __func__);
-	lightrec_lock_reg(reg_cache, _jit, rs);
 	lightrec_emit_end_of_block(block, op, pc, rs, 0, op->r.rd, pc + 8, true);
 }
 
