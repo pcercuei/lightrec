@@ -37,6 +37,11 @@ static u32 int_get_branch_pc(const struct interpreter *inter)
 	return inter->block->pc + (inter->op->offset << 2);
 }
 
+static inline u32 int_get_ds_pc(const struct interpreter *inter, s16 imm)
+{
+	return inter->block->pc + (inter->op->offset + imm << 2);
+}
+
 static inline u32 execute(lightrec_int_func_t func, struct interpreter *inter)
 {
 	return (*func)(inter);
@@ -244,8 +249,7 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 			inter->cycles += lightrec_cycles_of_opcode(op_next);
 		}
 	} else {
-		next_pc = inter->block->pc
-			+ (inter->op->offset + 2) * sizeof(u32);
+		next_pc = int_get_ds_pc(inter, 2);
 	}
 
 	inter2.block = inter->block;
@@ -493,7 +497,7 @@ static u32 int_ctc(struct interpreter *inter)
 	 * interrupt status. */
 	if (!(inter->op->flags & LIGHTREC_NO_DS) &&
 	    op->i.op == OP_CP0 && (op->r.rd == 12 || op->r.rd == 13))
-		return inter->block->pc + (op->offset + 1) * sizeof(u32);
+		return int_get_ds_pc(inter, 1);
 	else
 		return jump_next(inter);
 }
@@ -639,7 +643,7 @@ static u32 int_store(struct interpreter *inter)
 		    inter->state->native_reg_cache[inter->op->i.rt],
 		    &inter->op->flags, inter->block);
 
-	next_pc = inter->block->pc + (inter->op->offset + 1) * 4;
+	next_pc = int_get_ds_pc(inter, 1);
 
 	/* Invalidate next PC, to force the rest of the block to be rebuilt */
 	lightrec_invalidate(inter->state, next_pc, 4);
@@ -726,7 +730,7 @@ static u32 int_syscall_break(struct interpreter *inter)
 	else
 		inter->state->exit_flags |= LIGHTREC_EXIT_SYSCALL;
 
-	return inter->block->pc + inter->op->offset * sizeof(u32);
+	return int_get_ds_pc(inter, 0);
 }
 
 static u32 int_special_MFHI(struct interpreter *inter)
