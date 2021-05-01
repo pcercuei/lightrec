@@ -13,6 +13,7 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define IF_OPT(opt, ptr) ((opt) ? (ptr) : NULL)
 
@@ -727,6 +728,37 @@ static int lightrec_switch_delay_slots(struct block *block)
 	return 0;
 }
 
+static int shrink_opcode_list(struct block *block, u16 new_size)
+{
+	struct opcode *list;
+	unsigned int i;
+
+	if (new_size >= block->nb_ops) {
+		pr_err("Invalid shrink size (%u vs %u)\n",
+		       new_size, block->nb_ops);
+		return -EINVAL;
+	}
+
+
+	list = lightrec_malloc(block->state, MEM_FOR_IR,
+			       sizeof(*list) * new_size);
+	if (!list) {
+		pr_err("Unable to allocate memory\n");
+		return -ENOMEM;
+	}
+
+	memcpy(list, block->opcode_list, sizeof(*list) * new_size);
+
+	lightrec_free_opcode_list(block);
+	block->opcode_list = list;
+	block->nb_ops = new_size;
+
+	pr_debug("Shrunk opcode list of block PC 0x%08x to %u opcodes\n",
+		 block->pc, new_size);
+
+	return 0;
+}
+
 static int lightrec_detect_impossible_branches(struct block *block)
 {
 	struct opcode *op, *next = &block->opcode_list[0];
@@ -750,21 +782,22 @@ static int lightrec_detect_impossible_branches(struct block *block)
 			continue;
 		}
 
-#if 0
+		op->flags |= LIGHTREC_EMULATE_BRANCH;
+
 		if (op == block->opcode_list) {
+			pr_debug("First opcode of block PC 0x%08x is an impossible branch\n",
+				 block->pc);
+
 			/* If the first opcode is an 'impossible' branch, we
 			 * only keep the first two opcodes of the block (the
 			 * branch itself + its delay slot) */
-			lightrec_free_opcode_list(block->state, next->next);
-			next->next = NULL;
-			block->nb_ops = 2;
+			if (block->nb_ops > 2)
+				ret = shrink_opcode_list(block, 2);
+			break;
 		}
-#endif
-
-		op->flags |= LIGHTREC_EMULATE_BRANCH;
 	}
 
-	return 0;
+	return ret;
 }
 
 static int lightrec_local_branches(struct block *block)

@@ -859,7 +859,7 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 
 	/* If the first opcode is an 'impossible' branch, never compile the
 	 * block */
-	if (should_emulate(list))
+	if (should_emulate(block->opcode_list))
 		block->flags |= BLOCK_NEVER_COMPILE;
 
 	block->hash = lightrec_calculate_block_hash(block);
