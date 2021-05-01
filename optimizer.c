@@ -767,6 +767,7 @@ static int lightrec_detect_impossible_branches(struct block *block)
 			continue;
 		}
 
+#if 0
 		if (op == block->opcode_list) {
 			/* If the first opcode is an 'impossible' branch, we
 			 * only keep the first two opcodes of the block (the
@@ -775,6 +776,7 @@ static int lightrec_detect_impossible_branches(struct block *block)
 			next->next = NULL;
 			block->nb_ops = 2;
 		}
+#endif
 
 		op->flags |= LIGHTREC_EMULATE_BRANCH;
 	}
