@@ -30,21 +30,22 @@ struct interpreter {
 	struct opcode *op;
 	u32 cycles;
 	bool delay_slot;
+	u16 offset;
 };
 
 static u32 int_get_branch_pc(const struct interpreter *inter)
 {
-	return inter->block->pc + (inter->op->offset << 2);
+	return get_branch_pc(inter->block, inter->offset, 0);
 }
 
 static inline u32 int_get_ds_pc(const struct interpreter *inter, s16 imm)
 {
-	return inter->block->pc + (inter->op->offset + imm << 2);
+	return get_ds_pc(inter->block, inter->offset, imm);
 }
 
 static inline struct opcode *next_op(const struct interpreter *inter)
 {
-	return inter->op->next;
+	return &inter->block->opcode_list[inter->offset + 1];
 }
 
 static inline u32 execute(lightrec_int_func_t func, struct interpreter *inter)
@@ -60,6 +61,7 @@ static inline u32 lightrec_int_op(struct interpreter *inter)
 static inline u32 jump_skip(struct interpreter *inter)
 {
 	inter->op = next_op(inter);
+	inter->offset++;
 
 	if (inter->op->flags & LIGHTREC_SYNC) {
 		inter->state->current_cycle += inter->cycles;
@@ -87,6 +89,7 @@ static inline u32 jump_after_branch(struct interpreter *inter)
 		return 0;
 
 	inter->op = next_op(inter);
+	inter->offset++;
 
 	return jump_skip(inter);
 }
@@ -1115,14 +1118,15 @@ static u32 int_CP2(struct interpreter *inter)
 	return int_CP(inter);
 }
 
-static u32 lightrec_emulate_block_list(struct block *block, struct opcode *op)
+static u32 lightrec_emulate_block_list(struct block *block, u32 offset)
 {
 	struct interpreter inter;
 	u32 pc;
 
 	inter.block = block;
 	inter.state = block->state;
-	inter.op = op;
+	inter.offset = offset;
+	inter.op = &block->opcode_list[offset];
 	inter.cycles = 0;
 	inter.delay_slot = false;
 
@@ -1139,12 +1143,9 @@ static u32 lightrec_emulate_block_list(struct block *block, struct opcode *op)
 u32 lightrec_emulate_block(struct block *block, u32 pc)
 {
 	u32 offset = (kunseg(pc) - kunseg(block->pc)) >> 2;
-	struct opcode *op;
 
-	for (op = block->opcode_list;
-	     op && (op->offset < offset); op = op->next);
-	if (op)
-		return lightrec_emulate_block_list(block, op);
+	if (offset < block->nb_ops)
+		return lightrec_emulate_block_list(block, offset);
 
 	pr_err("PC 0x%x is outside block at PC 0x%x\n", pc, block->pc);
 
