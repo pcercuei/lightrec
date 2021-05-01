@@ -42,6 +42,11 @@ static inline u32 int_get_ds_pc(const struct interpreter *inter, s16 imm)
 	return inter->block->pc + (inter->op->offset + imm << 2);
 }
 
+static inline struct opcode *next_op(const struct interpreter *inter)
+{
+	return inter->op->next;
+}
+
 static inline u32 execute(lightrec_int_func_t func, struct interpreter *inter)
 {
 	return (*func)(inter);
@@ -54,7 +59,7 @@ static inline u32 lightrec_int_op(struct interpreter *inter)
 
 static inline u32 jump_skip(struct interpreter *inter)
 {
-	inter->op = inter->op->next;
+	inter->op = next_op(inter);
 
 	if (inter->op->flags & LIGHTREC_SYNC) {
 		inter->state->current_cycle += inter->cycles;
@@ -81,7 +86,7 @@ static inline u32 jump_after_branch(struct interpreter *inter)
 	if (unlikely(inter->delay_slot))
 		return 0;
 
-	inter->op = inter->op->next;
+	inter->op = next_op(inter);
 
 	return jump_skip(inter);
 }
@@ -95,7 +100,7 @@ static void update_cycles_before_branch(struct interpreter *inter)
 
 		if (has_delay_slot(inter->op->c) &&
 		    !(inter->op->flags & LIGHTREC_NO_DS))
-			cycles += lightrec_cycles_of_opcode(inter->op->next->c);
+			cycles += lightrec_cycles_of_opcode(next_op(inter)->c);
 
 		inter->cycles += cycles;
 		inter->state->current_cycle += inter->cycles;
@@ -137,7 +142,7 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 {
 	struct lightrec_state *state = inter->state;
 	u32 *reg_cache = state->native_reg_cache;
-	struct opcode new_op, *op = inter->op->next;
+	struct opcode new_op, *op = next_op(inter);
 	union code op_next;
 	struct interpreter inter2 = {
 		.state = state,
