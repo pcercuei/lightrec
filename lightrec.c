@@ -324,9 +324,8 @@ static void lightrec_rw_generic_cb(struct lightrec_state *state,
 	lightrec_rw_helper(state, op->c, &op->flags, block);
 
 	if (!was_tagged) {
-		pr_debug("Opcode of block at PC 0x%08x offset 0x%x has been "
-			 "tagged - flag for recompilation\n",
-			 block->pc, op->offset << 2);
+		pr_debug("Opcode of block at PC 0x%08x has been tagged - flag "
+			 "for recompilation\n", block->pc);
 
 		block->flags |= BLOCK_SHOULD_RECOMPILE;
 	}
@@ -870,11 +869,14 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 	return block;
 }
 
-static bool lightrec_block_is_fully_tagged(struct block *block)
+static bool lightrec_block_is_fully_tagged(const struct block *block)
 {
-	struct opcode *op;
+	const struct opcode *op;
+	unsigned int i;
 
-	for (op = block->opcode_list; op; op = op->next) {
+	for (i = 0; i < block->nb_ops; i++) {
+		op = &block->opcode_list[i];
+
 		/* Verify that all load/stores of the opcode list
 		 * Check all loads/stores of the opcode list and mark the
 		 * block as fully compiled if they all have been tagged. */
@@ -917,6 +919,19 @@ static void lightrec_reap_jit(void *data)
 	_jit_destroy_state(data);
 }
 
+static u32 get_next_pc(const struct block *block, u16 offset)
+{
+	const struct opcode *op = &block->opcode_list[offset];
+
+	if (!(op->flags & LIGHTREC_NO_DS))
+		return block->pc + offset * sizeof(u32);
+
+	if (has_delay_slot(op->c))
+		return block->pc + (offset - 1) * sizeof(u32);
+
+	return block->pc + (offset + 1) * sizeof(u32);
+}
+
 int lightrec_compile_block(struct block *block)
 {
 	struct lightrec_state *state = block->state;
@@ -953,8 +968,8 @@ int lightrec_compile_block(struct block *block)
 
 	start_of_block = jit_label();
 
-	for (elm = block->opcode_list; elm; elm = elm->next) {
-		next_pc = block->pc + elm->offset * sizeof(u32);
+	for (i = 0; i < block->nb_ops; i++) {
+		elm = &block->opcode_list[i];
 
 		if (skip_next) {
 			skip_next = false;
@@ -963,9 +978,12 @@ int lightrec_compile_block(struct block *block)
 
 		state->cycles += lightrec_cycles_of_opcode(elm->c);
 
+		next_pc = get_next_pc(block, i);
+
 		if (should_emulate(elm)) {
 			pr_debug("Branch at offset 0x%x will be emulated\n",
-				 elm->offset << 2);
+				 i << 2);
+
 			lightrec_emit_eob(block, elm, next_pc);
 			skip_next = !(elm->flags & LIGHTREC_NO_DS);
 		} else {
