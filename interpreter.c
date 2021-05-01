@@ -32,6 +32,11 @@ struct interpreter {
 	bool delay_slot;
 };
 
+static u32 int_get_branch_pc(const struct interpreter *inter)
+{
+	return inter->block->pc + (inter->op->offset << 2);
+}
+
 static inline u32 execute(lightrec_int_func_t func, struct interpreter *inter)
 {
 	return (*func)(inter);
@@ -312,7 +317,7 @@ static u32 int_unimplemented(struct interpreter *inter)
 static u32 int_jump(struct interpreter *inter, bool link)
 {
 	struct lightrec_state *state = inter->state;
-	u32 old_pc = inter->block->pc + inter->op->offset * sizeof(u32);
+	u32 old_pc = int_get_branch_pc(inter);
 	u32 pc = (old_pc & 0xf0000000) | (inter->op->j.imm << 2);
 
 	if (link)
@@ -340,7 +345,7 @@ static u32 int_jumpr(struct interpreter *inter, u8 link_reg)
 	u32 old_pc, next_pc = state->native_reg_cache[inter->op->r.rs];
 
 	if (link_reg) {
-		old_pc = inter->block->pc + inter->op->offset * sizeof(u32);
+		old_pc = int_get_branch_pc(inter);
 		state->native_reg_cache[link_reg] = old_pc + 8;
 	}
 
@@ -400,7 +405,7 @@ static u32 int_branch(struct interpreter *inter, u32 pc,
 
 static u32 int_beq(struct interpreter *inter, bool bne)
 {
-	u32 rs, rt, old_pc = inter->block->pc + inter->op->offset * sizeof(u32);
+	u32 rs, rt, old_pc = int_get_branch_pc(inter);
 
 	rs = inter->state->native_reg_cache[inter->op->i.rs];
 	rt = inter->state->native_reg_cache[inter->op->i.rt];
@@ -420,7 +425,7 @@ static u32 int_BNE(struct interpreter *inter)
 
 static u32 int_bgez(struct interpreter *inter, bool link, bool lt, bool regimm)
 {
-	u32 old_pc = inter->block->pc + inter->op->offset * sizeof(u32);
+	u32 old_pc = int_get_branch_pc(inter);
 	s32 rs;
 
 	if (link)
