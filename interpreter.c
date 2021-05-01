@@ -37,11 +37,16 @@ static inline u32 execute(lightrec_int_func_t func, struct interpreter *inter)
 	return (*func)(inter);
 }
 
+static inline u32 lightrec_int_op(struct interpreter *inter)
+{
+	return execute(int_standard[inter->op->i.op], inter);
+}
+
 static inline u32 jump_skip(struct interpreter *inter)
 {
 	inter->op = inter->op->next;
 
-	return execute(int_standard[inter->op->i.op], inter);
+	return lightrec_int_op(inter);
 }
 
 static inline u32 jump_next(struct interpreter *inter)
@@ -64,11 +69,6 @@ static inline u32 jump_after_branch(struct interpreter *inter)
 	inter->op = inter->op->next;
 
 	return jump_skip(inter);
-}
-
-static inline u32 lightrec_int_op(struct interpreter *inter)
-{
-	return execute(int_standard[inter->op->i.op], inter);
 }
 
 static void update_cycles_before_branch(struct interpreter *inter)
