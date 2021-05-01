@@ -641,7 +641,8 @@ static int lightrec_switch_delay_slots(struct block *block)
 		    op.opcode == 0)
 			continue;
 
-		if (prev && has_delay_slot(prev->c))
+		if (prev && has_delay_slot(prev->c) &&
+		    !(prev->flags & LIGHTREC_NO_DS))
 			continue;
 
 		switch (list->i.op) {
