@@ -179,6 +179,43 @@ bool opcode_writes_register(union code op, u8 reg)
 	return opcode_write_mask(op) & BIT(reg);
 }
 
+static bool opcode_is_load(union code op)
+{
+	switch (op.i.op) {
+	case OP_LB:
+	case OP_LH:
+	case OP_LWL:
+	case OP_LW:
+	case OP_LBU:
+	case OP_LHU:
+	case OP_LWR:
+	case OP_LWC2:
+		return true;
+	default:
+		return false;
+	}
+}
+
+static bool opcode_is_store(union code op)
+{
+	switch (op.i.op) {
+	case OP_SB:
+	case OP_SH:
+	case OP_SW:
+	case OP_SWL:
+	case OP_SWR:
+	case OP_SWC2:
+		return true;
+	default:
+		return false;
+	}
+}
+
+bool opcode_is_io(union code op)
+{
+	return opcode_is_load(op) || opcode_is_store(op);
+}
+
 /* TODO: Complete */
 static bool is_nop(union code op)
 {

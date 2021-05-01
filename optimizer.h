@@ -15,6 +15,7 @@ _Bool opcode_reads_register(union code op, u8 reg);
 _Bool opcode_writes_register(union code op, u8 reg);
 _Bool has_delay_slot(union code op);
 _Bool load_in_delay_slot(union code op);
+_Bool opcode_is_io(union code op);
 
 _Bool should_emulate(const struct opcode *op);
 
