@@ -832,6 +832,8 @@ static void rec_alu_div(const struct block *block,
 #endif
 
 	if (!no_check) {
+		lightrec_regcache_mark_live(reg_cache, _jit);
+
 		/* Jump above the div-by-zero handler */
 		to_end = jit_jmpi();
 
