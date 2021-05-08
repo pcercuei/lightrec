@@ -675,7 +675,7 @@ static int lightrec_switch_delay_slots(struct block *block)
 
 		if (!has_delay_slot(op) ||
 		    list->flags & (LIGHTREC_NO_DS | LIGHTREC_EMULATE_BRANCH) ||
-		    op.opcode == 0)
+		    op.opcode == 0 || next_op.opcode == 0)
 			continue;
 
 		if (prev && has_delay_slot(prev->c) &&
