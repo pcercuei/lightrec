@@ -16,26 +16,26 @@
 #define BIT(x) (1ULL << (x))
 
 /* Flags for all opcodes */
-#define LIGHTREC_NO_DS		BIT(15)
-#define LIGHTREC_UNLOAD_RS	BIT(14)
-#define LIGHTREC_UNLOAD_RT	BIT(13)
-#define LIGHTREC_UNLOAD_RD	BIT(12)
-#define LIGHTREC_SYNC		BIT(11)
+#define LIGHTREC_NO_DS		BIT(0)
+#define LIGHTREC_UNLOAD_RS	BIT(1)
+#define LIGHTREC_UNLOAD_RT	BIT(2)
+#define LIGHTREC_UNLOAD_RD	BIT(3)
+#define LIGHTREC_SYNC		BIT(4)
 
 /* Flags for load/store opcodes */
-#define LIGHTREC_DIRECT_IO	BIT(1)
-#define LIGHTREC_HW_IO		BIT(2)
-#define LIGHTREC_SMC		BIT(3)
-#define LIGHTREC_NO_INVALIDATE	BIT(4)
+#define LIGHTREC_DIRECT_IO	BIT(5)
+#define LIGHTREC_HW_IO		BIT(6)
+#define LIGHTREC_SMC		BIT(7)
+#define LIGHTREC_NO_INVALIDATE	BIT(8)
 
 /* Flags for branches */
-#define LIGHTREC_EMULATE_BRANCH	BIT(1)
-#define LIGHTREC_LOCAL_BRANCH	BIT(2)
+#define LIGHTREC_EMULATE_BRANCH	BIT(5)
+#define LIGHTREC_LOCAL_BRANCH	BIT(6)
 
 /* Flags for div/mult opcodes */
-#define LIGHTREC_NO_LO		BIT(1)
-#define LIGHTREC_NO_HI		BIT(2)
-#define LIGHTREC_NO_DIV_CHECK	BIT(3)
+#define LIGHTREC_NO_LO		BIT(5)
+#define LIGHTREC_NO_HI		BIT(6)
+#define LIGHTREC_NO_DIV_CHECK	BIT(7)
 
 struct block;
 
@@ -200,7 +200,6 @@ struct opcode {
 	u16 flags;
 };
 
-void lightrec_print_disassembly(const struct block *block,
-				const u32 *code, unsigned int length);
+void lightrec_print_disassembly(const struct block *block, const u32 *code);
 
 #endif /* __DISASSEMBLER_H__ */

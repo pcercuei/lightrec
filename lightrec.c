@@ -904,7 +904,7 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 
 	if (ENABLE_DISASSEMBLER) {
 		pr_debug("Disassembled block at PC: 0x%x\n", block->pc);
-		lightrec_print_disassembly(block, code, length);
+		lightrec_print_disassembly(block, code);
 	}
 
 	pr_debug("Block size: %lu opcodes\n", block->nb_ops);
