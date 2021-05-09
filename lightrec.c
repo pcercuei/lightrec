@@ -984,10 +984,10 @@ int lightrec_compile_block(struct block *block)
 			pr_debug("Branch at offset 0x%x will be emulated\n",
 				 i << 2);
 
-			lightrec_emit_eob(block, elm, next_pc);
+			lightrec_emit_eob(block, i, elm, next_pc);
 			skip_next = !(elm->flags & LIGHTREC_NO_DS);
 		} else {
-			lightrec_rec_opcode(block, elm, next_pc);
+			lightrec_rec_opcode(block, i, elm, next_pc);
 			skip_next = has_delay_slot(elm->c) &&
 				!(elm->flags & LIGHTREC_NO_DS);
 #if _WIN32

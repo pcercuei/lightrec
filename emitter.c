@@ -14,25 +14,27 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-typedef void (*lightrec_rec_func_t)(const struct block *,
+typedef void (*lightrec_rec_func_t)(const struct block *, u16,
 				    const struct opcode *, u32);
 
 /* Forward declarations */
-static void rec_SPECIAL(const struct block *block,
+static void rec_SPECIAL(const struct block *block, u16 offset,
 		       const struct opcode *op, u32 pc);
-static void rec_REGIMM(const struct block *block,
+static void rec_REGIMM(const struct block *block, u16 offset,
 		      const struct opcode *op, u32 pc);
-static void rec_CP0(const struct block *block, const struct opcode *op, u32 pc);
-static void rec_CP2(const struct block *block, const struct opcode *op, u32 pc);
+static void rec_CP0(const struct block *block, u16 offset,
+		    const struct opcode *op, u32 pc);
+static void rec_CP2(const struct block *block, u16 offset,
+		    const struct opcode *op, u32 pc);
 
 
-static void unknown_opcode(const struct block *block,
+static void unknown_opcode(const struct block *block, u16 offset,
 			   const struct opcode *op, u32 pc)
 {
 	pr_warn("Unknown opcode: 0x%08x at PC 0x%08x\n", op->opcode, pc);
 }
 
-static void lightrec_emit_end_of_block(const struct block *block,
+static void lightrec_emit_end_of_block(const struct block *block, u16 offset,
 				       const struct opcode *op, u32 pc,
 				       s8 reg_new_pc, u32 imm, u8 ra_reg,
 				       u32 link, bool update_cycles)
@@ -64,7 +66,7 @@ static void lightrec_emit_end_of_block(const struct block *block,
 
 		/* Recompile the delay slot */
 		if (op->next->c.opcode)
-			lightrec_rec_opcode(block, op->next, pc + 4);
+			lightrec_rec_opcode(block, offset + 1, op->next, pc + 4);
 	}
 
 	/* Store back remaining registers */
@@ -81,7 +83,7 @@ static void lightrec_emit_end_of_block(const struct block *block,
 		state->branches[state->nb_branches++] = jit_jmpi();
 }
 
-void lightrec_emit_eob(const struct block *block,
+void lightrec_emit_eob(const struct block *block, u16 offset,
 		       const struct opcode *op, u32 pc)
 {
 	struct lightrec_state *state = block->state;
@@ -98,7 +100,8 @@ void lightrec_emit_eob(const struct block *block,
 	state->branches[state->nb_branches++] = jit_jmpi();
 }
 
-static u8 get_jr_jalr_reg(const struct block *block, const struct opcode *op)
+static u8 get_jr_jalr_reg(const struct block *block, u16 offset,
+			  const struct opcode *op)
 {
 	struct regcache *reg_cache = block->state->reg_cache;
 	jit_state_t *_jit = block->_jit;
@@ -123,45 +126,48 @@ static u8 get_jr_jalr_reg(const struct block *block, const struct opcode *op)
 	return rs;
 }
 
-static void rec_special_JR(const struct block *block,
+static void rec_special_JR(const struct block *block, u16 offset,
 			   const struct opcode *op, u32 pc)
 {
-	u8 rs = get_jr_jalr_reg(block, op);
+	u8 rs = get_jr_jalr_reg(block, offset, op);
 
 	_jit_name(block->_jit, __func__);
-	lightrec_emit_end_of_block(block, op, pc, rs, 0, 31, 0, true);
+	lightrec_emit_end_of_block(block, offset, op, pc, rs, 0, 31, 0, true);
 }
 
-static void rec_special_JALR(const struct block *block,
+static void rec_special_JALR(const struct block *block, u16 offset,
 			     const struct opcode *op, u32 pc)
 {
-	u8 rs = get_jr_jalr_reg(block, op);
+	u8 rs = get_jr_jalr_reg(block, offset, op);
 	union code c = op->c;
 
 	_jit_name(block->_jit, __func__);
-	lightrec_emit_end_of_block(block, op, pc, rs, 0, c.r.rd, pc + 8, true);
+	lightrec_emit_end_of_block(block, offset, op, pc, rs, 0, c.r.rd, pc + 8, true);
 }
 
-static void rec_J(const struct block *block, const struct opcode *op, u32 pc)
+static void rec_J(const struct block *block, u16 offset,
+		  const struct opcode *op, u32 pc)
 {
 	union code c = op->c;
 
 	_jit_name(block->_jit, __func__);
-	lightrec_emit_end_of_block(block, op, pc, -1,
+	lightrec_emit_end_of_block(block, offset, op, pc, -1,
 				   (pc & 0xf0000000) | (c.j.imm << 2), 31, 0, true);
 }
 
-static void rec_JAL(const struct block *block, const struct opcode *op, u32 pc)
+static void rec_JAL(const struct block *block, u16 offset,
+		    const struct opcode *op, u32 pc)
 {
 	union code c = op->c;
 
 	_jit_name(block->_jit, __func__);
-	lightrec_emit_end_of_block(block, op, pc, -1,
+	lightrec_emit_end_of_block(block, offset, op, pc, -1,
 				   (pc & 0xf0000000) | (c.j.imm << 2),
 				   31, pc + 8, true);
 }
 
-static void rec_b(const struct block *block, const struct opcode *op, u32 pc,
+static void rec_b(const struct block *block, u16 offset,
+		  const struct opcode *op, u32 pc,
 		  jit_code_t code, u32 link, bool unconditional, bool bz)
 {
 	struct regcache *reg_cache = block->state->reg_cache;
@@ -171,7 +177,7 @@ static void rec_b(const struct block *block, const struct opcode *op, u32 pc,
 	const struct opcode *next = op->next;
 	jit_node_t *addr;
 	u8 link_reg;
-	u32 offset, cycles = block->state->cycles;
+	u32 target_offset, cycles = block->state->cycles;
 	bool is_forward = (s16)op->i.imm >= -1;
 	u32 next_pc;
 
@@ -201,7 +207,7 @@ static void rec_b(const struct block *block, const struct opcode *op, u32 pc,
 		if (next && !(op->flags & LIGHTREC_NO_DS)) {
 			/* Recompile the delay slot */
 			if (next->opcode)
-				lightrec_rec_opcode(block, next, pc + 4);
+				lightrec_rec_opcode(block, offset + 1, next, pc + 4);
 		}
 
 		if (link) {
@@ -214,12 +220,14 @@ static void rec_b(const struct block *block, const struct opcode *op, u32 pc,
 		/* Store back remaining registers */
 		lightrec_storeback_regs(reg_cache, _jit);
 
-		offset = op->offset + 1 + (s16)op->i.imm;
-		pr_debug("Adding local branch to offset 0x%x\n", offset << 2);
+		target_offset = op->offset + 1 + (s16)op->i.imm
+			- !!(OPT_SWITCH_DELAY_SLOTS && (op->flags & LIGHTREC_NO_DS));
+		pr_debug("Adding local branch to offset 0x%x\n",
+			 target_offset << 2);
 		branch = &block->state->local_branches[
 			block->state->nb_local_branches++];
 
-		branch->target = offset;
+		branch->target = target_offset;
 		if (is_forward)
 			branch->branch = jit_jmpi();
 		else
@@ -228,7 +236,7 @@ static void rec_b(const struct block *block, const struct opcode *op, u32 pc,
 
 	if (!(op->flags & LIGHTREC_LOCAL_BRANCH) || !is_forward) {
 		next_pc = pc + 4 + ((s16)op->i.imm << 2);
-		lightrec_emit_end_of_block(block, op, pc, -1, next_pc,
+		lightrec_emit_end_of_block(block, offset, op, pc, -1, next_pc,
 					   31, link, false);
 	}
 
@@ -245,70 +253,75 @@ static void rec_b(const struct block *block, const struct opcode *op, u32 pc,
 		}
 
 		if (!(op->flags & LIGHTREC_NO_DS) && next->opcode)
-			lightrec_rec_opcode(block, next, pc + 4);
+			lightrec_rec_opcode(block, offset + 1, next, pc + 4);
 	}
 }
 
-static void rec_BNE(const struct block *block, const struct opcode *op, u32 pc)
+static void rec_BNE(const struct block *block, u16 offset,
+		    const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_b(block, op, pc, jit_code_beqr, 0, false, false);
+	rec_b(block, offset, op, pc, jit_code_beqr, 0, false, false);
 }
 
-static void rec_BEQ(const struct block *block, const struct opcode *op, u32 pc)
-{
-	union code c = op->c;
-
-	_jit_name(block->_jit, __func__);
-	rec_b(block, op, pc, jit_code_bner, 0,
-			c.i.rs == c.i.rt, false);
-}
-
-static void rec_BLEZ(const struct block *block, const struct opcode *op, u32 pc)
+static void rec_BEQ(const struct block *block, u16 offset,
+		    const struct opcode *op, u32 pc)
 {
 	union code c = op->c;
 
 	_jit_name(block->_jit, __func__);
-	rec_b(block, op, pc, jit_code_bgti, 0, c.i.rs == 0, true);
+	rec_b(block, offset, op, pc, jit_code_bner, 0,
+	      c.i.rs == c.i.rt, false);
 }
 
-static void rec_BGTZ(const struct block *block, const struct opcode *op, u32 pc)
+static void rec_BLEZ(const struct block *block, u16 offset,
+		     const struct opcode *op, u32 pc)
+{
+	union code c = op->c;
+
+	_jit_name(block->_jit, __func__);
+	rec_b(block, offset, op, pc, jit_code_bgti, 0, c.i.rs == 0, true);
+}
+
+static void rec_BGTZ(const struct block *block, u16 offset,
+		     const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_b(block, op, pc, jit_code_blei, 0, false, true);
+	rec_b(block, offset, op, pc, jit_code_blei, 0, false, true);
 }
 
-static void rec_regimm_BLTZ(const struct block *block,
+static void rec_regimm_BLTZ(const struct block *block, u16 offset,
 			    const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_b(block, op, pc, jit_code_bgei, 0, false, true);
+	rec_b(block, offset, op, pc, jit_code_bgei, 0, false, true);
 }
 
-static void rec_regimm_BLTZAL(const struct block *block,
+static void rec_regimm_BLTZAL(const struct block *block, u16 offset,
 			      const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_b(block, op, pc, jit_code_bgei, pc + 8, false, true);
+	rec_b(block, offset, op, pc, jit_code_bgei, pc + 8, false, true);
 }
 
-static void rec_regimm_BGEZ(const struct block *block,
+static void rec_regimm_BGEZ(const struct block *block, u16 offset,
 			    const struct opcode *op, u32 pc)
 {
 	union code c = op->c;
 
 	_jit_name(block->_jit, __func__);
-	rec_b(block, op, pc, jit_code_blti, 0, !c.i.rs, true);
+	rec_b(block, offset, op, pc, jit_code_blti, 0, !c.i.rs, true);
 }
 
-static void rec_regimm_BGEZAL(const struct block *block,
+static void rec_regimm_BGEZAL(const struct block *block, u16 offset,
 			      const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_b(block, op, pc, jit_code_blti, pc + 8, !op->i.rs, true);
+	rec_b(block, offset, op, pc, jit_code_blti, pc + 8, !op->i.rs, true);
 }
 
-static void rec_alu_imm(const struct block *block, const struct opcode *op,
+static void rec_alu_imm(const struct block *block, u16 offset,
+ const struct opcode *op,
 			jit_code_t code, bool slti)
 {
 	struct regcache *reg_cache = block->state->reg_cache;
@@ -329,7 +342,8 @@ static void rec_alu_imm(const struct block *block, const struct opcode *op,
 	lightrec_free_reg(reg_cache, rt);
 }
 
-static void rec_alu_special(const struct block *block, const struct opcode *op,
+static void rec_alu_special(const struct block *block, u16 offset,
+			    const struct opcode *op,
 			    jit_code_t code, bool out_ext)
 {
 	struct regcache *reg_cache = block->state->reg_cache;
@@ -350,7 +364,7 @@ static void rec_alu_special(const struct block *block, const struct opcode *op,
 	lightrec_free_reg(reg_cache, rd);
 }
 
-static void rec_alu_shiftv(const struct block *block,
+static void rec_alu_shiftv(const struct block *block, u16 offset,
 			   const struct opcode *op, jit_code_t code)
 {
 	struct regcache *reg_cache = block->state->reg_cache;
@@ -384,34 +398,37 @@ static void rec_alu_shiftv(const struct block *block,
 	lightrec_free_reg(reg_cache, rd);
 }
 
-static void rec_ADDIU(const struct block *block,
+static void rec_ADDIU(const struct block *block, u16 offset,
 		      const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_alu_imm(block, op, jit_code_addi, false);
+	rec_alu_imm(block, offset, op, jit_code_addi, false);
 }
 
-static void rec_ADDI(const struct block *block, const struct opcode *op, u32 pc)
+static void rec_ADDI(const struct block *block, u16 offset,
+		     const struct opcode *op, u32 pc)
 {
 	/* TODO: Handle the exception? */
 	_jit_name(block->_jit, __func__);
-	rec_alu_imm(block, op, jit_code_addi, false);
+	rec_alu_imm(block, offset, op, jit_code_addi, false);
 }
 
-static void rec_SLTIU(const struct block *block,
+static void rec_SLTIU(const struct block *block, u16 offset,
 		      const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_alu_imm(block, op, jit_code_lti_u, true);
+	rec_alu_imm(block, offset, op, jit_code_lti_u, true);
 }
 
-static void rec_SLTI(const struct block *block, const struct opcode *op, u32 pc)
+static void rec_SLTI(const struct block *block, u16 offset,
+		     const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_alu_imm(block, op, jit_code_lti, true);
+	rec_alu_imm(block, offset, op, jit_code_lti, true);
 }
 
-static void rec_ANDI(const struct block *block, const struct opcode *op, u32 pc)
+static void rec_ANDI(const struct block *block, u16 offset,
+		     const struct opcode *op, u32 pc)
 {
 	struct regcache *reg_cache = block->state->reg_cache;
 	union code c = op->c;
@@ -437,7 +454,8 @@ static void rec_ANDI(const struct block *block, const struct opcode *op, u32 pc)
 	lightrec_free_reg(reg_cache, rt);
 }
 
-static void rec_alu_or_xor(const struct block *block, const struct opcode *op,
+static void rec_alu_or_xor(const struct block *block, u16 offset,
+			   const struct opcode *op,
 			   jit_code_t code)
 {
 	struct regcache *reg_cache = block->state->reg_cache;
@@ -459,19 +477,22 @@ static void rec_alu_or_xor(const struct block *block, const struct opcode *op,
 }
 
 
-static void rec_ORI(const struct block *block, const struct opcode *op, u32 pc)
+static void rec_ORI(const struct block *block, u16 offset,
+		    const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_alu_or_xor(block, op, jit_code_ori);
+	rec_alu_or_xor(block, offset, op, jit_code_ori);
 }
 
-static void rec_XORI(const struct block *block, const struct opcode *op, u32 pc)
+static void rec_XORI(const struct block *block, u16 offset,
+		     const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_alu_or_xor(block, op, jit_code_xori);
+	rec_alu_or_xor(block, offset, op, jit_code_xori);
 }
 
-static void rec_LUI(const struct block *block, const struct opcode *op, u32 pc)
+static void rec_LUI(const struct block *block, u16 offset,
+		    const struct opcode *op, u32 pc)
 {
 	struct regcache *reg_cache = block->state->reg_cache;
 	union code c = op->c;
@@ -491,37 +512,37 @@ static void rec_LUI(const struct block *block, const struct opcode *op, u32 pc)
 	lightrec_free_reg(reg_cache, rt);
 }
 
-static void rec_special_ADDU(const struct block *block,
+static void rec_special_ADDU(const struct block *block, u16 offset,
 			     const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_alu_special(block, op, jit_code_addr, false);
+	rec_alu_special(block, offset, op, jit_code_addr, false);
 }
 
-static void rec_special_ADD(const struct block *block,
+static void rec_special_ADD(const struct block *block, u16 offset,
 			    const struct opcode *op, u32 pc)
 {
 	/* TODO: Handle the exception? */
 	_jit_name(block->_jit, __func__);
-	rec_alu_special(block, op, jit_code_addr, false);
+	rec_alu_special(block, offset, op, jit_code_addr, false);
 }
 
-static void rec_special_SUBU(const struct block *block,
+static void rec_special_SUBU(const struct block *block, u16 offset,
 			     const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_alu_special(block, op, jit_code_subr, false);
+	rec_alu_special(block, offset, op, jit_code_subr, false);
 }
 
-static void rec_special_SUB(const struct block *block,
+static void rec_special_SUB(const struct block *block, u16 offset,
 			    const struct opcode *op, u32 pc)
 {
 	/* TODO: Handle the exception? */
 	_jit_name(block->_jit, __func__);
-	rec_alu_special(block, op, jit_code_subr, false);
+	rec_alu_special(block, offset, op, jit_code_subr, false);
 }
 
-static void rec_special_AND(const struct block *block,
+static void rec_special_AND(const struct block *block, u16 offset,
 			    const struct opcode *op, u32 pc)
 {
 	struct regcache *reg_cache = block->state->reg_cache;
@@ -556,7 +577,7 @@ static void rec_special_AND(const struct block *block,
 	lightrec_free_reg(reg_cache, rd);
 }
 
-static void rec_special_or_nor(const struct block *block,
+static void rec_special_or_nor(const struct block *block, u16 offset,
 			       const struct opcode *op, u32 pc, bool nor)
 {
 	struct regcache *reg_cache = block->state->reg_cache;
@@ -595,21 +616,21 @@ static void rec_special_or_nor(const struct block *block,
 	lightrec_free_reg(reg_cache, rd);
 }
 
-static void rec_special_OR(const struct block *block,
+static void rec_special_OR(const struct block *block, u16 offset,
 			   const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_special_or_nor(block, op, pc, false);
+	rec_special_or_nor(block, offset, op, pc, false);
 }
 
-static void rec_special_NOR(const struct block *block,
+static void rec_special_NOR(const struct block *block, u16 offset,
 			    const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_special_or_nor(block, op, pc, true);
+	rec_special_or_nor(block, offset, op, pc, true);
 }
 
-static void rec_special_XOR(const struct block *block,
+static void rec_special_XOR(const struct block *block, u16 offset,
 			    const struct opcode *op, u32 pc)
 {
 	struct regcache *reg_cache = block->state->reg_cache;
@@ -642,42 +663,42 @@ static void rec_special_XOR(const struct block *block,
 	lightrec_free_reg(reg_cache, rd);
 }
 
-static void rec_special_SLTU(const struct block *block,
+static void rec_special_SLTU(const struct block *block, u16 offset,
 			     const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_alu_special(block, op, jit_code_ltr_u, true);
+	rec_alu_special(block, offset, op, jit_code_ltr_u, true);
 }
 
-static void rec_special_SLT(const struct block *block,
+static void rec_special_SLT(const struct block *block, u16 offset,
 			    const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_alu_special(block, op, jit_code_ltr, true);
+	rec_alu_special(block, offset, op, jit_code_ltr, true);
 }
 
-static void rec_special_SLLV(const struct block *block,
+static void rec_special_SLLV(const struct block *block, u16 offset,
 			     const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_alu_shiftv(block, op, jit_code_lshr);
+	rec_alu_shiftv(block, offset, op, jit_code_lshr);
 }
 
-static void rec_special_SRLV(const struct block *block,
+static void rec_special_SRLV(const struct block *block, u16 offset,
 			     const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_alu_shiftv(block, op, jit_code_rshr_u);
+	rec_alu_shiftv(block, offset, op, jit_code_rshr_u);
 }
 
-static void rec_special_SRAV(const struct block *block,
+static void rec_special_SRAV(const struct block *block, u16 offset,
 			     const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_alu_shiftv(block, op, jit_code_rshr);
+	rec_alu_shiftv(block, offset, op, jit_code_rshr);
 }
 
-static void rec_alu_shift(const struct block *block,
+static void rec_alu_shift(const struct block *block, u16 offset,
 			  const struct opcode *op, jit_code_t code)
 {
 	struct regcache *reg_cache = block->state->reg_cache;
@@ -706,28 +727,28 @@ static void rec_alu_shift(const struct block *block,
 	lightrec_free_reg(reg_cache, rd);
 }
 
-static void rec_special_SLL(const struct block *block,
+static void rec_special_SLL(const struct block *block, u16 offset,
 			    const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_alu_shift(block, op, jit_code_lshi);
+	rec_alu_shift(block, offset, op, jit_code_lshi);
 }
 
-static void rec_special_SRL(const struct block *block,
+static void rec_special_SRL(const struct block *block, u16 offset,
 			    const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_alu_shift(block, op, jit_code_rshi_u);
+	rec_alu_shift(block, offset, op, jit_code_rshi_u);
 }
 
-static void rec_special_SRA(const struct block *block,
+static void rec_special_SRA(const struct block *block, u16 offset,
 			    const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_alu_shift(block, op, jit_code_rshi);
+	rec_alu_shift(block, offset, op, jit_code_rshi);
 }
 
-static void rec_alu_mult(const struct block *block,
+static void rec_alu_mult(const struct block *block, u16 offset,
 			 const struct opcode *op, bool is_signed)
 {
 	struct regcache *reg_cache = block->state->reg_cache;
@@ -789,7 +810,7 @@ static void rec_alu_mult(const struct block *block,
 		lightrec_free_reg(reg_cache, hi);
 }
 
-static void rec_alu_div(const struct block *block,
+static void rec_alu_div(const struct block *block, u16 offset,
 			const struct opcode *op, bool is_signed)
 {
 	struct regcache *reg_cache = block->state->reg_cache;
@@ -894,35 +915,36 @@ static void rec_alu_div(const struct block *block,
 		lightrec_free_reg(reg_cache, hi);
 }
 
-static void rec_special_MULT(const struct block *block,
+static void rec_special_MULT(const struct block *block, u16 offset,
 			     const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_alu_mult(block, op, true);
+	rec_alu_mult(block, offset, op, true);
 }
 
-static void rec_special_MULTU(const struct block *block,
+static void rec_special_MULTU(const struct block *block, u16 offset,
 			      const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_alu_mult(block, op, false);
+	rec_alu_mult(block, offset, op, false);
 }
 
-static void rec_special_DIV(const struct block *block,
+static void rec_special_DIV(const struct block *block, u16 offset,
 			    const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_alu_div(block, op, true);
+	rec_alu_div(block, offset, op, true);
 }
 
-static void rec_special_DIVU(const struct block *block,
+static void rec_special_DIVU(const struct block *block, u16 offset,
 			     const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_alu_div(block, op, false);
+	rec_alu_div(block, offset, op, false);
 }
 
-static void rec_alu_mv_lo_hi(const struct block *block, u8 dst, u8 src)
+static void rec_alu_mv_lo_hi(const struct block *block,
+			     u8 dst, u8 src)
 {
 	struct regcache *reg_cache = block->state->reg_cache;
 	jit_state_t *_jit = block->_jit;
@@ -941,7 +963,7 @@ static void rec_alu_mv_lo_hi(const struct block *block, u8 dst, u8 src)
 	lightrec_free_reg(reg_cache, dst);
 }
 
-static void rec_special_MFHI(const struct block *block,
+static void rec_special_MFHI(const struct block *block, u16 offset,
 			     const struct opcode *op, u32 pc)
 {
 	union code c = op->c;
@@ -950,7 +972,7 @@ static void rec_special_MFHI(const struct block *block,
 	rec_alu_mv_lo_hi(block, c.r.rd, REG_HI);
 }
 
-static void rec_special_MTHI(const struct block *block,
+static void rec_special_MTHI(const struct block *block, u16 offset,
 			     const struct opcode *op, u32 pc)
 {
 	union code c = op->c;
@@ -959,7 +981,7 @@ static void rec_special_MTHI(const struct block *block,
 	rec_alu_mv_lo_hi(block, REG_HI, c.r.rs);
 }
 
-static void rec_special_MFLO(const struct block *block,
+static void rec_special_MFLO(const struct block *block, u16 offset,
 			     const struct opcode *op, u32 pc)
 {
 	union code c = op->c;
@@ -968,7 +990,7 @@ static void rec_special_MFLO(const struct block *block,
 	rec_alu_mv_lo_hi(block, c.r.rd, REG_LO);
 }
 
-static void rec_special_MTLO(const struct block *block,
+static void rec_special_MTLO(const struct block *block, u16 offset,
 			     const struct opcode *op, u32 pc)
 {
 	union code c = op->c;
@@ -977,7 +999,8 @@ static void rec_special_MTLO(const struct block *block,
 	rec_alu_mv_lo_hi(block, REG_LO, c.r.rs);
 }
 
-static void rec_io(const struct block *block, const struct opcode *op,
+static void rec_io(const struct block *block, u16 offset,
+		   const struct opcode *op,
 		   bool load_rt, bool read_rt)
 {
 	struct regcache *reg_cache = block->state->reg_cache;
@@ -1025,7 +1048,7 @@ static void rec_io(const struct block *block, const struct opcode *op,
 	lightrec_regcache_mark_live(reg_cache, _jit);
 }
 
-static void rec_store_direct_no_invalidate(const struct block *block,
+static void rec_store_direct_no_invalidate(const struct block *block, u16 offset,
 					   const struct opcode *op,
 					   jit_code_t code)
 {
@@ -1085,7 +1108,8 @@ static void rec_store_direct_no_invalidate(const struct block *block,
 	lightrec_free_reg(reg_cache, tmp);
 }
 
-static void rec_store_direct(const struct block *block, const struct opcode *op,
+static void rec_store_direct(const struct block *block, u16 offset,
+			     const struct opcode *op,
 			     jit_code_t code)
 {
 	struct lightrec_state *state = block->state;
@@ -1151,60 +1175,68 @@ static void rec_store_direct(const struct block *block, const struct opcode *op,
 	lightrec_free_reg(reg_cache, tmp2);
 }
 
-static void rec_store(const struct block *block, const struct opcode *op,
+static void rec_store(const struct block *block, u16 offset,
+		      const struct opcode *op,
 		     jit_code_t code)
 {
 	u16 flags = op->flags;
 
 	if (flags & LIGHTREC_NO_INVALIDATE) {
-		rec_store_direct_no_invalidate(block, op, code);
+		rec_store_direct_no_invalidate(block, offset, op, code);
 	} else if (flags & LIGHTREC_DIRECT_IO) {
 		if (block->state->invalidate_from_dma_only)
-			rec_store_direct_no_invalidate(block, op, code);
+			rec_store_direct_no_invalidate(block, offset, op, code);
 		else
-			rec_store_direct(block, op, code);
+			rec_store_direct(block, offset, op, code);
 	} else {
-		rec_io(block, op, true, false);
+		rec_io(block, offset, op, true, false);
 	}
 }
 
-static void rec_SB(const struct block *block, const struct opcode *op, u32 pc)
+static void rec_SB(const struct block *block, u16 offset,
+		   const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_store(block, op, jit_code_stxi_c);
+	rec_store(block, offset, op, jit_code_stxi_c);
 }
 
-static void rec_SH(const struct block *block, const struct opcode *op, u32 pc)
+static void rec_SH(const struct block *block, u16 offset,
+		   const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_store(block, op, jit_code_stxi_s);
+	rec_store(block, offset, op, jit_code_stxi_s);
 }
 
-static void rec_SW(const struct block *block, const struct opcode *op, u32 pc)
+static void rec_SW(const struct block *block, u16 offset,
+		   const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_store(block, op, jit_code_stxi_i);
+	rec_store(block, offset, op, jit_code_stxi_i);
 }
 
-static void rec_SWL(const struct block *block, const struct opcode *op, u32 pc)
+static void rec_SWL(const struct block *block, u16 offset,
+		    const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_io(block, op, true, false);
+	rec_io(block, offset, op, true, false);
 }
 
-static void rec_SWR(const struct block *block, const struct opcode *op, u32 pc)
+static void rec_SWR(const struct block *block, u16 offset,
+		    const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_io(block, op, true, false);
+	rec_io(block, offset, op, true, false);
 }
 
-static void rec_SWC2(const struct block *block, const struct opcode *op, u32 pc)
+static void rec_SWC2(const struct block *block, u16 offset,
+		     const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_io(block, op, false, false);
+	rec_io(block, offset, op, false, false);
 }
 
-static void rec_load_direct(const struct block *block, const struct opcode *op,
+static void rec_load_direct(const struct block *block, u16 offset,
+			    const struct opcode *op,
 			    jit_code_t code, bool is_unsigned)
 {
 	struct lightrec_state *state = block->state;
@@ -1302,66 +1334,75 @@ static void rec_load_direct(const struct block *block, const struct opcode *op,
 	lightrec_free_reg(reg_cache, tmp);
 }
 
-static void rec_load(const struct block *block, const struct opcode *op,
-		    jit_code_t code, bool is_unsigned)
+static void rec_load(const struct block *block, u16 offset,
+		     const struct opcode *op,
+		     jit_code_t code, bool is_unsigned)
 {
 	u16 flags = op->flags;
 
 	if (flags & LIGHTREC_DIRECT_IO)
-		rec_load_direct(block, op, code, is_unsigned);
+		rec_load_direct(block, offset, op, code, is_unsigned);
 	else
-		rec_io(block, op, false, true);
+		rec_io(block, offset, op, false, true);
 }
 
-static void rec_LB(const struct block *block, const struct opcode *op, u32 pc)
+static void rec_LB(const struct block *block, u16 offset,
+		   const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_load(block, op, jit_code_ldxi_c, false);
+	rec_load(block, offset, op, jit_code_ldxi_c, false);
 }
 
-static void rec_LBU(const struct block *block, const struct opcode *op, u32 pc)
+static void rec_LBU(const struct block *block, u16 offset,
+		    const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_load(block, op, jit_code_ldxi_uc, true);
+	rec_load(block, offset, op, jit_code_ldxi_uc, true);
 }
 
-static void rec_LH(const struct block *block, const struct opcode *op, u32 pc)
+static void rec_LH(const struct block *block, u16 offset,
+		   const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_load(block, op, jit_code_ldxi_s, false);
+	rec_load(block, offset, op, jit_code_ldxi_s, false);
 }
 
-static void rec_LHU(const struct block *block, const struct opcode *op, u32 pc)
+static void rec_LHU(const struct block *block, u16 offset,
+		    const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_load(block, op, jit_code_ldxi_us, true);
+	rec_load(block, offset, op, jit_code_ldxi_us, true);
 }
 
-static void rec_LWL(const struct block *block, const struct opcode *op, u32 pc)
+static void rec_LWL(const struct block *block, u16 offset,
+		    const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_io(block, op, true, true);
+	rec_io(block, offset, op, true, true);
 }
 
-static void rec_LWR(const struct block *block, const struct opcode *op, u32 pc)
+static void rec_LWR(const struct block *block, u16 offset,
+		    const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_io(block, op, true, true);
+	rec_io(block, offset, op, true, true);
 }
 
-static void rec_LW(const struct block *block, const struct opcode *op, u32 pc)
+static void rec_LW(const struct block *block, u16 offset,
+		   const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_load(block, op, jit_code_ldxi_i, false);
+	rec_load(block, offset, op, jit_code_ldxi_i, false);
 }
 
-static void rec_LWC2(const struct block *block, const struct opcode *op, u32 pc)
+static void rec_LWC2(const struct block *block, u16 offset,
+		     const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_io(block, op, false, false);
+	rec_io(block, offset, op, false, false);
 }
 
-static void rec_break_syscall(const struct block *block,
+static void rec_break_syscall(const struct block *block, u16 offset,
 			      const struct opcode *op, u32 pc, bool is_break)
 {
 	struct regcache *reg_cache = block->state->reg_cache;
@@ -1384,24 +1425,25 @@ static void rec_break_syscall(const struct block *block,
 	lightrec_regcache_mark_live(reg_cache, _jit);
 
 	/* TODO: the return address should be "pc - 4" if we're a delay slot */
-	lightrec_emit_end_of_block(block, op, pc, -1, pc, 31, 0, true);
+	lightrec_emit_end_of_block(block, offset, op, pc, -1, pc, 31, 0, true);
 }
 
-static void rec_special_SYSCALL(const struct block *block,
+static void rec_special_SYSCALL(const struct block *block, u16 offset,
 				const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_break_syscall(block, op, pc, false);
+	rec_break_syscall(block, offset, op, pc, false);
 }
 
-static void rec_special_BREAK(const struct block *block,
+static void rec_special_BREAK(const struct block *block, u16 offset,
 			      const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_break_syscall(block, op, pc, true);
+	rec_break_syscall(block, offset, op, pc, true);
 }
 
-static void rec_mfc(const struct block *block, const struct opcode *op)
+static void rec_mfc(const struct block *block, u16 offset,
+		    const struct opcode *op)
 {
 	u8 tmp, tmp2;
 	struct lightrec_state *state = block->state;
@@ -1427,7 +1469,8 @@ static void rec_mfc(const struct block *block, const struct opcode *op)
 	lightrec_regcache_mark_live(reg_cache, _jit);
 }
 
-static void rec_mtc(const struct block *block, const struct opcode *op, u32 pc)
+static void rec_mtc(const struct block *block, u16 offset,
+		    const struct opcode *op, u32 pc)
 {
 	struct lightrec_state *state = block->state;
 	struct regcache *reg_cache = state->reg_cache;
@@ -1455,66 +1498,66 @@ static void rec_mtc(const struct block *block, const struct opcode *op, u32 pc)
 	if (c.i.op == OP_CP0 &&
 	    !(op->flags & LIGHTREC_NO_DS) &&
 	    (c.r.rd == 12 || c.r.rd == 13))
-		lightrec_emit_end_of_block(block, op, pc, -1, pc + 4, 0, 0, true);
+		lightrec_emit_end_of_block(block, offset, op, pc, -1, pc + 4, 0, 0, true);
 }
 
-static void rec_cp0_MFC0(const struct block *block,
+static void rec_cp0_MFC0(const struct block *block, u16 offset,
 			 const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_mfc(block, op);
+	rec_mfc(block, offset, op);
 }
 
-static void rec_cp0_CFC0(const struct block *block,
+static void rec_cp0_CFC0(const struct block *block, u16 offset,
 			 const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_mfc(block, op);
+	rec_mfc(block, offset, op);
 }
 
-static void rec_cp0_MTC0(const struct block *block,
+static void rec_cp0_MTC0(const struct block *block, u16 offset,
 			 const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_mtc(block, op, pc);
+	rec_mtc(block, offset, op, pc);
 }
 
-static void rec_cp0_CTC0(const struct block *block,
+static void rec_cp0_CTC0(const struct block *block, u16 offset,
 			 const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_mtc(block, op, pc);
+	rec_mtc(block, offset, op, pc);
 }
 
-static void rec_cp2_basic_MFC2(const struct block *block,
+static void rec_cp2_basic_MFC2(const struct block *block, u16 offset,
 			       const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_mfc(block, op);
+	rec_mfc(block, offset, op);
 }
 
-static void rec_cp2_basic_CFC2(const struct block *block,
+static void rec_cp2_basic_CFC2(const struct block *block, u16 offset,
 			       const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_mfc(block, op);
+	rec_mfc(block, offset, op);
 }
 
-static void rec_cp2_basic_MTC2(const struct block *block,
+static void rec_cp2_basic_MTC2(const struct block *block, u16 offset,
 			       const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_mtc(block, op, pc);
+	rec_mtc(block, offset, op, pc);
 }
 
-static void rec_cp2_basic_CTC2(const struct block *block,
+static void rec_cp2_basic_CTC2(const struct block *block, u16 offset,
 			       const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_mtc(block, op, pc);
+	rec_mtc(block, offset, op, pc);
 }
 
-static void rec_cp0_RFE(const struct block *block,
+static void rec_cp0_RFE(const struct block *block, u16 offset,
 			const struct opcode *op, u32 pc)
 {
 	struct lightrec_state *state = block->state;
@@ -1533,7 +1576,8 @@ static void rec_cp0_RFE(const struct block *block,
 	lightrec_regcache_mark_live(state->reg_cache, _jit);
 }
 
-static void rec_CP(const struct block *block, const struct opcode *op, u32 pc)
+static void rec_CP(const struct block *block, u16 offset,
+		   const struct opcode *op, u32 pc)
 {
 	struct regcache *reg_cache = block->state->reg_cache;
 	union code c = op->c;
@@ -1557,21 +1601,21 @@ static void rec_CP(const struct block *block, const struct opcode *op, u32 pc)
 	lightrec_regcache_mark_live(reg_cache, _jit);
 }
 
-static void rec_meta_BEQZ(const struct block *block,
+static void rec_meta_BEQZ(const struct block *block, u16 offset,
 			  const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_b(block, op, pc, jit_code_bnei, 0, false, true);
+	rec_b(block, offset, op, pc, jit_code_bnei, 0, false, true);
 }
 
-static void rec_meta_BNEZ(const struct block *block,
+static void rec_meta_BNEZ(const struct block *block, u16 offset,
 			  const struct opcode *op, u32 pc)
 {
 	_jit_name(block->_jit, __func__);
-	rec_b(block, op, pc, jit_code_beqi, 0, false, true);
+	rec_b(block, offset, op, pc, jit_code_beqi, 0, false, true);
 }
 
-static void rec_meta_MOV(const struct block *block,
+static void rec_meta_MOV(const struct block *block, u16 offset,
 			 const struct opcode *op, u32 pc)
 {
 	struct lightrec_state *state = block->state;
@@ -1696,42 +1740,44 @@ static const lightrec_rec_func_t rec_cp2_basic[64] = {
 	[OP_CP2_BASIC_CTC2]	= rec_cp2_basic_CTC2,
 };
 
-static void rec_SPECIAL(const struct block *block,
+static void rec_SPECIAL(const struct block *block, u16 offset,
 			const struct opcode *op, u32 pc)
 {
 	union code c = op->c;
 	lightrec_rec_func_t f = rec_special[c.r.op];
 
 	if (!HAS_DEFAULT_ELM && unlikely(!f))
-		unknown_opcode(block, op, pc);
+		unknown_opcode(block, offset, op, pc);
 	else
-		(*f)(block, op, pc);
+		(*f)(block, offset, op, pc);
 }
 
-static void rec_REGIMM(const struct block *block,
+static void rec_REGIMM(const struct block *block, u16 offset,
 		       const struct opcode *op, u32 pc)
 {
 	union code c = op->c;
 	lightrec_rec_func_t f = rec_regimm[c.r.rt];
 
 	if (!HAS_DEFAULT_ELM && unlikely(!f))
-		unknown_opcode(block, op, pc);
+		unknown_opcode(block, offset, op, pc);
 	else
-		(*f)(block, op, pc);
+		(*f)(block, offset, op, pc);
 }
 
-static void rec_CP0(const struct block *block, const struct opcode *op, u32 pc)
+static void rec_CP0(const struct block *block, u16 offset,
+		    const struct opcode *op, u32 pc)
 {
 	union code c = op->c;
 	lightrec_rec_func_t f = rec_cp0[c.r.rs];
 
 	if (!HAS_DEFAULT_ELM && unlikely(!f))
-		rec_CP(block, op, pc);
+		rec_CP(block, offset, op, pc);
 	else
-		(*f)(block, op, pc);
+		(*f)(block, offset, op, pc);
 }
 
-static void rec_CP2(const struct block *block, const struct opcode *op, u32 pc)
+static void rec_CP2(const struct block *block, u16 offset,
+		    const struct opcode *op, u32 pc)
 {
 	union code c = op->c;
 
@@ -1739,15 +1785,15 @@ static void rec_CP2(const struct block *block, const struct opcode *op, u32 pc)
 		lightrec_rec_func_t f = rec_cp2_basic[c.r.rs];
 
 		if (HAS_DEFAULT_ELM || likely(f)) {
-			(*f)(block, op, pc);
+			(*f)(block, offset, op, pc);
 			return;
 		}
 	}
 
-	rec_CP(block, op, pc);
+	rec_CP(block, offset, op, pc);
 }
 
-void lightrec_rec_opcode(const struct block *block,
+void lightrec_rec_opcode(const struct block *block, u16 offset,
 			 const struct opcode *op, u32 pc)
 {
 	struct lightrec_state *state = block->state;
@@ -1774,9 +1820,9 @@ void lightrec_rec_opcode(const struct block *block,
 		f = rec_standard[op->i.op];
 
 		if (!HAS_DEFAULT_ELM && unlikely(!f))
-			unknown_opcode(block, op, pc);
+			unknown_opcode(block, offset, op, pc);
 		else
-			(*f)(block, op, pc);
+			(*f)(block, offset, op, pc);
 	}
 
 	if (unlikely(op->flags & LIGHTREC_UNLOAD_RD)) {
