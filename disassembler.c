@@ -3,16 +3,11 @@
  * Copyright (C) 2014-2021 Paul Cercueil <paul@crapouillou.net>
  */
 
-#include "config.h"
-
-#if ENABLE_DISASSEMBLER
 #include <dis-asm.h>
-#endif
 #include <stdio.h>
 
 #include "lightrec-private.h"
 
-#if ENABLE_DISASSEMBLER
 void lightrec_print_disassembly(const struct block *block,
 				const u32 *code, unsigned int length)
 {
@@ -37,4 +32,3 @@ void lightrec_print_disassembly(const struct block *block,
 		putc('\n', stdout);
 	}
 }
-#endif

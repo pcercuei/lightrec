@@ -29,7 +29,6 @@ set(HAS_DEFAULT_ELM ${CMAKE_COMPILER_IS_GNUCC})
 
 list(APPEND LIGHTREC_SOURCES
 	blockcache.c
-	disassembler.c
 	emitter.c
 	interpreter.c
 	lightrec.c
@@ -117,6 +116,7 @@ if (LOG_LEVEL STREQUAL Debug)
 	set(ENABLE_DISASSEMBLER ON)
 	include_directories(${LIBOPCODES_INCLUDE_DIR})
 	target_link_libraries(${PROJECT_NAME} PRIVATE ${LIBOPCODES})
+	target_sources(${PROJECT_NAME} PRIVATE disassembler.c)
 endif()
 
 configure_file(config.h.cmakein config.h @ONLY)
