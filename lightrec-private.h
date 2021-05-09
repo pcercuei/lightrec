@@ -179,6 +179,9 @@ union code lightrec_read_opcode(struct lightrec_state *state, u32 pc);
 
 struct block * lightrec_get_block(struct lightrec_state *state, u32 pc);
 int lightrec_compile_block(struct block *block);
+void lightrec_free_opcode_list(struct block *block);
+
+unsigned int lightrec_cycles_of_opcode(union code code);
 
 static inline u8 get_mult_div_lo(union code c)
 {

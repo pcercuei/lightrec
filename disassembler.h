@@ -202,12 +202,6 @@ struct opcode {
 	struct opcode *next;
 };
 
-struct opcode * lightrec_disassemble(struct lightrec_state *state,
-				     const u32 *src, unsigned int *len);
-void lightrec_free_opcode_list(struct block *block);
-
-unsigned int lightrec_cycles_of_opcode(union code code);
-
 void lightrec_print_disassembly(const struct block *block,
 				const u32 *code, unsigned int length);
 
