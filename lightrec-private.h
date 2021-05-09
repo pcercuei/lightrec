@@ -154,6 +154,24 @@ static inline u32 lut_offset(u32 pc)
 		return (pc & (RAM_SIZE - 1)) >> 2; // RAM
 }
 
+static inline u32 get_ds_pc(const struct block *block, u16 offset, s16 imm)
+{
+	u16 flags = block->opcode_list[offset].flags;
+
+	offset += !!(OPT_SWITCH_DELAY_SLOTS && (flags & LIGHTREC_NO_DS));
+
+	return block->pc + (offset + imm << 2);
+}
+
+static inline u32 get_branch_pc(const struct block *block, u16 offset, s16 imm)
+{
+	u16 flags = block->opcode_list[offset].flags;
+
+	offset -= !!(OPT_SWITCH_DELAY_SLOTS && (flags & LIGHTREC_NO_DS));
+
+	return block->pc + (offset + imm << 2);
+}
+
 void lightrec_mtc(struct lightrec_state *state, union code op, u32 data);
 u32 lightrec_mfc(struct lightrec_state *state, union code op);
 
