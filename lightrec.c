@@ -842,12 +842,9 @@ static struct opcode * lightrec_disassemble(struct lightrec_state *state,
 
 	for (i = 0; i < length; i++) {
 		list[i].opcode = LE32TOH(src[i]);
-		list[i].offset = i;
 		list[i].flags = 0;
-		list[i].next = &list[i + 1];
 	}
 
-	list[length - 1].next = NULL;
 	*len = length * sizeof(u32);
 
 	return list;

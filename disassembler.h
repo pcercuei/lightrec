@@ -198,8 +198,6 @@ struct opcode {
 		struct opcode_j j;
 	};
 	u16 flags;
-	u16 offset;
-	struct opcode *next;
 };
 
 void lightrec_print_disassembly(const struct block *block,

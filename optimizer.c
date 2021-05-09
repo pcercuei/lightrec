@@ -746,10 +746,6 @@ static int lightrec_switch_delay_slots(struct block *block)
 		next->c = op;
 		next->flags = list->flags | LIGHTREC_NO_DS;
 		list->flags = flags | LIGHTREC_NO_DS;
-
-		/* TODO */
-		list->offset++;
-		next->offset--;
 	}
 
 	return 0;

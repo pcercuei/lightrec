@@ -242,8 +242,6 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 		} else {
 			new_op.c = op_next;
 			new_op.flags = 0;
-			new_op.offset = 0;
-			new_op.next = NULL;
 			inter2.op = &new_op;
 
 			/* Execute the first opcode of the next block */
@@ -304,8 +302,6 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 
 		new_op.c = op_next;
 		new_op.flags = 0;
-		new_op.offset = sizeof(u32);
-		new_op.next = NULL;
 		inter2.op = &new_op;
 		inter2.block = NULL;
 
