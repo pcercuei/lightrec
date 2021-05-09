@@ -919,19 +919,6 @@ static void lightrec_reap_jit(void *data)
 	_jit_destroy_state(data);
 }
 
-static u32 get_next_pc(const struct block *block, u16 offset)
-{
-	const struct opcode *op = &block->opcode_list[offset];
-
-	if (!(op->flags & LIGHTREC_NO_DS))
-		return block->pc + offset * sizeof(u32);
-
-	if (has_delay_slot(op->c))
-		return block->pc + (offset - 1) * sizeof(u32);
-
-	return block->pc + (offset + 1) * sizeof(u32);
-}
-
 int lightrec_compile_block(struct block *block)
 {
 	struct lightrec_state *state = block->state;
@@ -978,16 +965,14 @@ int lightrec_compile_block(struct block *block)
 
 		state->cycles += lightrec_cycles_of_opcode(elm->c);
 
-		next_pc = get_next_pc(block, i);
-
 		if (should_emulate(elm)) {
 			pr_debug("Branch at offset 0x%x will be emulated\n",
 				 i << 2);
 
-			lightrec_emit_eob(block, i, elm, next_pc);
+			lightrec_emit_eob(block, i);
 			skip_next = !(elm->flags & LIGHTREC_NO_DS);
 		} else {
-			lightrec_rec_opcode(block, i, elm, next_pc);
+			lightrec_rec_opcode(block, i);
 			skip_next = has_delay_slot(elm->c) &&
 				!(elm->flags & LIGHTREC_NO_DS);
 #if _WIN32
