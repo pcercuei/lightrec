@@ -22,6 +22,33 @@ struct optimizer_list {
 	unsigned int nb_optimizers;
 };
 
+bool is_unconditional_jump(union code c)
+{
+	switch (c.i.op) {
+	case OP_SPECIAL:
+		return c.r.op == OP_SPECIAL_JR || c.r.op == OP_SPECIAL_JALR;
+	case OP_J:
+	case OP_JAL:
+		return true;
+	case OP_BEQ:
+	case OP_BLEZ:
+		return c.i.rs == c.i.rt;
+	case OP_REGIMM:
+		return (c.r.rt == OP_REGIMM_BGEZ ||
+			c.r.rt == OP_REGIMM_BGEZAL) && c.i.rs == 0;
+	default:
+		return false;
+	}
+}
+
+bool is_syscall(union code c)
+{
+	return (c.i.op == OP_SPECIAL && c.r.op == OP_SPECIAL_SYSCALL) ||
+		(c.i.op == OP_CP0 && (c.r.rs == OP_CP0_MTC0 ||
+					c.r.rs == OP_CP0_CTC0) &&
+		 (c.r.rd == 12 || c.r.rd == 13));
+}
+
 static u64 opcode_read_mask(union code op)
 {
 	switch (op.i.op) {
