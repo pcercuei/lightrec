@@ -902,7 +902,7 @@ bool should_emulate(const struct opcode *list)
 		(list->flags & LIGHTREC_EMULATE_BRANCH);
 }
 
-static int lightrec_add_unload(struct opcode *op, u8 reg)
+static void lightrec_add_unload(struct opcode *op, u8 reg)
 {
 	if (op->i.op == OP_SPECIAL && reg == op->r.rd)
 		op->flags |= LIGHTREC_UNLOAD_RD;
@@ -920,7 +920,7 @@ static int lightrec_early_unload(struct block *block)
 	u8 reg;
 
 	for (reg = 1; reg < 34; reg++) {
-		int ret, last_r_id = -1, last_w_id = -1;
+		int last_r_id = -1, last_w_id = -1;
 
 		for (i = 0; i < block->nb_ops; i++) {
 			union code c = block->opcode_list[i].c;
@@ -946,9 +946,7 @@ static int lightrec_early_unload(struct block *block)
 		if (offset == block->nb_ops)
 			continue;
 
-		ret = lightrec_add_unload(&block->opcode_list[offset], reg);
-		if (ret)
-			return ret;
+		lightrec_add_unload(&block->opcode_list[offset], reg);
 	}
 
 	return 0;
