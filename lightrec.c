@@ -983,7 +983,7 @@ int lightrec_compile_block(struct block *block)
 	bool skip_next = false;
 	jit_word_t code_size;
 	unsigned int i, j;
-	u32 next_pc, offset;
+	u32 offset;
 
 	fully_tagged = lightrec_block_is_fully_tagged(block);
 	if (fully_tagged)

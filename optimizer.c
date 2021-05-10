@@ -754,7 +754,6 @@ static int lightrec_switch_delay_slots(struct block *block)
 static int shrink_opcode_list(struct block *block, u16 new_size)
 {
 	struct opcode *list;
-	unsigned int i;
 
 	if (new_size >= block->nb_ops) {
 		pr_err("Invalid shrink size (%u vs %u)\n",
@@ -825,10 +824,9 @@ static int lightrec_detect_impossible_branches(struct block *block)
 
 static int lightrec_local_branches(struct block *block)
 {
-	struct opcode *list, *target;
-	unsigned int i, j;
+	struct opcode *list;
+	unsigned int i;
 	s32 offset;
-	int ret;
 
 	for (i = 0; i < block->nb_ops; i++) {
 		list = &block->opcode_list[i];
@@ -917,7 +915,6 @@ static int lightrec_add_unload(struct opcode *op, u8 reg)
 
 static int lightrec_early_unload(struct block *block)
 {
-	struct opcode *list = block->opcode_list;
 	unsigned int i, offset;
 	struct opcode *op;
 	u8 reg;
