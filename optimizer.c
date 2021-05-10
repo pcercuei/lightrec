@@ -1194,14 +1194,14 @@ static int lightrec_flag_mults_divs(struct block *block)
 
 		reg_lo = get_mfhi_mflo_reg(block, i + 1, NULL, 0, false, true);
 		if (reg_lo == 0) {
-			pr_debug("%Mark MULT(U)/DIV(U) opcode at offset 0x%x as"
+			pr_debug("Mark MULT(U)/DIV(U) opcode at offset 0x%x as"
 				 " not writing LO\n", i << 2);
 			list->flags |= LIGHTREC_NO_LO;
 		}
 
 		reg_hi = get_mfhi_mflo_reg(block, i + 1, NULL, 0, false, false);
 		if (reg_hi == 0) {
-			pr_debug("%Mark MULT(U)/DIV(U) opcode at offset 0x%x as"
+			pr_debug("Mark MULT(U)/DIV(U) opcode at offset 0x%x as"
 				 " not writing HI\n", i << 2);
 			list->flags |= LIGHTREC_NO_HI;
 		}

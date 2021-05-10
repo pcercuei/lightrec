@@ -246,7 +246,7 @@ static int print_op_cp(union code c, char *buf, size_t len, unsigned int cp)
 		case OP_CP0_MTC0:
 		case OP_CP0_CTC0:
 			return snprintf(buf, len, "%s%s,%u",
-					cp0_opcodes[c.i.rs], cp,
+					cp0_opcodes[c.i.rs],
 					lightrec_reg_name(c.i.rt),
 					c.r.rd);
 		case OP_CP0_RFE:
@@ -300,13 +300,13 @@ static int print_op(union code c, u32 pc, char *buf, size_t len,
 				std_opcodes[c.i.op],
 				lightrec_reg_name(c.i.rt),
 				lightrec_reg_name(c.i.rs),
-				c.i.imm);
+				(u16)c.i.imm);
 
 	case OP_LUI:
 		return snprintf(buf, len, "%s%s,0x%04hx",
 				std_opcodes[c.i.op],
 				lightrec_reg_name(c.i.rt),
-				c.i.imm);
+				(u16)c.i.imm);
 	case OP_CP0:
 		return print_op_cp(c, buf, len, 0);
 	case OP_CP2:
@@ -385,7 +385,7 @@ void lightrec_print_disassembly(const struct block *block, const u32 *code)
 
 		print_flags(buf3, sizeof(buf3), op->flags, flags_ptr, nb_flags);
 
-		printf("0x%08x (0x%x)\t%s%0*c%s%0*c%s\n", pc, i << 2,
-		       buf, 30 - count, ' ', buf2, 30 - count2, ' ', buf3);
+		printf("0x%08x (0x%x)\t%s%*c%s%*c%s\n", pc, i << 2,
+		       buf, 30 - (int)count, ' ', buf2, 30 - (int)count2, ' ', buf3);
 	}
 }
