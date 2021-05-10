@@ -82,6 +82,13 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 	C_EXTENSIONS OFF
 )
 
+if (CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+	target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wno-parentheses)
+endif()
+if (CMAKE_C_COMPILER_ID STREQUAL "Clang")
+	target_compile_options(${PROJECT_NAME} PRIVATE -Wno-initializer-overrides)
+endif()
+
 option(ENABLE_TINYMM "Enable optional libtinymm dependency" OFF)
 if (ENABLE_TINYMM)
 	find_library(TINYMM_LIBRARIES tinymm REQUIRED)
