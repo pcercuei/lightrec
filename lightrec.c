@@ -1027,6 +1027,13 @@ int lightrec_compile_block(struct block *block)
 			lightrec_rec_opcode(block, i);
 			skip_next = has_delay_slot(elm->c) &&
 				!(elm->flags & LIGHTREC_NO_DS);
+#if _WIN32
+			/* FIXME: GNU Lightning on Windows seems to use our
+			 * mapped registers as temporaries. Until the actual bug
+			 * is found and fixed, unconditionally mark our
+			 * registers as live here. */
+			lightrec_regcache_mark_live(state->reg_cache, _jit);
+#endif
 		}
 	}
 
