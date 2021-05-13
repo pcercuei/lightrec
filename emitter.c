@@ -1033,6 +1033,8 @@ static void rec_store_direct_no_invalidate(const struct block *block,
 	if (state->offset_ram != state->offset_scratch) {
 		to_not_ram = jit_bmsi(tmp, BIT(28));
 
+		lightrec_regcache_mark_live(reg_cache, _jit);
+
 		jit_movi(tmp2, state->offset_ram);
 
 		to_end = jit_jmpi();
@@ -1084,6 +1086,8 @@ static void rec_store_direct(const struct block *block,
 	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
 
 	to_not_ram = jit_bgti(tmp2, RAM_SIZE);
+
+	lightrec_regcache_mark_live(reg_cache, _jit);
 
 	/* Compute the offset to the code LUT */
 	jit_andi(tmp, tmp2, (RAM_SIZE - 1) & ~3);
@@ -1226,6 +1230,8 @@ static void rec_load_direct(const struct block *block, u16 offset,
 			jit_movi(tmp, state->offset_ram);
 	} else {
 		to_not_ram = jit_bmsi(addr_reg, BIT(28));
+
+		lightrec_regcache_mark_live(reg_cache, _jit);
 
 		/* Convert to KUNSEG and avoid RAM mirrors */
 		jit_andi(rt, addr_reg, RAM_SIZE - 1);
