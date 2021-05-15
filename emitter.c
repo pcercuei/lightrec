@@ -958,18 +958,17 @@ static void rec_io(const struct block *block, u16 offset,
 	u16 flags = block->opcode_list[offset].flags;
 	bool is_tagged = flags & (LIGHTREC_HW_IO | LIGHTREC_DIRECT_IO);
 	u32 rw_offset;
-	u8 tmp, tmp2, tmp3;
+	u32 lut_entry;
+	u8 tmp, tmp2;
 
 	jit_note(__FILE__, __LINE__);
 
 	tmp = lightrec_alloc_reg(reg_cache, _jit, JIT_R0);
 
-	if (is_tagged) {
+	if (is_tagged)
 		rw_offset = offsetof(struct lightrec_state, rw_func);
-	} else {
-		tmp3 = lightrec_alloc_reg(reg_cache, _jit, JIT_R1);
+	else
 		rw_offset = offsetof(struct lightrec_state, rw_generic_func);
-	}
 
 	tmp2 = lightrec_alloc_reg_temp(reg_cache, _jit);
 	jit_ldxi(tmp2, LIGHTREC_REG_STATE, rw_offset);
@@ -984,16 +983,14 @@ static void rec_io(const struct block *block, u16 offset,
 	if (is_tagged) {
 		jit_movi(tmp, c.opcode);
 	} else {
-		jit_movi(tmp, (uintptr_t)&block->opcode_list[offset]);
-		jit_movi(tmp3, (uintptr_t)block);
+		lut_entry = lightrec_get_lut_entry(block);
+		jit_movi(tmp, (lut_entry << 16) | offset);
 	}
 
 	jit_callr(tmp2);
 
 	lightrec_free_reg(reg_cache, tmp);
 	lightrec_free_reg(reg_cache, tmp2);
-	if (!is_tagged)
-		lightrec_free_reg(reg_cache, tmp3);
 	lightrec_regcache_mark_live(reg_cache, _jit);
 }
 

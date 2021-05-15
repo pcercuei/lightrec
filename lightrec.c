@@ -316,10 +316,23 @@ static void lightrec_rw_cb(struct lightrec_state *state, union code op)
 	lightrec_rw_helper(state, op, NULL, NULL);
 }
 
-static void lightrec_rw_generic_cb(struct lightrec_state *state,
-				   struct opcode *op, struct block *block)
+static void lightrec_rw_generic_cb(struct lightrec_state *state, u32 arg)
 {
-	bool was_tagged = op->flags & (LIGHTREC_HW_IO | LIGHTREC_DIRECT_IO);
+	struct block *block;
+	struct opcode *op;
+	bool was_tagged;
+	u16 offset = (u16)arg;
+
+	block = lightrec_find_block_from_lut(state->block_cache,
+					     arg >> 16, state->next_pc);
+	if (unlikely(!block)) {
+		pr_err("rw_generic: No block found in LUT for PC 0x%x offset 0x%x\n",
+			 state->next_pc, offset);
+		return;
+	}
+
+	op = &block->opcode_list[offset];
+	was_tagged = op->flags & (LIGHTREC_HW_IO | LIGHTREC_DIRECT_IO);
 
 	lightrec_rw_helper(state, op->c, &op->flags, block);
 
@@ -515,14 +528,12 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 
 static s32 c_generic_function_wrapper(struct lightrec_state *state,
 				      s32 cycles_delta,
-				      void (*f)(struct lightrec_state *,
-						struct opcode *,
-						struct block *),
-				      struct opcode *op, struct block *block)
+				      void (*f)(struct lightrec_state *, uintptr_t d),
+				      uintptr_t d)
 {
 	state->current_cycle = state->target_cycle - cycles_delta;
 
-	(*f)(state, op, block);
+	(*f)(state, d);
 
 	return state->target_cycle - state->current_cycle;
 }
@@ -593,7 +604,6 @@ static struct block * generate_wrapper(struct lightrec_state *state,
 	jit_pushargi((uintptr_t)f);
 	jit_pushargr(JIT_R0);
 	if (generic) {
-		jit_pushargr(JIT_R1);
 		jit_finishi(c_generic_function_wrapper);
 	} else {
 		jit_finishi(c_function_wrapper);
