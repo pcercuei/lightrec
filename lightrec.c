@@ -461,12 +461,12 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 	for (;;) {
 		func = state->code_lut[lut_offset(pc)];
 		if (func && func != state->get_next_block)
-			return func;
+			break;
 
 		block = lightrec_get_block(state, pc);
 
 		if (unlikely(!block))
-			return NULL;
+			break;
 
 		should_recompile = block->flags & BLOCK_SHOULD_RECOMPILE &&
 			!(block->flags & BLOCK_IS_DEAD);
@@ -488,7 +488,7 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 			func = block->function;
 
 		if (likely(func))
-			return func;
+			break;
 
 		/* Block wasn't compiled yet - run the interpreter */
 		if (!ENABLE_THREADED_COMPILER &&
@@ -505,11 +505,12 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 		}
 
 		if (state->exit_flags != LIGHTREC_EXIT_NORMAL ||
-		    state->current_cycle >= state->target_cycle) {
-			state->next_pc = pc;
-			return NULL;
-		}
+		    state->current_cycle >= state->target_cycle)
+			break;
 	}
+
+	state->next_pc = pc;
+	return func;
 }
 
 static s32 c_generic_function_wrapper(struct lightrec_state *state,
@@ -638,7 +639,7 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 {
 	struct block *block;
 	jit_state_t *_jit;
-	jit_node_t *to_end, *to_end2, *to_c, *loop, *addr, *addr2;
+	jit_node_t *to_end, *to_c, *loop, *addr, *addr2;
 	unsigned int i;
 	u32 offset, ram_len;
 	jit_word_t code_size;
@@ -680,6 +681,10 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 	/* The block will jump here, with the number of cycles remaining in
 	 * LIGHTREC_REG_CYCLE */
 	addr2 = jit_indirect();
+
+	/* Store back the next_pc to the lightrec_state structure */
+	offset = offsetof(struct lightrec_state, next_pc);
+	jit_stxi_i(offset, LIGHTREC_REG_STATE, JIT_V0);
 
 	/* Jump to end if state->target_cycle < state->current_cycle */
 	to_end = jit_blei(LIGHTREC_REG_CYCLE, 0);
@@ -736,17 +741,9 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 	/* If we get non-NULL, loop */
 	jit_patch_at(jit_bnei(JIT_R0, 0), loop);
 
-	to_end2 = jit_jmpi();
-
 	/* When exiting, the recompiled code will jump to that address */
 	jit_note(__FILE__, __LINE__);
 	jit_patch(to_end);
-
-	/* Store back the next_pc to the lightrec_state structure */
-	offset = offsetof(struct lightrec_state, next_pc);
-	jit_stxi_i(offset, LIGHTREC_REG_STATE, JIT_V0);
-
-	jit_patch(to_end2);
 
 	jit_retr(LIGHTREC_REG_CYCLE);
 	jit_epilog();
@@ -1168,6 +1165,7 @@ u32 lightrec_execute(struct lightrec_state *state, u32 pc, u32 target_cycle)
 		target_cycle = UINT_MAX;
 
 	state->target_cycle = target_cycle;
+	state->next_pc = pc;
 
 	block_trace = get_next_block_func(state, pc);
 	if (block_trace) {
