@@ -526,10 +526,9 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 	return func;
 }
 
-static s32 c_generic_function_wrapper(struct lightrec_state *state,
-				      s32 cycles_delta,
-				      void (*f)(struct lightrec_state *, uintptr_t d),
-				      uintptr_t d)
+static s32 c_function_wrapper(struct lightrec_state *state, s32 cycles_delta,
+			      void (*f)(struct lightrec_state *, u32 d),
+			      u32 d)
 {
 	state->current_cycle = state->target_cycle - cycles_delta;
 
@@ -538,19 +537,7 @@ static s32 c_generic_function_wrapper(struct lightrec_state *state,
 	return state->target_cycle - state->current_cycle;
 }
 
-static s32 c_function_wrapper(struct lightrec_state *state, s32 cycles_delta,
-			      void (*f)(struct lightrec_state *, union code),
-			      union code op)
-{
-	state->current_cycle = state->target_cycle - cycles_delta;
-
-	(*f)(state, op);
-
-	return state->target_cycle - state->current_cycle;
-}
-
-static struct block * generate_wrapper(struct lightrec_state *state,
-				       void *f, bool generic)
+static struct block * generate_wrapper(struct lightrec_state *state, void *f)
 {
 	struct block *block;
 	jit_state_t *_jit;
@@ -603,11 +590,7 @@ static struct block * generate_wrapper(struct lightrec_state *state,
 	jit_pushargr(LIGHTREC_REG_CYCLE);
 	jit_pushargi((uintptr_t)f);
 	jit_pushargr(JIT_R0);
-	if (generic) {
-		jit_finishi(c_generic_function_wrapper);
-	} else {
-		jit_finishi(c_function_wrapper);
-	}
+	jit_finishi(c_function_wrapper);
 
 #if __WORDSIZE == 64
 	jit_retval_i(LIGHTREC_REG_CYCLE);
@@ -1280,38 +1263,35 @@ struct lightrec_state * lightrec_init(char *argv0,
 		goto err_free_reaper;
 
 	state->rw_generic_wrapper = generate_wrapper(state,
-						     lightrec_rw_generic_cb,
-						     true);
+						     lightrec_rw_generic_cb);
 	if (!state->rw_generic_wrapper)
 		goto err_free_dispatcher;
 
-	state->rw_wrapper = generate_wrapper(state, lightrec_rw_cb, false);
+	state->rw_wrapper = generate_wrapper(state, lightrec_rw_cb);
 	if (!state->rw_wrapper)
 		goto err_free_generic_rw_wrapper;
 
-	state->mfc_wrapper = generate_wrapper(state, lightrec_mfc_cb, false);
+	state->mfc_wrapper = generate_wrapper(state, lightrec_mfc_cb);
 	if (!state->mfc_wrapper)
 		goto err_free_rw_wrapper;
 
-	state->mtc_wrapper = generate_wrapper(state, lightrec_mtc_cb, false);
+	state->mtc_wrapper = generate_wrapper(state, lightrec_mtc_cb);
 	if (!state->mtc_wrapper)
 		goto err_free_mfc_wrapper;
 
-	state->rfe_wrapper = generate_wrapper(state, lightrec_rfe_cb, false);
+	state->rfe_wrapper = generate_wrapper(state, lightrec_rfe_cb);
 	if (!state->rfe_wrapper)
 		goto err_free_mtc_wrapper;
 
-	state->cp_wrapper = generate_wrapper(state, lightrec_cp_cb, false);
+	state->cp_wrapper = generate_wrapper(state, lightrec_cp_cb);
 	if (!state->cp_wrapper)
 		goto err_free_rfe_wrapper;
 
-	state->syscall_wrapper = generate_wrapper(state, lightrec_syscall_cb,
-						  false);
+	state->syscall_wrapper = generate_wrapper(state, lightrec_syscall_cb);
 	if (!state->syscall_wrapper)
 		goto err_free_cp_wrapper;
 
-	state->break_wrapper = generate_wrapper(state, lightrec_break_cb,
-						false);
+	state->break_wrapper = generate_wrapper(state, lightrec_break_cb);
 	if (!state->break_wrapper)
 		goto err_free_syscall_wrapper;
 
