@@ -1291,6 +1291,15 @@ struct lightrec_state * lightrec_init(char *argv0,
 	    state->maps[PSX_MAP_MIRROR3].address == map->address + 0x600000)
 		state->mirrors_mapped = true;
 
+	if (state->offset_bios == 0 &&
+	    state->offset_scratch == 0 &&
+	    state->offset_ram == 0 &&
+	    state->mirrors_mapped) {
+		pr_info("Memory map is perfect. Emitted code will be best.\n");
+	} else {
+		pr_info("Memory map is sub-par. Emitted code will be slow.\n");
+	}
+
 	return state;
 
 err_free_dispatcher:
