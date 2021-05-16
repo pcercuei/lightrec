@@ -1145,6 +1145,20 @@ int lightrec_compile_block(struct block *block)
 	return 0;
 }
 
+static void lightrec_print_info(struct lightrec_state *state)
+{
+	if ((state->current_cycle & ~0xfffffff) != state->old_cycle_counter) {
+		pr_info("Lightrec RAM usage: IR %u KiB, CODE %u KiB, "
+			"MIPS %u KiB, TOTAL %u KiB, avg. IPI %f\n",
+			lightrec_get_mem_usage(MEM_FOR_IR) / 1024,
+			lightrec_get_mem_usage(MEM_FOR_CODE) / 1024,
+			lightrec_get_mem_usage(MEM_FOR_MIPS_CODE) / 1024,
+			lightrec_get_total_mem_usage() / 1024,
+		       lightrec_get_average_ipi());
+		state->old_cycle_counter = state->current_cycle & ~0xfffffff;
+	}
+}
+
 u32 lightrec_execute(struct lightrec_state *state, u32 pc, u32 target_cycle)
 {
 	s32 (*func)(void *, s32) = (void *)state->dispatcher->function;
@@ -1172,6 +1186,9 @@ u32 lightrec_execute(struct lightrec_state *state, u32 pc, u32 target_cycle)
 	if (ENABLE_THREADED_COMPILER)
 		lightrec_reaper_reap(state->reaper);
 
+	if (LOG_LEVEL >= INFO_L)
+		lightrec_print_info(state);
+
 	return state->next_pc;
 }
 
@@ -1188,7 +1205,12 @@ u32 lightrec_run_interpreter(struct lightrec_state *state, u32 pc)
 
 	state->exit_flags = LIGHTREC_EXIT_NORMAL;
 
-	return lightrec_emulate_block(block, pc);
+	pc = lightrec_emulate_block(block, pc);
+
+	if (LOG_LEVEL >= INFO_L)
+		lightrec_print_info(state);
+
+	return pc;
 }
 
 void lightrec_free_block(struct block *block)

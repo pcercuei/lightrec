@@ -113,6 +113,7 @@ struct lightrec_state {
 	u32 current_cycle;
 	u32 target_cycle;
 	u32 exit_flags;
+	u32 old_cycle_counter;
 	struct block *dispatcher, *c_wrapper_block;
 	void *c_wrapper, *c_wrappers[C_WRAPPERS_COUNT];
 	struct jit_node *branches[512];
