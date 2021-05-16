@@ -20,6 +20,11 @@ struct blockcache {
 	struct block * lut[LUT_SIZE];
 };
 
+u16 lightrec_get_lut_entry(const struct block *block)
+{
+	return (kunseg(block->pc) >> 2) & (LUT_SIZE - 1);
+}
+
 struct block * lightrec_find_block(struct blockcache *cache, u32 pc)
 {
 	struct block *block;
