@@ -537,7 +537,7 @@ static s32 c_function_wrapper(struct lightrec_state *state, s32 cycles_delta,
 	return state->target_cycle - state->current_cycle;
 }
 
-static struct block * generate_wrapper(struct lightrec_state *state, void *f)
+static struct block * generate_wrapper(struct lightrec_state *state)
 {
 	struct block *block;
 	jit_state_t *_jit;
@@ -588,8 +588,8 @@ static struct block * generate_wrapper(struct lightrec_state *state, void *f)
 	jit_prepare();
 	jit_pushargr(LIGHTREC_REG_STATE);
 	jit_pushargr(LIGHTREC_REG_CYCLE);
-	jit_pushargi((uintptr_t)f);
 	jit_pushargr(JIT_R0);
+	jit_pushargr(JIT_R1);
 	jit_finishi(c_function_wrapper);
 
 #if __WORDSIZE == 64
@@ -1262,47 +1262,20 @@ struct lightrec_state * lightrec_init(char *argv0,
 	if (!state->dispatcher)
 		goto err_free_reaper;
 
-	state->rw_generic_wrapper = generate_wrapper(state,
-						     lightrec_rw_generic_cb);
-	if (!state->rw_generic_wrapper)
+	state->c_wrapper_block = generate_wrapper(state);
+	if (!state->c_wrapper_block)
 		goto err_free_dispatcher;
 
-	state->rw_wrapper = generate_wrapper(state, lightrec_rw_cb);
-	if (!state->rw_wrapper)
-		goto err_free_generic_rw_wrapper;
+	state->c_wrapper = state->c_wrapper_block->function;
 
-	state->mfc_wrapper = generate_wrapper(state, lightrec_mfc_cb);
-	if (!state->mfc_wrapper)
-		goto err_free_rw_wrapper;
-
-	state->mtc_wrapper = generate_wrapper(state, lightrec_mtc_cb);
-	if (!state->mtc_wrapper)
-		goto err_free_mfc_wrapper;
-
-	state->rfe_wrapper = generate_wrapper(state, lightrec_rfe_cb);
-	if (!state->rfe_wrapper)
-		goto err_free_mtc_wrapper;
-
-	state->cp_wrapper = generate_wrapper(state, lightrec_cp_cb);
-	if (!state->cp_wrapper)
-		goto err_free_rfe_wrapper;
-
-	state->syscall_wrapper = generate_wrapper(state, lightrec_syscall_cb);
-	if (!state->syscall_wrapper)
-		goto err_free_cp_wrapper;
-
-	state->break_wrapper = generate_wrapper(state, lightrec_break_cb);
-	if (!state->break_wrapper)
-		goto err_free_syscall_wrapper;
-
-	state->rw_generic_func = state->rw_generic_wrapper->function;
-	state->rw_func = state->rw_wrapper->function;
-	state->mfc_func = state->mfc_wrapper->function;
-	state->mtc_func = state->mtc_wrapper->function;
-	state->rfe_func = state->rfe_wrapper->function;
-	state->cp_func = state->cp_wrapper->function;
-	state->syscall_func = state->syscall_wrapper->function;
-	state->break_func = state->break_wrapper->function;
+	state->c_wrappers[C_WRAPPER_RW] = lightrec_rw_cb;
+	state->c_wrappers[C_WRAPPER_RW_GENERIC] = lightrec_rw_generic_cb;
+	state->c_wrappers[C_WRAPPER_MFC] = lightrec_mfc_cb;
+	state->c_wrappers[C_WRAPPER_MTC] = lightrec_mtc_cb;
+	state->c_wrappers[C_WRAPPER_RFE] = lightrec_rfe_cb;
+	state->c_wrappers[C_WRAPPER_CP] = lightrec_cp_cb;
+	state->c_wrappers[C_WRAPPER_SYSCALL] = lightrec_syscall_cb;
+	state->c_wrappers[C_WRAPPER_BREAK] = lightrec_break_cb;
 
 	map = &state->maps[PSX_MAP_BIOS];
 	state->offset_bios = (uintptr_t)map->address - map->pc;
@@ -1320,20 +1293,6 @@ struct lightrec_state * lightrec_init(char *argv0,
 
 	return state;
 
-err_free_syscall_wrapper:
-	lightrec_free_block(state->syscall_wrapper);
-err_free_cp_wrapper:
-	lightrec_free_block(state->cp_wrapper);
-err_free_rfe_wrapper:
-	lightrec_free_block(state->rfe_wrapper);
-err_free_mtc_wrapper:
-	lightrec_free_block(state->mtc_wrapper);
-err_free_mfc_wrapper:
-	lightrec_free_block(state->mfc_wrapper);
-err_free_rw_wrapper:
-	lightrec_free_block(state->rw_wrapper);
-err_free_generic_rw_wrapper:
-	lightrec_free_block(state->rw_generic_wrapper);
 err_free_dispatcher:
 	lightrec_free_block(state->dispatcher);
 err_free_reaper:
@@ -1369,14 +1328,7 @@ void lightrec_destroy(struct lightrec_state *state)
 	lightrec_free_regcache(state->reg_cache);
 	lightrec_free_block_cache(state->block_cache);
 	lightrec_free_block(state->dispatcher);
-	lightrec_free_block(state->rw_generic_wrapper);
-	lightrec_free_block(state->rw_wrapper);
-	lightrec_free_block(state->mfc_wrapper);
-	lightrec_free_block(state->mtc_wrapper);
-	lightrec_free_block(state->rfe_wrapper);
-	lightrec_free_block(state->cp_wrapper);
-	lightrec_free_block(state->syscall_wrapper);
-	lightrec_free_block(state->break_wrapper);
+	lightrec_free_block(state->c_wrapper_block);
 	finish_jit();
 
 #if ENABLE_TINYMM

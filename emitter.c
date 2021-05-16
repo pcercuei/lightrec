@@ -949,6 +949,34 @@ static void rec_special_MTLO(const struct block *block, u16 offset)
 	rec_alu_mv_lo_hi(block, REG_LO, c.r.rs);
 }
 
+static void call_to_c_wrapper(const struct block *block, u32 arg,
+			      bool with_arg, enum c_wrappers wrapper)
+{
+	struct regcache *reg_cache = block->state->reg_cache;
+	jit_state_t *_jit = block->_jit;
+	u8 tmp, tmp2, tmp3;
+
+	if (with_arg)
+		tmp3 = lightrec_alloc_reg(reg_cache, _jit, JIT_R1);
+	tmp2 = lightrec_alloc_reg(reg_cache, _jit, JIT_R0);
+	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
+
+	jit_ldxi(tmp, LIGHTREC_REG_STATE,
+		 offsetof(struct lightrec_state, c_wrapper));
+	jit_ldxi(tmp2, LIGHTREC_REG_STATE,
+		 offsetof(struct lightrec_state, c_wrappers[wrapper]));
+	if (with_arg)
+		jit_movi(tmp3, arg);
+
+	jit_callr(tmp);
+
+	lightrec_free_reg(reg_cache, tmp);
+	lightrec_free_reg(reg_cache, tmp2);
+	if (with_arg)
+		lightrec_free_reg(reg_cache, tmp3);
+	lightrec_regcache_mark_live(reg_cache, _jit);
+}
+
 static void rec_io(const struct block *block, u16 offset,
 		   bool load_rt, bool read_rt)
 {
@@ -957,21 +985,9 @@ static void rec_io(const struct block *block, u16 offset,
 	union code c = block->opcode_list[offset].c;
 	u16 flags = block->opcode_list[offset].flags;
 	bool is_tagged = flags & (LIGHTREC_HW_IO | LIGHTREC_DIRECT_IO);
-	u32 rw_offset;
 	u32 lut_entry;
-	u8 tmp, tmp2;
 
 	jit_note(__FILE__, __LINE__);
-
-	tmp = lightrec_alloc_reg(reg_cache, _jit, JIT_R0);
-
-	if (is_tagged)
-		rw_offset = offsetof(struct lightrec_state, rw_func);
-	else
-		rw_offset = offsetof(struct lightrec_state, rw_generic_func);
-
-	tmp2 = lightrec_alloc_reg_temp(reg_cache, _jit);
-	jit_ldxi(tmp2, LIGHTREC_REG_STATE, rw_offset);
 
 	lightrec_clean_reg_if_loaded(reg_cache, _jit, c.i.rs, false);
 
@@ -981,17 +997,12 @@ static void rec_io(const struct block *block, u16 offset,
 		lightrec_clean_reg_if_loaded(reg_cache, _jit, c.i.rt, false);
 
 	if (is_tagged) {
-		jit_movi(tmp, c.opcode);
+		call_to_c_wrapper(block, c.opcode, true, C_WRAPPER_RW);
 	} else {
 		lut_entry = lightrec_get_lut_entry(block);
-		jit_movi(tmp, (lut_entry << 16) | offset);
+		call_to_c_wrapper(block, (lut_entry << 16) | offset,
+				  true, C_WRAPPER_RW_GENERIC);
 	}
-
-	jit_callr(tmp2);
-
-	lightrec_free_reg(reg_cache, tmp);
-	lightrec_free_reg(reg_cache, tmp2);
-	lightrec_regcache_mark_live(reg_cache, _jit);
 }
 
 static void rec_store_direct_no_invalidate(const struct block *block,
@@ -1337,24 +1348,12 @@ static void rec_LWC2(const struct block *block, u16 offset)
 static void rec_break_syscall(const struct block *block,
 			      u16 offset, bool is_break)
 {
-	struct regcache *reg_cache = block->state->reg_cache;
-	jit_state_t *_jit = block->_jit;
-	u32 fn_offset;
-	u8 tmp;
-
-	jit_note(__FILE__, __LINE__);
+	_jit_note(block->_jit, __FILE__, __LINE__);
 
 	if (is_break)
-		fn_offset = offsetof(struct lightrec_state, break_func);
+		call_to_c_wrapper(block, 0, false, C_WRAPPER_BREAK);
 	else
-		fn_offset = offsetof(struct lightrec_state, syscall_func);
-
-	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
-	jit_ldxi(tmp, LIGHTREC_REG_STATE, fn_offset);
-	jit_callr(tmp);
-	lightrec_free_reg(reg_cache, tmp);
-
-	lightrec_regcache_mark_live(reg_cache, _jit);
+		call_to_c_wrapper(block, 0, false, C_WRAPPER_SYSCALL);
 
 	/* TODO: the return address should be "pc - 4" if we're a delay slot */
 	lightrec_emit_end_of_block(block, offset, -1,
@@ -1376,28 +1375,14 @@ static void rec_special_BREAK(const struct block *block, u16 offset)
 
 static void rec_mfc(const struct block *block, u16 offset)
 {
-	u8 tmp, tmp2;
-	struct lightrec_state *state = block->state;
-	struct regcache *reg_cache = state->reg_cache;
+	struct regcache *reg_cache = block->state->reg_cache;
 	union code c = block->opcode_list[offset].c;
 	jit_state_t *_jit = block->_jit;
 
 	jit_note(__FILE__, __LINE__);
-
-	tmp = lightrec_alloc_reg(reg_cache, _jit, JIT_R0);
-	tmp2 = lightrec_alloc_reg_temp(reg_cache, _jit);
-
-	jit_ldxi(tmp2, LIGHTREC_REG_STATE,
-		 offsetof(struct lightrec_state, mfc_func));
-
 	lightrec_clean_reg_if_loaded(reg_cache, _jit, c.i.rt, true);
 
-	jit_movi(tmp, c.opcode);
-	jit_callr(tmp2);
-	lightrec_free_reg(reg_cache, tmp);
-	lightrec_free_reg(reg_cache, tmp2);
-
-	lightrec_regcache_mark_live(reg_cache, _jit);
+	call_to_c_wrapper(block, c.opcode, true, C_WRAPPER_MFC);
 }
 
 static void rec_mtc(const struct block *block, u16 offset)
@@ -1406,24 +1391,12 @@ static void rec_mtc(const struct block *block, u16 offset)
 	struct regcache *reg_cache = state->reg_cache;
 	union code c = block->opcode_list[offset].c;
 	jit_state_t *_jit = block->_jit;
-	u8 tmp, tmp2;
 
 	jit_note(__FILE__, __LINE__);
-
-	tmp = lightrec_alloc_reg(reg_cache, _jit, JIT_R0);
-	tmp2 = lightrec_alloc_reg_temp(reg_cache, _jit);
-	jit_ldxi(tmp2, LIGHTREC_REG_STATE,
-		 offsetof(struct lightrec_state, mtc_func));
-
 	lightrec_clean_reg_if_loaded(reg_cache, _jit, c.i.rs, false);
 	lightrec_clean_reg_if_loaded(reg_cache, _jit, c.i.rt, false);
 
-	jit_movi(tmp, c.opcode);
-	jit_callr(tmp2);
-	lightrec_free_reg(reg_cache, tmp);
-	lightrec_free_reg(reg_cache, tmp2);
-
-	lightrec_regcache_mark_live(reg_cache, _jit);
+	call_to_c_wrapper(block, c.opcode, true, C_WRAPPER_MTC);
 
 	if (c.i.op == OP_CP0 &&
 	    !(block->opcode_list[offset].flags & LIGHTREC_NO_DS) &&
@@ -1483,44 +1456,23 @@ static void rec_cp2_basic_CTC2(const struct block *block, u16 offset)
 
 static void rec_cp0_RFE(const struct block *block, u16 offset)
 {
-	struct lightrec_state *state = block->state;
 	jit_state_t *_jit = block->_jit;
-	u8 tmp;
 
 	jit_name(__func__);
 	jit_note(__FILE__, __LINE__);
 
-	tmp = lightrec_alloc_reg_temp(state->reg_cache, _jit);
-	jit_ldxi(tmp, LIGHTREC_REG_STATE,
-		 offsetof(struct lightrec_state, rfe_func));
-	jit_callr(tmp);
-	lightrec_free_reg(state->reg_cache, tmp);
-
-	lightrec_regcache_mark_live(state->reg_cache, _jit);
+	call_to_c_wrapper(block, 0, false, C_WRAPPER_RFE);
 }
 
 static void rec_CP(const struct block *block, u16 offset)
 {
-	struct regcache *reg_cache = block->state->reg_cache;
 	union code c = block->opcode_list[offset].c;
 	jit_state_t *_jit = block->_jit;
-	u8 tmp, tmp2;
 
 	jit_name(__func__);
 	jit_note(__FILE__, __LINE__);
 
-	tmp = lightrec_alloc_reg(reg_cache, _jit, JIT_R0);
-	tmp2 = lightrec_alloc_reg_temp(reg_cache, _jit);
-
-	jit_ldxi(tmp2, LIGHTREC_REG_STATE,
-		 offsetof(struct lightrec_state, cp_func));
-
-	jit_movi(tmp, c.opcode);
-	jit_callr(tmp2);
-	lightrec_free_reg(reg_cache, tmp);
-	lightrec_free_reg(reg_cache, tmp2);
-
-	lightrec_regcache_mark_live(reg_cache, _jit);
+	call_to_c_wrapper(block, c.opcode, true, C_WRAPPER_CP);
 }
 
 static void rec_meta_BEQZ(const struct block *block, u16 offset)

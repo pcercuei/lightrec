@@ -95,17 +95,26 @@ struct lightrec_branch_target {
 	u32 offset;
 };
 
+enum c_wrappers {
+	C_WRAPPER_RW,
+	C_WRAPPER_RW_GENERIC,
+	C_WRAPPER_MFC,
+	C_WRAPPER_MTC,
+	C_WRAPPER_RFE,
+	C_WRAPPER_CP,
+	C_WRAPPER_SYSCALL,
+	C_WRAPPER_BREAK,
+	C_WRAPPERS_COUNT,
+};
+
 struct lightrec_state {
 	u32 native_reg_cache[34];
 	u32 next_pc;
 	u32 current_cycle;
 	u32 target_cycle;
 	u32 exit_flags;
-	struct block *dispatcher, *rw_wrapper, *rw_generic_wrapper,
-		     *mfc_wrapper, *mtc_wrapper, *rfe_wrapper, *cp_wrapper,
-		     *syscall_wrapper, *break_wrapper;
-	void *rw_func, *rw_generic_func, *mfc_func, *mtc_func, *rfe_func,
-	     *cp_func, *syscall_func, *break_func;
+	struct block *dispatcher, *c_wrapper_block;
+	void *c_wrapper, *c_wrappers[C_WRAPPERS_COUNT];
 	struct jit_node *branches[512];
 	struct lightrec_branch local_branches[512];
 	struct lightrec_branch_target targets[512];
