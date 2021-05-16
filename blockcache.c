@@ -34,6 +34,24 @@ struct block * lightrec_find_block(struct blockcache *cache, u32 pc)
 	return NULL;
 }
 
+struct block * lightrec_find_block_from_lut(struct blockcache *cache,
+					    u16 lut_entry, u32 addr_in_block)
+{
+	struct block *block;
+	u32 pc;
+
+	addr_in_block = kunseg(addr_in_block);
+
+	for (block = cache->lut[lut_entry]; block; block = block->next) {
+		pc = kunseg(block->pc);
+		if (addr_in_block >= pc &&
+		    addr_in_block < pc + (block->nb_ops << 2))
+			return block;
+	}
+
+	return NULL;
+}
+
 void remove_from_code_lut(struct blockcache *cache, struct block *block)
 {
 	struct lightrec_state *state = block->state;
