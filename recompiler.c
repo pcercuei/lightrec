@@ -118,6 +118,8 @@ struct recompiler *lightrec_recompiler_init(struct lightrec_state *state)
 		goto err_mtx_destroy;
 	}
 
+	pr_info("Threaded recompiler started\n");
+
 	return rec;
 
 err_mtx_destroy:
