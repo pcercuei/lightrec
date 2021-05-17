@@ -190,10 +190,12 @@ static void lightrec_lwc2(struct lightrec_state *state, union code op,
 }
 
 static void lightrec_invalidate_map(struct lightrec_state *state,
-		const struct lightrec_mem_map *map, u32 addr)
+		const struct lightrec_mem_map *map, u32 addr, u32 len)
 {
-	if (map == &state->maps[PSX_MAP_KERNEL_USER_RAM])
-		state->code_lut[lut_offset(addr)] = NULL;
+	if (map == &state->maps[PSX_MAP_KERNEL_USER_RAM]) {
+		memset(&state->code_lut[lut_offset(addr)], 0,
+		       ((len + 3) / 4) * sizeof(void *));
+	}
 }
 
 static const struct lightrec_mem_map *
@@ -1385,10 +1387,7 @@ void lightrec_invalidate(struct lightrec_state *state, u32 addr, u32 len)
 		/* Handle mirrors */
 		kaddr &= (state->maps[PSX_MAP_KERNEL_USER_RAM].length - 1);
 
-		for (; len > 4; len -= 4, kaddr += 4)
-			lightrec_invalidate_map(state, map, kaddr);
-
-		lightrec_invalidate_map(state, map, kaddr);
+		lightrec_invalidate_map(state, map, kaddr, len);
 	}
 }
 
