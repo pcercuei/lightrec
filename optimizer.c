@@ -1328,8 +1328,45 @@ static int lightrec_remove_div_by_zero_check_sequence(struct block *block)
 	return 0;
 }
 
+static const u32 memset_code[] = {
+	0x10a00006,	// beqz		a1, 2f
+	0x24a2ffff,	// addiu	v0,a1,-1
+	0x2403ffff,	// li		v1,-1
+	0xac800000,	// 1: sw	zero,0(a0)
+	0x2442ffff,	// addiu	v0,v0,-1
+	0x1443fffd,	// bne		v0,v1, 1b
+	0x24840004,	// addiu	a0,a0,4
+	0x03e00008,	// 2: jr	ra
+	0x00000000,	// nop
+};
+
+static int lightrec_replace_memset(struct block *block)
+{
+	unsigned int i;
+	union code c;
+
+	for (i = 0; i < block->nb_ops; i++) {
+		c = block->opcode_list[i].c;
+
+		if (c.opcode != memset_code[i])
+			return 0;
+
+		if (i == ARRAY_SIZE(memset_code) - 1) {
+			/* success! */
+			pr_debug("Block at PC 0x%x is a memset\n", block->pc);
+			block->flags |= BLOCK_IS_MEMSET | BLOCK_NEVER_COMPILE;
+
+			/* Return non-zero to skip other optimizers. */
+			return 1;
+		}
+	}
+
+	return 0;
+}
+
 static int (*lightrec_optimizers[])(struct block *) = {
 	IF_OPT(OPT_REMOVE_DIV_BY_ZERO_SEQ, &lightrec_remove_div_by_zero_check_sequence),
+	IF_OPT(OPT_REPLACE_MEMSET, &lightrec_replace_memset),
 	IF_OPT(OPT_DETECT_IMPOSSIBLE_BRANCHES, &lightrec_detect_impossible_branches),
 	IF_OPT(OPT_TRANSFORM_OPS, &lightrec_transform_ops),
 	IF_OPT(OPT_LOCAL_BRANCHES, &lightrec_local_branches),

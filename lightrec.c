@@ -483,6 +483,11 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 		if (unlikely(!block))
 			break;
 
+		if (OPT_REPLACE_MEMSET && (block->flags & BLOCK_IS_MEMSET)) {
+			func = state->memset_func;
+			break;
+		}
+
 		should_recompile = block->flags & BLOCK_SHOULD_RECOMPILE &&
 			!(block->flags & BLOCK_IS_DEAD);
 
@@ -630,11 +635,40 @@ err_no_mem:
 	return NULL;
 }
 
+static u32 lightrec_memset(struct lightrec_state *state)
+{
+	const struct lightrec_mem_map *map;
+	u32 pc, kunseg_pc = kunseg(state->native_reg_cache[4]);
+	u32 length = state->native_reg_cache[5] * 4;
+
+	map = lightrec_get_map(state, kunseg_pc);
+	if (!map) {
+		pr_err("Unable to find memory map for memset target address "
+		       "0x%x\n", kunseg_pc);
+		return 0;
+	}
+
+	pc = kunseg_pc - map->pc;
+
+	while (map->mirror_of)
+		map = map->mirror_of;
+
+	pr_debug("Calling host memset, PC 0x%x (host address 0x%lx) for %u bytes\n",
+		 kunseg_pc, (uintptr_t)map->address + pc, length);
+	memset((void *)map->address + pc, 0, length);
+
+	if (!state->invalidate_from_dma_only)
+		lightrec_invalidate_map(state, map, kunseg_pc, length);
+
+	/* Rough estimation of the number of cycles consumed */
+	return 8 + 5 * (length  + 3 / 4);
+}
+
 static struct block * generate_dispatcher(struct lightrec_state *state)
 {
 	struct block *block;
 	jit_state_t *_jit;
-	jit_node_t *to_end, *to_c, *loop, *addr, *addr2;
+	jit_node_t *to_end, *to_c, *loop, *addr, *addr2, *addr3;
 	unsigned int i;
 	u32 offset, ram_len;
 	jit_word_t code_size;
@@ -672,6 +706,27 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 
 	/* Call the block's code */
 	jit_jmpr(JIT_R0);
+
+	if (OPT_REPLACE_MEMSET) {
+		/* Blocks will jump here when they need to call
+		 * lightrec_memset() */
+		addr3 = jit_indirect();
+
+		jit_prepare();
+		jit_pushargr(LIGHTREC_REG_STATE);
+		jit_finishi(lightrec_memset);
+
+#if __WORDSIZE == 64
+		jit_ldxi_ui(JIT_V0, LIGHTREC_REG_STATE,
+			    offsetof(struct lightrec_state, native_reg_cache[31]));
+#else
+		jit_ldxi_i(JIT_V0, LIGHTREC_REG_STATE,
+			   offsetof(struct lightrec_state, native_reg_cache[31]));
+#endif
+
+		jit_retval(JIT_R0);
+		jit_subr(LIGHTREC_REG_CYCLE, LIGHTREC_REG_CYCLE, JIT_R0);
+	}
 
 	/* The block will jump here, with the number of cycles remaining in
 	 * LIGHTREC_REG_CYCLE */
@@ -756,6 +811,8 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 	block->code_size = code_size;
 
 	state->eob_wrapper_func = jit_address(addr2);
+	if (OPT_REPLACE_MEMSET)
+		state->memset_func = jit_address(addr3);
 	state->get_next_block = jit_address(addr);
 
 	if (ENABLE_DISASSEMBLER) {
@@ -905,6 +962,9 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 	 * block */
 	if (should_emulate(block->opcode_list))
 		block->flags |= BLOCK_NEVER_COMPILE;
+
+	if (OPT_REPLACE_MEMSET && (block->flags & BLOCK_IS_MEMSET))
+		state->code_lut[lut_offset(pc)] = state->memset_func;
 
 	block->hash = lightrec_calculate_block_hash(block);
 

@@ -47,6 +47,7 @@
 #define BLOCK_SHOULD_RECOMPILE	BIT(1)
 #define BLOCK_FULLY_TAGGED	BIT(2)
 #define BLOCK_IS_DEAD		BIT(3)
+#define BLOCK_IS_MEMSET		BIT(4)
 
 #define RAM_SIZE	0x200000
 #define BIOS_SIZE	0x80000
@@ -128,6 +129,7 @@ struct lightrec_state {
 	struct recompiler *rec;
 	struct reaper *reaper;
 	void (*eob_wrapper_func)(void);
+	void (*memset_func)(void);
 	void (*get_next_block)(void);
 	struct lightrec_ops ops;
 	unsigned int nb_precompile;
