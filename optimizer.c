@@ -1202,9 +1202,10 @@ static int lightrec_flag_mults_divs(struct block *block)
 		}
 
 		if (!reg_lo && !reg_hi) {
-			pr_debug("Removing DIV(U) at offset 0x%x as LO/HI are unused\n",
-				 i << 2);
-			list->opcode = 0;
+			pr_debug("Both LO/HI unused in this block, they will "
+				 "probably be used in parent block - removing "
+				 "flags.\n");
+			list->flags &= ~(LIGHTREC_NO_LO | LIGHTREC_NO_HI);
 		}
 
 		if (reg_lo > 0 && reg_lo != REG_LO) {
