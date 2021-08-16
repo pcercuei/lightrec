@@ -1004,7 +1004,7 @@ static int lightrec_flag_stores(struct block *block)
 
 static u8 get_mfhi_mflo_reg(const struct block *block, u16 offset,
 			    const struct opcode *last,
-			    u32 mask, bool sync, bool mflo)
+			    u32 mask, bool sync, bool mflo, bool another)
 {
 	const struct opcode *op, *next = &block->opcode_list[offset];
 	u32 old_mask;
@@ -1041,9 +1041,9 @@ static u8 get_mfhi_mflo_reg(const struct block *block, u16 offset,
 					- !!(OPT_SWITCH_DELAY_SLOTS && (op->flags & LIGHTREC_NO_DS));
 
 				reg = get_mfhi_mflo_reg(block, branch_offset, NULL,
-							mask, sync, mflo);
+							mask, sync, mflo, false);
 				reg2 = get_mfhi_mflo_reg(block, offset + 1, next,
-							 mask, sync, mflo);
+							 mask, sync, mflo, false);
 				if (reg > 0 && reg == reg2)
 					return reg;
 				if (!reg && !reg2)
@@ -1082,6 +1082,14 @@ static u8 get_mfhi_mflo_reg(const struct block *block, u16 offset,
 				return reg;
 			case OP_SPECIAL_MFHI:
 				if (!mflo) {
+					if (another)
+						return op->r.rd;
+					/* Must use REG_HI if there is another MFHI target*/
+					reg2 = get_mfhi_mflo_reg(block, i + 1, next,
+							 0, sync, mflo, true);
+					if (reg2 > 0 && reg2 != REG_HI)
+						return REG_HI;
+
 					if (!sync && !(old_mask & BIT(op->r.rd)))
 						return op->r.rd;
 					else
@@ -1090,6 +1098,14 @@ static u8 get_mfhi_mflo_reg(const struct block *block, u16 offset,
 				continue;
 			case OP_SPECIAL_MFLO:
 				if (mflo) {
+					if (another)
+						return op->r.rd;
+					/* Must use REG_LO if there is another MFLO target*/
+					reg2 = get_mfhi_mflo_reg(block, i + 1, next,
+							 0, sync, mflo, true);
+					if (reg2 > 0 && reg2 != REG_LO)
+						return REG_LO;
+
 					if (!sync && !(old_mask & BIT(op->r.rd)))
 						return op->r.rd;
 					else
@@ -1187,14 +1203,14 @@ static int lightrec_flag_mults_divs(struct block *block)
 		    (list->flags & LIGHTREC_NO_DS))
 			continue;
 
-		reg_lo = get_mfhi_mflo_reg(block, i + 1, NULL, 0, false, true);
+		reg_lo = get_mfhi_mflo_reg(block, i + 1, NULL, 0, false, true, false);
 		if (reg_lo == 0) {
 			pr_debug("Mark MULT(U)/DIV(U) opcode at offset 0x%x as"
 				 " not writing LO\n", i << 2);
 			list->flags |= LIGHTREC_NO_LO;
 		}
 
-		reg_hi = get_mfhi_mflo_reg(block, i + 1, NULL, 0, false, false);
+		reg_hi = get_mfhi_mflo_reg(block, i + 1, NULL, 0, false, false, false);
 		if (reg_hi == 0) {
 			pr_debug("Mark MULT(U)/DIV(U) opcode at offset 0x%x as"
 				 " not writing HI\n", i << 2);
