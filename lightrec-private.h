@@ -74,16 +74,16 @@ struct block {
 	struct lightrec_state *state;
 	struct opcode *opcode_list;
 	void (*function)(void);
+	const struct lightrec_mem_map *map;
+	struct block *next;
 	u32 pc;
 	u32 hash;
+	unsigned int code_size;
+	u16 nb_ops;
+	u8 flags;
 #if ENABLE_THREADED_COMPILER
 	atomic_flag op_list_freed;
 #endif
-	unsigned int code_size;
-	u16 flags;
-	u16 nb_ops;
-	const struct lightrec_mem_map *map;
-	struct block *next;
 };
 
 struct lightrec_branch {
