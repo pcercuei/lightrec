@@ -132,17 +132,9 @@ struct blockcache * lightrec_blockcache_init(struct lightrec_state *state)
 
 u32 lightrec_calculate_block_hash(const struct block *block)
 {
-	const struct lightrec_mem_map *map = block->map;
-	u32 pc, hash = 0xffffffff;
-	const u32 *code;
+	const u32 *code = block->code;
+	u32 hash = 0xffffffff;
 	unsigned int i;
-
-	pc = kunseg(block->pc) - map->pc;
-
-	while (map->mirror_of)
-		map = map->mirror_of;
-
-	code = map->address + pc;
 
 	/* Jenkins one-at-a-time hash algorithm */
 	for (i = 0; i < block->nb_ops; i++) {

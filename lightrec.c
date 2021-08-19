@@ -199,18 +199,31 @@ static void lightrec_invalidate_map(struct lightrec_state *state,
 }
 
 static const struct lightrec_mem_map *
-lightrec_get_map(struct lightrec_state *state, u32 kaddr)
+lightrec_get_map(struct lightrec_state *state,
+		 void **host, u32 kaddr)
 {
+	static const struct lightrec_mem_map *map;
 	unsigned int i;
 
 	for (i = 0; i < state->nb_maps; i++) {
-		const struct lightrec_mem_map *map = &state->maps[i];
+		const struct lightrec_mem_map *mapi = &state->maps[i];
 
-		if (kaddr >= map->pc && kaddr < map->pc + map->length)
-			return map;
+		if (kaddr >= mapi->pc && kaddr < mapi->pc + mapi->length) {
+			map = mapi;
+			break;
+		}
 	}
 
-	return NULL;
+	if (i == state->nb_maps)
+		return NULL;
+
+	while (map->mirror_of)
+		map = map->mirror_of;
+
+	if (host)
+		*host = map->address + kaddr - map->pc;
+
+	return map;
 }
 
 u32 lightrec_rw(struct lightrec_state *state, union code op,
@@ -218,24 +231,16 @@ u32 lightrec_rw(struct lightrec_state *state, union code op,
 {
 	const struct lightrec_mem_map *map;
 	const struct lightrec_mem_map_ops *ops;
-	u32 kaddr, pc, opcode = op.opcode;
+	u32 opcode = op.opcode;
 	void *host;
 
 	addr += (s16) op.i.imm;
-	kaddr = kunseg(addr);
 
-	map = lightrec_get_map(state, kaddr);
+	map = lightrec_get_map(state, &host, kunseg(addr));
 	if (!map) {
 		__segfault_cb(state, addr, block);
 		return 0;
 	}
-
-	pc = map->pc;
-
-	while (map->mirror_of)
-		map = map->mirror_of;
-
-	host = (void *)((uintptr_t)map->address + kaddr - pc);
 
 	if (unlikely(map->ops)) {
 		if (flags)
@@ -637,25 +642,20 @@ err_no_mem:
 
 static u32 lightrec_memset(struct lightrec_state *state)
 {
-	const struct lightrec_mem_map *map;
-	u32 pc, kunseg_pc = kunseg(state->native_reg_cache[4]);
+	u32 kunseg_pc = kunseg(state->native_reg_cache[4]);
+	void *host;
+	const struct lightrec_mem_map *map = lightrec_get_map(state, &host, kunseg_pc);
 	u32 length = state->native_reg_cache[5] * 4;
 
-	map = lightrec_get_map(state, kunseg_pc);
 	if (!map) {
 		pr_err("Unable to find memory map for memset target address "
 		       "0x%x\n", kunseg_pc);
 		return 0;
 	}
 
-	pc = kunseg_pc - map->pc;
-
-	while (map->mirror_of)
-		map = map->mirror_of;
-
 	pr_debug("Calling host memset, PC 0x%x (host address 0x%lx) for %u bytes\n",
-		 kunseg_pc, (uintptr_t)map->address + pc, length);
-	memset((void *)map->address + pc, 0, length);
+		 kunseg_pc, (uintptr_t)host, length);
+	memset(host, 0, length);
 
 	if (!state->invalidate_from_dma_only)
 		lightrec_invalidate_map(state, map, kunseg_pc, length);
@@ -833,17 +833,11 @@ err_no_mem:
 
 union code lightrec_read_opcode(struct lightrec_state *state, u32 pc)
 {
-	u32 addr, kunseg_pc = kunseg(pc);
-	const u32 *code;
-	const struct lightrec_mem_map *map = lightrec_get_map(state, kunseg_pc);
+	void *host;
 
-	addr = kunseg_pc - map->pc;
+	lightrec_get_map(state, &host, kunseg(pc));
 
-	while (map->mirror_of)
-		map = map->mirror_of;
-
-	code = map->address + addr;
-
+	const u32 *code = (u32 *)host;
 	return (union code) *code;
 }
 
@@ -904,20 +898,13 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 {
 	struct opcode *list;
 	struct block *block;
-	const u32 *code;
-	u32 addr, kunseg_pc = kunseg(pc);
-	const struct lightrec_mem_map *map = lightrec_get_map(state, kunseg_pc);
+	void *host;
+	const struct lightrec_mem_map *map = lightrec_get_map(state, &host, kunseg(pc));
+	const u32 *code = (u32 *) host;
 	unsigned int length;
 
 	if (!map)
 		return NULL;
-
-	addr = kunseg_pc - map->pc;
-
-	while (map->mirror_of)
-		map = map->mirror_of;
-
-	code = map->address + addr;
 
 	block = lightrec_malloc(state, MEM_FOR_IR, sizeof(*block));
 	if (!block) {
@@ -936,7 +923,7 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 	block->_jit = NULL;
 	block->function = NULL;
 	block->opcode_list = list;
-	block->map = map;
+	block->code = code;
 	block->next = NULL;
 	block->flags = 0;
 	block->code_size = 0;
@@ -1435,12 +1422,9 @@ void lightrec_destroy(struct lightrec_state *state)
 void lightrec_invalidate(struct lightrec_state *state, u32 addr, u32 len)
 {
 	u32 kaddr = kunseg(addr & ~0x3);
-	const struct lightrec_mem_map *map = lightrec_get_map(state, kaddr);
+	const struct lightrec_mem_map *map = lightrec_get_map(state, NULL, kaddr);
 
 	if (map) {
-		while (map->mirror_of)
-			map = map->mirror_of;
-
 		if (map != &state->maps[PSX_MAP_KERNEL_USER_RAM])
 			return;
 

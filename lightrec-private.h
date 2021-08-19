@@ -74,7 +74,7 @@ struct block {
 	struct lightrec_state *state;
 	struct opcode *opcode_list;
 	void (*function)(void);
-	const struct lightrec_mem_map *map;
+	const u32 *code;
 	struct block *next;
 	u32 pc;
 	u32 hash;
