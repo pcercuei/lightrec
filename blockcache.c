@@ -59,7 +59,7 @@ struct block * lightrec_find_block_from_lut(struct blockcache *cache,
 
 void remove_from_code_lut(struct blockcache *cache, struct block *block)
 {
-	struct lightrec_state *state = block->state;
+	struct lightrec_state *state = cache->state;
 	u32 offset = lut_offset(block->pc);
 
 	if (block->function) {
@@ -110,7 +110,7 @@ void lightrec_free_block_cache(struct blockcache *cache)
 	for (i = 0; i < LUT_SIZE; i++) {
 		for (block = cache->lut[i]; block; block = next) {
 			next = block->next;
-			lightrec_free_block(block);
+			lightrec_free_block(cache->state, block);
 		}
 	}
 
@@ -150,9 +150,9 @@ u32 lightrec_calculate_block_hash(const struct block *block)
 	return hash;
 }
 
-bool lightrec_block_is_outdated(struct block *block)
+bool lightrec_block_is_outdated(struct lightrec_state *state, struct block *block)
 {
-	void **lut_entry = &block->state->code_lut[lut_offset(block->pc)];
+	void **lut_entry = &state->code_lut[lut_offset(block->pc)];
 	bool outdated;
 
 	if (*lut_entry)
@@ -165,7 +165,7 @@ bool lightrec_block_is_outdated(struct block *block)
 		if (block->function)
 			*lut_entry = block->function;
 		else
-			*lut_entry = block->state->get_next_block;
+			*lut_entry = state->get_next_block;
 	}
 
 	return outdated;
