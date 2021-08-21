@@ -202,8 +202,9 @@ static const struct lightrec_mem_map *
 lightrec_get_map(struct lightrec_state *state,
 		 void **host, u32 kaddr)
 {
-	static const struct lightrec_mem_map *map;
+	const struct lightrec_mem_map *map;
 	unsigned int i;
+	u32 addr;
 
 	for (i = 0; i < state->nb_maps; i++) {
 		const struct lightrec_mem_map *mapi = &state->maps[i];
@@ -217,11 +218,13 @@ lightrec_get_map(struct lightrec_state *state,
 	if (i == state->nb_maps)
 		return NULL;
 
+	addr = kaddr - map->pc;
+
 	while (map->mirror_of)
 		map = map->mirror_of;
 
 	if (host)
-		*host = map->address + kaddr - map->pc;
+		*host = map->address + addr;
 
 	return map;
 }
