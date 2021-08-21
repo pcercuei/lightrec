@@ -1399,6 +1399,10 @@ err_finish_jit:
 
 void lightrec_destroy(struct lightrec_state *state)
 {
+	/* Force a print info on destroy*/
+	state->current_cycle = ~state->current_cycle;
+	lightrec_print_info(state);
+
 	if (ENABLE_THREADED_COMPILER) {
 		lightrec_free_recompiler(state->rec);
 		lightrec_reaper_destroy(state->reaper);
