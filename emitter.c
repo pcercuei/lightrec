@@ -844,7 +844,6 @@ static void rec_alu_div(struct lightrec_state *state, const struct block *block,
 	if (!no_check)
 		branch = jit_beqi(rt, 0);
 
-#if __WORDSIZE == 32
 	if (flags & LIGHTREC_NO_LO) {
 		if (is_signed)
 			jit_remr(hi, rs, rt);
@@ -861,26 +860,6 @@ static void rec_alu_div(struct lightrec_state *state, const struct block *block,
 		else
 			jit_qdivr_u(lo, hi, rs, rt);
 	}
-#else
-	/* On 64-bit systems, the input registers must be 32 bits, so we first sign-extend
-	 * (if div) or clear (if divu) the input registers. */
-	if (flags & LIGHTREC_NO_LO) {
-		if (is_signed)
-			jit_remr(hi, rs, rt);
-		else
-			jit_remr_u(hi, rs, rt);
-	} else if (flags & LIGHTREC_NO_HI) {
-		if (is_signed)
-			jit_divr(lo, rs, rt);
-		else
-			jit_divr_u(lo, rs, rt);
-	} else {
-		if (is_signed)
-			jit_qdivr(lo, hi, rs, rt);
-		else
-			jit_qdivr_u(lo, hi, rs, rt);
-	}
-#endif
 
 	if (!no_check) {
 		lightrec_regcache_mark_live(reg_cache, _jit);
