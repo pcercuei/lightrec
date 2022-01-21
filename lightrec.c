@@ -9,6 +9,7 @@
 #include "disassembler.h"
 #include "emitter.h"
 #include "interpreter.h"
+#include "lightning-wrapper.h"
 #include "lightrec.h"
 #include "memmanager.h"
 #include "reaper.h"
@@ -17,7 +18,6 @@
 #include "optimizer.h"
 
 #include <errno.h>
-#include <lightning.h>
 #include <limits.h>
 #if ENABLE_THREADED_COMPILER
 #include <stdatomic.h>
@@ -606,12 +606,7 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 	jit_pushargr(JIT_R0);
 	jit_pushargr(JIT_R1);
 	jit_finishi(c_function_wrapper);
-
-#if __WORDSIZE == 64
 	jit_retval_i(LIGHTREC_REG_CYCLE);
-#else
-	jit_retval(LIGHTREC_REG_CYCLE);
-#endif
 
 	jit_patch_at(jit_jmpi(), to_fn_epilog);
 	jit_epilog();
@@ -690,11 +685,7 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 	jit_frame(256);
 
 	jit_getarg(JIT_R0, jit_arg());
-#if __WORDSIZE == 64
 	jit_getarg_i(LIGHTREC_REG_CYCLE, jit_arg());
-#else
-	jit_getarg(LIGHTREC_REG_CYCLE, jit_arg());
-#endif
 
 	/* Force all callee-saved registers to be pushed on the stack */
 	for (i = 0; i < NUM_REGS; i++)
@@ -718,13 +709,8 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 		jit_pushargr(LIGHTREC_REG_STATE);
 		jit_finishi(lightrec_memset);
 
-#if __WORDSIZE == 64
 		jit_ldxi_ui(JIT_V0, LIGHTREC_REG_STATE,
 			    offsetof(struct lightrec_state, native_reg_cache[31]));
-#else
-		jit_ldxi_i(JIT_V0, LIGHTREC_REG_STATE,
-			   offsetof(struct lightrec_state, native_reg_cache[31]));
-#endif
 
 		jit_retval(JIT_R0);
 		jit_subr(LIGHTREC_REG_CYCLE, LIGHTREC_REG_CYCLE, JIT_R0);
@@ -747,9 +733,8 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 	to_c = jit_bgei(JIT_R0, ram_len);
 
 	/* Fast path: code is running from RAM, use the code LUT */
-#if __WORDSIZE == 64
-	jit_lshi(JIT_R0, JIT_R0, 1);
-#endif
+	if (__WORDSIZE == 64)
+		jit_lshi(JIT_R0, JIT_R0, 1);
 	jit_addr(JIT_R0, JIT_R0, LIGHTREC_REG_STATE);
 	jit_ldxi(JIT_R0, JIT_R0, offsetof(struct lightrec_state, code_lut));
 

@@ -5,9 +5,9 @@
 
 #include "debug.h"
 #include "memmanager.h"
+#include "lightning-wrapper.h"
 #include "regcache.h"
 
-#include <lightning.h>
 #include <stdbool.h>
 #include <stddef.h>
 
@@ -291,14 +291,10 @@ u8 lightrec_alloc_reg_in(struct regcache *cache, jit_state_t *_jit,
 		nreg->extended = !nreg->zero_extended;
 
 		/* Load previous value from register cache */
-#if __WORDSIZE == 64
 		if (nreg->zero_extended)
 			jit_ldxi_ui(jit_reg, LIGHTREC_REG_STATE, offset);
 		else
 			jit_ldxi_i(jit_reg, LIGHTREC_REG_STATE, offset);
-#else
-		jit_ldxi_i(jit_reg, LIGHTREC_REG_STATE, offset);
-#endif
 
 		nreg->loaded = true;
 	}
@@ -319,16 +315,12 @@ u8 lightrec_alloc_reg_in(struct regcache *cache, jit_state_t *_jit,
 	    (!nreg->zero_extended || !(flags & REG_ZEXT))) {
 		nreg->extended = true;
 		nreg->zero_extended = false;
-#if __WORDSIZE == 64
 		jit_extr_i(jit_reg, jit_reg);
-#endif
 	} else if (!(flags & REG_EXT) && (flags & REG_ZEXT) &&
 		   !nreg->zero_extended) {
 		nreg->zero_extended = true;
 		nreg->extended = false;
-#if __WORDSIZE == 64
 		jit_extr_ui(jit_reg, jit_reg);
-#endif
 	}
 
 	return jit_reg;

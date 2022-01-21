@@ -7,10 +7,10 @@
 #include "debug.h"
 #include "disassembler.h"
 #include "emitter.h"
+#include "lightning-wrapper.h"
 #include "optimizer.h"
 #include "regcache.h"
 
-#include <lightning.h>
 #include <stdbool.h>
 #include <stddef.h>
 
@@ -778,30 +778,30 @@ static void rec_alu_mult(struct lightrec_state *state, const struct block *block
 	if (!(flags & LIGHTREC_NO_HI))
 		hi = lightrec_alloc_reg_out(reg_cache, _jit, reg_hi, REG_EXT);
 
-#if __WORDSIZE == 32
-	/* On 32-bit systems, do a 32*32->64 bit operation, or a 32*32->32 bit
-	 * operation if the MULT was detected a 32-bit only. */
-	if (!(flags & LIGHTREC_NO_HI)) {
-		if (is_signed)
-			jit_qmulr(lo, hi, rs, rt);
-		else
-			jit_qmulr_u(lo, hi, rs, rt);
+	if (__WORDSIZE == 32) {
+		/* On 32-bit systems, do a 32*32->64 bit operation, or a 32*32->32 bit
+		 * operation if the MULT was detected a 32-bit only. */
+		if (!(flags & LIGHTREC_NO_HI)) {
+			if (is_signed)
+				jit_qmulr(lo, hi, rs, rt);
+			else
+				jit_qmulr_u(lo, hi, rs, rt);
+		} else {
+			jit_mulr(lo, rs, rt);
+		}
 	} else {
-		jit_mulr(lo, rs, rt);
-	}
-#else
-	/* On 64-bit systems, do a 64*64->64 bit operation. */
-	if (flags & LIGHTREC_NO_LO) {
-		jit_mulr(hi, rs, rt);
-		jit_rshi(hi, hi, 32);
-	} else {
-		jit_mulr(lo, rs, rt);
+		/* On 64-bit systems, do a 64*64->64 bit operation. */
+		if (flags & LIGHTREC_NO_LO) {
+			jit_mulr(hi, rs, rt);
+			jit_rshi(hi, hi, 32);
+		} else {
+			jit_mulr(lo, rs, rt);
 
-		/* The 64-bit output value is in $lo, store the upper 32 bits in $hi */
-		if (!(flags & LIGHTREC_NO_HI))
-			jit_rshi(hi, lo, 32);
+			/* The 64-bit output value is in $lo, store the upper 32 bits in $hi */
+			if (!(flags & LIGHTREC_NO_HI))
+				jit_rshi(hi, lo, 32);
+		}
 	}
-#endif
 
 	lightrec_free_reg(reg_cache, rs);
 	lightrec_free_reg(reg_cache, rt);
@@ -933,11 +933,7 @@ static void rec_alu_mv_lo_hi(struct lightrec_state *state,
 	src = lightrec_alloc_reg_in(reg_cache, _jit, src, 0);
 	dst = lightrec_alloc_reg_out(reg_cache, _jit, dst, REG_EXT);
 
-#if __WORDSIZE == 32
-	jit_movr(dst, src);
-#else
 	jit_extr_i(dst, src);
-#endif
 
 	lightrec_free_reg(reg_cache, src);
 	lightrec_free_reg(reg_cache, dst);
@@ -1128,9 +1124,8 @@ static void rec_store_direct(struct lightrec_state *state, const struct block *b
 
 	/* Compute the offset to the code LUT */
 	jit_andi(tmp, tmp2, (RAM_SIZE - 1) & ~3);
-#if __WORDSIZE == 64
-	jit_lshi(tmp, tmp, 1);
-#endif
+	if (__WORDSIZE == 64)
+		jit_lshi(tmp, tmp, 1);
 	jit_addr(tmp, LIGHTREC_REG_STATE, tmp);
 
 	/* Write NULL to the code LUT to invalidate any block that's there */
@@ -1548,15 +1543,10 @@ static void rec_meta_MOV(struct lightrec_state *state, const struct block *block
 	rs = c.r.rs ? lightrec_alloc_reg_in(reg_cache, _jit, c.r.rs, 0) : 0;
 	rd = lightrec_alloc_reg_out(reg_cache, _jit, c.r.rd, REG_EXT);
 
-	if (c.r.rs == 0) {
+	if (c.r.rs == 0)
 		jit_movi(rd, 0);
-	} else {
-#if __WORDSIZE == 32
-		jit_movr(rd, rs);
-#else
+	else
 		jit_extr_i(rd, rs);
-#endif
-	}
 
 	lightrec_free_reg(state->reg_cache, rs);
 	lightrec_free_reg(state->reg_cache, rd);
