@@ -841,8 +841,6 @@ static int lightrec_local_branches(struct lightrec_state *state, struct block *b
 		case OP_BLEZ:
 		case OP_BGTZ:
 		case OP_REGIMM:
-		case OP_META_BEQZ:
-		case OP_META_BNEZ:
 			offset = i + 1 + (s16)list->i.imm;
 			if (offset >= 0 && offset < block->nb_ops)
 				break;
@@ -1386,8 +1384,8 @@ static int (*lightrec_optimizers[])(struct lightrec_state *state, struct block *
 	IF_OPT(OPT_REMOVE_DIV_BY_ZERO_SEQ, &lightrec_remove_div_by_zero_check_sequence),
 	IF_OPT(OPT_REPLACE_MEMSET, &lightrec_replace_memset),
 	IF_OPT(OPT_DETECT_IMPOSSIBLE_BRANCHES, &lightrec_detect_impossible_branches),
-	IF_OPT(OPT_TRANSFORM_OPS, &lightrec_transform_ops),
 	IF_OPT(OPT_LOCAL_BRANCHES, &lightrec_local_branches),
+	IF_OPT(OPT_TRANSFORM_OPS, &lightrec_transform_ops),
 	IF_OPT(OPT_SWITCH_DELAY_SLOTS, &lightrec_switch_delay_slots),
 	IF_OPT(OPT_FLAG_STORES, &lightrec_flag_stores),
 	IF_OPT(OPT_FLAG_MULT_DIV, &lightrec_flag_mults_divs),
