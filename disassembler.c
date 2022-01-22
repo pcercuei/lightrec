@@ -352,6 +352,14 @@ static int print_op(union code c, u32 pc, char *buf, size_t len,
 		return snprintf(buf, len, "move    %s,%s",
 				lightrec_reg_name(c.r.rd),
 				lightrec_reg_name(c.r.rs));
+	case OP_META_EXTC:
+		return snprintf(buf, len, "extc    %s,%s",
+				lightrec_reg_name(c.i.rt),
+				lightrec_reg_name(c.i.rs));
+	case OP_META_EXTS:
+		return snprintf(buf, len, "exts    %s,%s",
+				lightrec_reg_name(c.i.rt),
+				lightrec_reg_name(c.i.rs));
 	default:
 		return snprintf(buf, len, "unknown (0x%08x)", c.opcode);
 	}

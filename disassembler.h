@@ -77,6 +77,9 @@ enum standard_opcodes {
 	OP_META_BNEZ		= 0x15,
 
 	OP_META_MOV		= 0x16,
+
+	OP_META_EXTC		= 0x17,
+	OP_META_EXTS		= 0x18,
 };
 
 enum special_opcodes {

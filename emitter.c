@@ -1552,6 +1552,30 @@ static void rec_meta_MOV(struct lightrec_state *state, const struct block *block
 	lightrec_free_reg(state->reg_cache, rd);
 }
 
+static void rec_meta_EXTC_EXTS(struct lightrec_state *state,
+			       const struct block *block,
+			       u16 offset)
+{
+	struct regcache *reg_cache = state->reg_cache;
+	union code c = block->opcode_list[offset].c;
+	jit_state_t *_jit = block->_jit;
+	u8 rs, rt;
+
+	_jit_name(block->_jit, __func__);
+	jit_note(__FILE__, __LINE__);
+
+	rs = lightrec_alloc_reg_in(reg_cache, _jit, c.i.rs, 0);
+	rt = lightrec_alloc_reg_out(reg_cache, _jit, c.i.rt, REG_EXT);
+
+	if (c.i.op == OP_META_EXTC)
+		jit_extr_c(rt, rs);
+	else
+		jit_extr_s(rt, rs);
+
+	lightrec_free_reg(reg_cache, rs);
+	lightrec_free_reg(reg_cache, rt);
+}
+
 static const lightrec_rec_func_t rec_standard[64] = {
 	SET_DEFAULT_ELM(rec_standard, unknown_opcode),
 	[OP_SPECIAL]		= rec_SPECIAL,
@@ -1590,6 +1614,8 @@ static const lightrec_rec_func_t rec_standard[64] = {
 	[OP_META_BEQZ]		= rec_meta_BEQZ,
 	[OP_META_BNEZ]		= rec_meta_BNEZ,
 	[OP_META_MOV]		= rec_meta_MOV,
+	[OP_META_EXTC]		= rec_meta_EXTC_EXTS,
+	[OP_META_EXTS]		= rec_meta_EXTC_EXTS,
 };
 
 static const lightrec_rec_func_t rec_special[64] = {

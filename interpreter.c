@@ -976,6 +976,28 @@ static u32 int_META_MOV(struct interpreter *inter)
 	return jump_next(inter);
 }
 
+static u32 int_META_EXTC(struct interpreter *inter)
+{
+	u32 *reg_cache = inter->state->native_reg_cache;
+	struct opcode_i *op = &inter->op->i;
+
+	if (likely(op->rt))
+		reg_cache[op->rt] = (u32)(s32)(s8)reg_cache[op->rs];
+
+	return jump_next(inter);
+}
+
+static u32 int_META_EXTS(struct interpreter *inter)
+{
+	u32 *reg_cache = inter->state->native_reg_cache;
+	struct opcode_i *op = &inter->op->i;
+
+	if (likely(op->rt))
+		reg_cache[op->rt] = (u32)(s32)(s16)reg_cache[op->rs];
+
+	return jump_next(inter);
+}
+
 static const lightrec_int_func_t int_standard[64] = {
 	SET_DEFAULT_ELM(int_standard, int_unimplemented),
 	[OP_SPECIAL]		= int_SPECIAL,
@@ -1014,6 +1036,8 @@ static const lightrec_int_func_t int_standard[64] = {
 	[OP_META_BEQZ]		= int_BEQ,
 	[OP_META_BNEZ]		= int_BNE,
 	[OP_META_MOV]		= int_META_MOV,
+	[OP_META_EXTC]		= int_META_EXTC,
+	[OP_META_EXTS]		= int_META_EXTS,
 };
 
 static const lightrec_int_func_t int_special[64] = {
