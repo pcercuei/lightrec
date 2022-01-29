@@ -120,10 +120,8 @@ static bool is_branch_taken(const u32 *reg_cache, union code op)
 	case OP_JAL:
 		return true;
 	case OP_BEQ:
-	case OP_META_BEQZ:
 		return reg_cache[op.r.rs] == reg_cache[op.r.rt];
 	case OP_BNE:
-	case OP_META_BNEZ:
 		return reg_cache[op.r.rs] != reg_cache[op.r.rt];
 	case OP_REGIMM:
 		switch (op.r.rt) {
@@ -1033,8 +1031,6 @@ static const lightrec_int_func_t int_standard[64] = {
 	[OP_LWC2]		= int_LWC2,
 	[OP_SWC2]		= int_store,
 
-	[OP_META_BEQZ]		= int_BEQ,
-	[OP_META_BNEZ]		= int_BNE,
 	[OP_META_MOV]		= int_META_MOV,
 	[OP_META_EXTC]		= int_META_EXTC,
 	[OP_META_EXTS]		= int_META_EXTS,

@@ -258,8 +258,14 @@ static void rec_b(struct lightrec_state *state, const struct block *block, u16 o
 static void rec_BNE(struct lightrec_state *state, const struct block *block,
 		    u16 offset)
 {
+	union code c = block->opcode_list[offset].c;
+
 	_jit_name(block->_jit, __func__);
-	rec_b(state, block, offset, jit_code_beqr, 0, false, false);
+
+	if (c.i.rt == 0)
+		rec_b(state, block, offset, jit_code_beqi, 0, false, true);
+	else
+		rec_b(state, block, offset, jit_code_beqr, 0, false, false);
 }
 
 static void rec_BEQ(struct lightrec_state *state, const struct block *block,
@@ -268,8 +274,11 @@ static void rec_BEQ(struct lightrec_state *state, const struct block *block,
 	union code c = block->opcode_list[offset].c;
 
 	_jit_name(block->_jit, __func__);
-	rec_b(state, block, offset, jit_code_bner, 0,
-			c.i.rs == c.i.rt, false);
+
+	if (c.i.rt == 0)
+		rec_b(state, block, offset, jit_code_bnei, 0, c.i.rs == 0, true);
+	else
+		rec_b(state, block, offset, jit_code_bner, 0, c.i.rs == c.i.rt, false);
 }
 
 static void rec_BLEZ(struct lightrec_state *state, const struct block *block,
@@ -1516,20 +1525,6 @@ static void rec_CP(struct lightrec_state *state, const struct block *block,
 	call_to_c_wrapper(state, block, c.opcode, true, C_WRAPPER_CP);
 }
 
-static void rec_meta_BEQZ(struct lightrec_state *state, const struct block *block,
-			  u16 offset)
-{
-	_jit_name(block->_jit, __func__);
-	rec_b(state, block, offset, jit_code_bnei, 0, false, true);
-}
-
-static void rec_meta_BNEZ(struct lightrec_state *state, const struct block *block,
-			  u16 offset)
-{
-	_jit_name(block->_jit, __func__);
-	rec_b(state, block, offset, jit_code_beqi, 0, false, true);
-}
-
 static void rec_meta_MOV(struct lightrec_state *state, const struct block *block,
 			 u16 offset)
 {
@@ -1611,8 +1606,6 @@ static const lightrec_rec_func_t rec_standard[64] = {
 	[OP_LWC2]		= rec_LWC2,
 	[OP_SWC2]		= rec_SWC2,
 
-	[OP_META_BEQZ]		= rec_meta_BEQZ,
-	[OP_META_BNEZ]		= rec_meta_BNEZ,
 	[OP_META_MOV]		= rec_meta_MOV,
 	[OP_META_EXTC]		= rec_meta_EXTC_EXTS,
 	[OP_META_EXTS]		= rec_meta_EXTC_EXTS,

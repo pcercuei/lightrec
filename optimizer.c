@@ -799,27 +799,20 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 			continue;
 
 		switch (list->i.op) {
-		/* Transform BEQ / BNE to BEQZ / BNEZ meta-opcodes if one of the
-		 * two registers is zero. */
 		case OP_BEQ:
-			if ((list->i.rs == 0) ^ (list->i.rt == 0)) {
-				list->i.op = OP_META_BEQZ;
-				if (list->i.rs == 0) {
-					list->i.rs = list->i.rt;
-					list->i.rt = 0;
-				}
-			} else if (list->i.rs == list->i.rt) {
+			if (list->i.rs == list->i.rt) {
 				list->i.rs = 0;
+				list->i.rt = 0;
+			} else if (list->i.rs == 0) {
+				list->i.rs = list->i.rt;
 				list->i.rt = 0;
 			}
 			break;
+
 		case OP_BNE:
 			if (list->i.rs == 0) {
-				list->i.op = OP_META_BNEZ;
 				list->i.rs = list->i.rt;
 				list->i.rt = 0;
-			} else if (list->i.rt == 0) {
-				list->i.op = OP_META_BNEZ;
 			}
 			break;
 
@@ -932,8 +925,6 @@ static int lightrec_switch_delay_slots(struct lightrec_state *state, struct bloc
 				continue;
 		case OP_BLEZ: /* fall-through */
 		case OP_BGTZ:
-		case OP_META_BEQZ:
-		case OP_META_BNEZ:
 			if (op.i.rs && opcode_writes_register(next_op, op.i.rs))
 				continue;
 			break;
@@ -1105,8 +1096,6 @@ bool has_delay_slot(union code op)
 	case OP_BLEZ:
 	case OP_BGTZ:
 	case OP_REGIMM:
-	case OP_META_BEQZ:
-	case OP_META_BNEZ:
 		return true;
 	default:
 		return false;
@@ -1248,8 +1237,6 @@ static u8 get_mfhi_mflo_reg(const struct block *block, u16 offset,
 		case OP_BLEZ:
 		case OP_BGTZ:
 		case OP_REGIMM:
-		case OP_META_BEQZ:
-		case OP_META_BNEZ:
 			/* TODO: handle backwards branches too */
 			if (!last &&
 			    (op->flags & LIGHTREC_LOCAL_BRANCH) &&
@@ -1360,8 +1347,6 @@ static void lightrec_replace_lo_hi(struct block *block, u16 offset,
 		case OP_BLEZ:
 		case OP_BGTZ:
 		case OP_REGIMM:
-		case OP_META_BEQZ:
-		case OP_META_BNEZ:
 			/* TODO: handle backwards branches too */
 			if ((op->flags & LIGHTREC_LOCAL_BRANCH) &&
 			    (s16)op->c.i.imm >= 0) {

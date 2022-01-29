@@ -40,8 +40,6 @@ static const char *std_opcodes[] = {
 	[OP_SWR]		= "swr     ",
 	[OP_LWC2]		= "lwc2    ",
 	[OP_SWC2]		= "swc2    ",
-	[OP_META_BEQZ]		= "beqz    ",
-	[OP_META_BNEZ]		= "bnez    ",
 };
 
 static const char *special_opcodes[] = {
@@ -340,14 +338,6 @@ static int print_op(union code c, u32 pc, char *buf, size_t len,
 				lightrec_reg_name(c.i.rt),
 				(s16)c.i.imm,
 				lightrec_reg_name(c.i.rs));
-	case OP_META_BEQZ:
-	case OP_META_BNEZ:
-		*flags_ptr = opcode_branch_flags;
-		*nb_flags = ARRAY_SIZE(opcode_branch_flags);
-		return snprintf(buf, len, "%s%s,0x%x",
-				std_opcodes[c.i.op],
-				lightrec_reg_name(c.i.rs),
-				pc + 4 + ((s16)c.i.imm << 2));
 	case OP_META_MOV:
 		return snprintf(buf, len, "move    %s,%s",
 				lightrec_reg_name(c.r.rd),
