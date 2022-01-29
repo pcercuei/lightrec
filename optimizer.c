@@ -704,8 +704,8 @@ static void lightrec_optimize_sll_sra(struct opcode *list, unsigned int offset)
 		to_change = curr;
 		to_nop = prev;
 
-		/* rX is used after the SRL - we cannot convert it. */
-		if (!reg_is_dead(list, offset, prev->r.rd))
+		/* rX is used after the SRA - we cannot convert it. */
+		if (prev->r.rd != curr->r.rd && !reg_is_dead(list, offset, prev->r.rd))
 			return;
 	} else {
 		/* sll rY, rX, 16
