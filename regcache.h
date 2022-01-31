@@ -16,6 +16,8 @@
 /* Flags for lightrec_alloc_reg_in / lightrec_alloc_reg_out. */
 #define REG_EXT		BIT(0) /* register is sign-extended */
 #define REG_ZEXT	BIT(1) /* register is zero-extended */
+#define REG_SHADOW	BIT(2) /* request a shadow register */
+#define REG_NO_SHADOW	BIT(3) /* request an original register */
 
 struct register_value {
 	_Bool known;
@@ -64,5 +66,7 @@ void lightrec_free_regcache(struct regcache *cache);
 const char * lightrec_reg_name(u8 reg);
 
 void lightrec_regcache_mark_live(struct regcache *cache, jit_state_t *_jit);
+
+u32 lightrec_get_shadow_mask(const struct regcache *cache);
 
 #endif /* __REGCACHE_H__ */

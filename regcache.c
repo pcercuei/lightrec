@@ -13,13 +13,15 @@
 
 struct native_register {
 	bool used, loaded, dirty, output, extend, extended,
-	     zero_extend, zero_extended, locked;
+	     zero_extend, zero_extended, locked, shadow;
 	s8 emulated_register;
 };
 
 struct regcache {
 	struct lightrec_state *state;
 	struct native_register lightrec_regs[NUM_REGS + NUM_TEMPS];
+
+	u32 shadow_regs;
 };
 
 static const char * mips_regs[] = {
@@ -127,43 +129,52 @@ static struct native_register * alloc_temp(struct regcache *cache)
 	 * memory. */
 	for (i = ARRAY_SIZE(cache->lightrec_regs); i; i--) {
 		struct native_register *nreg = &cache->lightrec_regs[i - 1];
-		if (!nreg->used && !nreg->loaded && !nreg->dirty)
+		if (!nreg->used && !nreg->loaded && !nreg->dirty && !nreg->shadow)
 			return nreg;
 	}
 
 	for (i = ARRAY_SIZE(cache->lightrec_regs); i; i--) {
 		struct native_register *nreg = &cache->lightrec_regs[i - 1];
-		if (!nreg->used)
+		if (!nreg->used && !nreg->shadow)
 			return nreg;
 	}
 
 	return NULL;
 }
 
-static struct native_register * find_mapped_reg(struct regcache *cache,
-						u8 reg, bool out)
+static struct native_register *
+find_mapped_reg(struct regcache *cache, u8 reg, bool out,
+		bool force_shadow, bool force_no_shadow)
 {
+	struct native_register *tmp, *nreg = NULL;
 	unsigned int i;
 
 	for (i = 0; i < ARRAY_SIZE(cache->lightrec_regs); i++) {
-		struct native_register *nreg = &cache->lightrec_regs[i];
-		if ((!reg || nreg->loaded || nreg->dirty) &&
-				nreg->emulated_register == reg &&
-				(!out || !nreg->locked))
-			return nreg;
+		tmp = &cache->lightrec_regs[i];
+
+		if ((!reg || tmp->loaded || tmp->dirty) &&
+				tmp->emulated_register == reg &&
+				(!out || !tmp->locked)) {
+			if (!reg || (tmp->shadow && !force_no_shadow))
+				return tmp;
+
+			if (!tmp->shadow && !force_shadow)
+				nreg = tmp;
+		}
 	}
 
-	return NULL;
+	return nreg;
 }
 
-static struct native_register * alloc_in_out(struct regcache *cache,
-					     u8 reg, bool out)
+static struct native_register *
+alloc_in_out(struct regcache *cache, u8 reg, bool out,
+	     bool force_shadow, bool force_no_shadow)
 {
 	struct native_register *nreg;
 	unsigned int i;
 
 	/* Try to find if the register is already mapped somewhere */
-	nreg = find_mapped_reg(cache, reg, out);
+	nreg = find_mapped_reg(cache, reg, out, force_shadow, force_no_shadow);
 	if (nreg)
 		return nreg;
 
@@ -172,27 +183,28 @@ static struct native_register * alloc_in_out(struct regcache *cache,
 	 * re-using one if possible. */
 	for (i = 0; i < ARRAY_SIZE(cache->lightrec_regs); i++) {
 		nreg = &cache->lightrec_regs[i];
-		if (!nreg->used && !nreg->dirty && !nreg->loaded)
+		if (!nreg->used && !nreg->dirty && !nreg->loaded && !nreg->shadow)
 			return nreg;
 	}
 
 	/* Try to allocate a non-dirty register */
 	for (i = 0; i < ARRAY_SIZE(cache->lightrec_regs); i++) {
 		nreg = &cache->lightrec_regs[i];
-		if (!nreg->used && !nreg->dirty)
+		if (!nreg->used && !nreg->dirty && !nreg->shadow)
 			return nreg;
 	}
 
 	for (i = 0; i < ARRAY_SIZE(cache->lightrec_regs); i++) {
 		nreg = &cache->lightrec_regs[i];
-		if (!nreg->used)
+		if (!nreg->used && !nreg->shadow)
 			return nreg;
 	}
 
 	return NULL;
 }
 
-static void lightrec_discard_nreg(struct native_register *nreg)
+static void lightrec_discard_nreg(struct regcache *cache,
+				  struct native_register *nreg)
 {
 	nreg->extended = false;
 	nreg->zero_extended = false;
@@ -201,6 +213,9 @@ static void lightrec_discard_nreg(struct native_register *nreg)
 	nreg->dirty = false;
 	nreg->used = false;
 	nreg->locked = false;
+	if (nreg->shadow)
+		cache->shadow_regs &= ~BIT(nreg->emulated_register);
+	nreg->shadow = false;
 	nreg->emulated_register = -1;
 }
 
@@ -215,7 +230,7 @@ static void lightrec_unload_nreg(struct regcache *cache, jit_state_t *_jit,
 		jit_stxi_i(offset, LIGHTREC_REG_STATE, jit_reg);
 	}
 
-	lightrec_discard_nreg(nreg);
+	lightrec_discard_nreg(cache, nreg);
 }
 
 void lightrec_unload_reg(struct regcache *cache, jit_state_t *_jit, u8 jit_reg)
@@ -277,6 +292,7 @@ u8 lightrec_alloc_reg_out(struct regcache *cache, jit_state_t *_jit,
 			  u8 reg, u8 flags)
 {
 	struct native_register *nreg;
+	bool shadow = flags & REG_SHADOW;
 	u8 jit_reg;
 	s8 hw_reg;
 
@@ -284,7 +300,7 @@ u8 lightrec_alloc_reg_out(struct regcache *cache, jit_state_t *_jit,
 	if (hw_reg >= 0)
 		return (u8) hw_reg;
 
-	nreg = alloc_in_out(cache, reg, true);
+	nreg = alloc_in_out(cache, reg, true, shadow, flags & REG_NO_SHADOW);
 	if (!nreg) {
 		/* No free register, no dirty register to free. */
 		pr_err("No more registers! Abandon ship!\n");
@@ -295,14 +311,20 @@ u8 lightrec_alloc_reg_out(struct regcache *cache, jit_state_t *_jit,
 
 	/* If we get a dirty register that doesn't correspond to the one
 	 * we're requesting, store back the old value */
-	if (nreg->emulated_register != reg)
+	if (nreg->emulated_register != reg || shadow != nreg->shadow)
 		lightrec_unload_nreg(cache, _jit, nreg, jit_reg);
 
+	nreg->shadow |= shadow;
+	if (shadow)
+		cache->shadow_regs |= BIT(reg);
+
+	nreg->loaded = shadow;
+	nreg->output = !shadow;
 	nreg->used = true;
-	nreg->output = true;
 	nreg->emulated_register = reg;
 	nreg->extend = flags & REG_EXT;
 	nreg->zero_extend = flags & REG_ZEXT;
+
 	return jit_reg;
 }
 
@@ -318,7 +340,7 @@ u8 lightrec_alloc_reg_in(struct regcache *cache, jit_state_t *_jit,
 	if (hw_reg >= 0)
 		return (u8) hw_reg;
 
-	nreg = alloc_in_out(cache, reg, false);
+	nreg = alloc_in_out(cache, reg, false, false, flags & REG_NO_SHADOW);
 	if (!nreg) {
 		/* No free register, no dirty register to free. */
 		pr_err("No more registers! Abandon ship!\n");
@@ -382,7 +404,7 @@ u8 lightrec_request_reg_in(struct regcache *cache, jit_state_t *_jit,
 	struct native_register *nreg;
 	u16 offset;
 
-	nreg = find_mapped_reg(cache, reg, false);
+	nreg = find_mapped_reg(cache, reg, false, false, false);
 	if (nreg) {
 		jit_reg = lightrec_reg_to_lightning(cache, nreg);
 		nreg->used = true;
@@ -400,6 +422,7 @@ u8 lightrec_request_reg_in(struct regcache *cache, jit_state_t *_jit,
 	nreg->zero_extended = false;
 	nreg->used = true;
 	nreg->loaded = true;
+	nreg->shadow = false;
 	nreg->emulated_register = reg;
 
 	return jit_reg;
@@ -482,7 +505,7 @@ void lightrec_clean_reg_if_loaded(struct regcache *cache, jit_state_t *_jit,
 	struct native_register *nreg;
 	u8 jit_reg;
 
-	nreg = find_mapped_reg(cache, reg, false);
+	nreg = find_mapped_reg(cache, reg, false, false, false);
 	if (nreg) {
 		jit_reg = lightrec_reg_to_lightning(cache, nreg);
 
@@ -559,4 +582,9 @@ void lightrec_regcache_mark_live(struct regcache *cache, jit_state_t *_jit)
 		if (nreg->used || nreg->loaded || nreg->dirty)
 			jit_live(JIT_R(i));
 	}
+}
+
+u32 lightrec_get_shadow_mask(const struct regcache *cache)
+{
+	return cache->shadow_regs;
 }
