@@ -1535,7 +1535,8 @@ static void rec_meta_MOV(struct lightrec_state *state, const struct block *block
 
 	_jit_name(block->_jit, __func__);
 	jit_note(__FILE__, __LINE__);
-	rs = c.r.rs ? lightrec_alloc_reg_in(reg_cache, _jit, c.r.rs, 0) : 0;
+	if (c.r.rs)
+		rs = lightrec_alloc_reg_in(reg_cache, _jit, c.r.rs, 0);
 	rd = lightrec_alloc_reg_out(reg_cache, _jit, c.r.rd, REG_EXT);
 
 	if (c.r.rs == 0)
@@ -1543,8 +1544,9 @@ static void rec_meta_MOV(struct lightrec_state *state, const struct block *block
 	else
 		jit_extr_i(rd, rs);
 
-	lightrec_free_reg(state->reg_cache, rs);
-	lightrec_free_reg(state->reg_cache, rd);
+	if (c.r.rs)
+		lightrec_free_reg(reg_cache, rs);
+	lightrec_free_reg(reg_cache, rd);
 }
 
 static void rec_meta_EXTC_EXTS(struct lightrec_state *state,
