@@ -33,6 +33,28 @@ struct interpreter {
 	u16 offset;
 };
 
+static u32 * alu_get_reg(struct interpreter *inter, u8 reg, bool is_dest)
+{
+	u32 *reg_cache = inter->state->native_reg_cache;
+
+	return &reg_cache[reg];
+}
+
+static u32 * alu_get_rs(struct interpreter *inter)
+{
+	return alu_get_reg(inter, inter->op->r.rs, false);
+}
+
+static u32 * alu_get_rt(struct interpreter *inter, bool is_dest)
+{
+	return alu_get_reg(inter, inter->op->r.rt, is_dest);
+}
+
+static u32 * alu_get_rd(struct interpreter *inter)
+{
+	return alu_get_reg(inter, inter->op->r.rd, true);
+}
+
 static u32 int_get_branch_pc(const struct interpreter *inter)
 {
 	return get_branch_pc(inter->block, inter->offset, 0);
@@ -539,75 +561,105 @@ static u32 int_CP(struct interpreter *inter)
 
 static u32 int_ADDI(struct interpreter *inter)
 {
-	u32 *reg_cache = inter->state->native_reg_cache;
-	struct opcode_i *op = &inter->op->i;
+	const struct opcode_i *op = &inter->op->i;
+	u32 *rt, *rs;
 
-	if (likely(op->rt))
-		reg_cache[op->rt] = reg_cache[op->rs] + (s32)(s16)op->imm;
+	if (likely(op->rt)) {
+		rs = alu_get_rs(inter);
+		rt = alu_get_rt(inter, true);
+
+		*rt = *rs + (s32)(s16)op->imm;
+	}
 
 	return jump_next(inter);
 }
 
 static u32 int_SLTI(struct interpreter *inter)
 {
-	u32 *reg_cache = inter->state->native_reg_cache;
-	struct opcode_i *op = &inter->op->i;
+	const struct opcode_i *op = &inter->op->i;
+	u32 *rt;
+	s32 *rs;
 
-	if (likely(op->rt))
-		reg_cache[op->rt] = (s32)reg_cache[op->rs] < (s32)(s16)op->imm;
+	if (likely(op->rt)) {
+		rs = (s32 *)alu_get_rs(inter);
+		rt = alu_get_rt(inter, true);
+
+		*rt = *rs < (s32)(s16)op->imm;
+	}
 
 	return jump_next(inter);
 }
 
 static u32 int_SLTIU(struct interpreter *inter)
 {
-	u32 *reg_cache = inter->state->native_reg_cache;
-	struct opcode_i *op = &inter->op->i;
+	const struct opcode_i *op = &inter->op->i;
+	u32 *rt, *rs;
 
-	if (likely(op->rt))
-		reg_cache[op->rt] = reg_cache[op->rs] < (u32)(s32)(s16)op->imm;
+	if (likely(op->rt)) {
+		rs = alu_get_rs(inter);
+		rt = alu_get_rt(inter, true);
+
+		*rt = *rs < (u32)(s32)(s16)op->imm;
+	}
 
 	return jump_next(inter);
 }
 
 static u32 int_ANDI(struct interpreter *inter)
 {
-	u32 *reg_cache = inter->state->native_reg_cache;
-	struct opcode_i *op = &inter->op->i;
+	const struct opcode_i *op = &inter->op->i;
+	u32 *rt, *rs;
 
-	if (likely(op->rt))
-		reg_cache[op->rt] = reg_cache[op->rs] & op->imm;
+	if (likely(op->rt)) {
+		rs = alu_get_rs(inter);
+		rt = alu_get_rt(inter, true);
+
+		*rt = *rs & op->imm;
+	}
 
 	return jump_next(inter);
 }
 
 static u32 int_ORI(struct interpreter *inter)
 {
-	u32 *reg_cache = inter->state->native_reg_cache;
-	struct opcode_i *op = &inter->op->i;
+	const struct opcode_i *op = &inter->op->i;
+	u32 *rt, *rs;
 
-	if (likely(op->rt))
-		reg_cache[op->rt] = reg_cache[op->rs] | op->imm;
+	if (likely(op->rt)) {
+		rs = alu_get_rs(inter);
+		rt = alu_get_rt(inter, true);
+
+		*rt = *rs | op->imm;
+	}
 
 	return jump_next(inter);
 }
 
 static u32 int_XORI(struct interpreter *inter)
 {
-	u32 *reg_cache = inter->state->native_reg_cache;
-	struct opcode_i *op = &inter->op->i;
+	const struct opcode_i *op = &inter->op->i;
+	u32 *rt, *rs;
 
-	if (likely(op->rt))
-		reg_cache[op->rt] = reg_cache[op->rs] ^ op->imm;
+	if (likely(op->rt)) {
+		rs = alu_get_rs(inter);
+		rt = alu_get_rt(inter, true);
+
+		*rt = *rs ^ op->imm;
+	}
 
 	return jump_next(inter);
 }
 
 static u32 int_LUI(struct interpreter *inter)
 {
-	struct opcode_i *op = &inter->op->i;
+	const struct opcode_i *op = &inter->op->i;
+	u32 *rt;
 
-	inter->state->native_reg_cache[op->rt] = op->imm << 16;
+	if (likely(op->rt)) {
+		rt = alu_get_rt(inter, true);
+
+		*rt = op->imm << 16;
+	}
 
 	return jump_next(inter);
 }
@@ -660,12 +712,14 @@ static u32 int_LWC2(struct interpreter *inter)
 
 static u32 int_special_SLL(struct interpreter *inter)
 {
-	struct opcode *op = inter->op;
-	u32 rt;
+	const struct opcode *op = inter->op;
+	u32 *rt, *rd;
 
 	if (op->opcode) { /* Handle NOPs */
-		rt = inter->state->native_reg_cache[op->r.rt];
-		inter->state->native_reg_cache[op->r.rd] = rt << op->r.imm;
+		rt = alu_get_rt(inter, false);
+		rd = alu_get_rd(inter);
+
+		*rd = *rt << op->r.imm;
 	}
 
 	return jump_next(inter);
@@ -673,53 +727,80 @@ static u32 int_special_SLL(struct interpreter *inter)
 
 static u32 int_special_SRL(struct interpreter *inter)
 {
-	struct opcode *op = inter->op;
-	u32 rt = inter->state->native_reg_cache[op->r.rt];
+	const struct opcode_r *op = &inter->op->r;
+	u32 *rt, *rd;
 
-	inter->state->native_reg_cache[op->r.rd] = rt >> op->r.imm;
+	if (likely(op->rd)) {
+		rt = alu_get_rt(inter, false);
+		rd = alu_get_rd(inter);
+
+		*rd = *rt >> op->imm;
+	}
 
 	return jump_next(inter);
 }
 
 static u32 int_special_SRA(struct interpreter *inter)
 {
-	struct opcode *op = inter->op;
-	s32 rt = inter->state->native_reg_cache[op->r.rt];
+	const struct opcode_r *op = &inter->op->r;
+	u32 *rd;
+	s32 *rt;
 
-	inter->state->native_reg_cache[op->r.rd] = rt >> op->r.imm;
+	if (likely(op->rd)) {
+		rt = (s32 *)alu_get_rt(inter, false);
+		rd = alu_get_rd(inter);
+
+		*rd = *rt >> op->imm;
+	}
 
 	return jump_next(inter);
 }
 
 static u32 int_special_SLLV(struct interpreter *inter)
 {
-	struct opcode *op = inter->op;
-	u32 rs = inter->state->native_reg_cache[op->r.rs];
-	u32 rt = inter->state->native_reg_cache[op->r.rt];
+	const struct opcode_r *op = &inter->op->r;
+	u32 *rs, *rt, *rd;
 
-	inter->state->native_reg_cache[op->r.rd] = rt << (rs & 0x1f);
+	if (likely(op->rd)) {
+		rs = alu_get_rs(inter);
+		rt = alu_get_rt(inter, false);
+		rd = alu_get_rd(inter);
+
+		*rd = *rt << (*rs & 0x1f);
+	}
 
 	return jump_next(inter);
 }
 
 static u32 int_special_SRLV(struct interpreter *inter)
 {
-	struct opcode *op = inter->op;
-	u32 rs = inter->state->native_reg_cache[op->r.rs];
-	u32 rt = inter->state->native_reg_cache[op->r.rt];
+	const struct opcode_r *op = &inter->op->r;
+	u32 *rs, *rt, *rd;
 
-	inter->state->native_reg_cache[op->r.rd] = rt >> (rs & 0x1f);
+	if (likely(op->rd)) {
+		rs = alu_get_rs(inter);
+		rt = alu_get_rt(inter, false);
+		rd = alu_get_rd(inter);
+
+		*rd = *rt >> (*rs & 0x1f);
+	}
 
 	return jump_next(inter);
 }
 
 static u32 int_special_SRAV(struct interpreter *inter)
 {
-	struct opcode *op = inter->op;
-	u32 rs = inter->state->native_reg_cache[op->r.rs];
-	s32 rt = inter->state->native_reg_cache[op->r.rt];
+	const struct opcode_r *op = &inter->op->r;
+	u32 *rs, *rd;
+	s32 *rt;
 
-	inter->state->native_reg_cache[op->r.rd] = rt >> (rs & 0x1f);
+	if (likely(op->rd)) {
+		rs = alu_get_rs(inter);
+		rt = (s32 *)alu_get_rt(inter, false);
+		rd = alu_get_rd(inter);
+
+		*rd = *rt >> (*rs & 0x1f);
+	}
 
 	return jump_next(inter);
 }
@@ -861,137 +942,173 @@ static u32 int_special_DIVU(struct interpreter *inter)
 
 static u32 int_special_ADD(struct interpreter *inter)
 {
-	u32 *reg_cache = inter->state->native_reg_cache;
-	struct opcode_r *op = &inter->op->r;
-	s32 rs = reg_cache[op->rs];
-	s32 rt = reg_cache[op->rt];
+	const struct opcode_r *op = &inter->op->r;
+	u32 *rs, *rt, *rd;
 
-	if (likely(op->rd))
-		reg_cache[op->rd] = rs + rt;
+	if (likely(op->rd)) {
+		rs = alu_get_rs(inter);
+		rt = alu_get_rt(inter, false);
+		rd = alu_get_rd(inter);
+
+		*rd = *rs + *rt;
+	}
 
 	return jump_next(inter);
 }
 
 static u32 int_special_SUB(struct interpreter *inter)
 {
-	u32 *reg_cache = inter->state->native_reg_cache;
-	struct opcode_r *op = &inter->op->r;
-	u32 rs = reg_cache[op->rs];
-	u32 rt = reg_cache[op->rt];
+	const struct opcode_r *op = &inter->op->r;
+	u32 *rs, *rt, *rd;
 
-	if (likely(op->rd))
-		reg_cache[op->rd] = rs - rt;
+	if (likely(op->rd)) {
+		rs = alu_get_rs(inter);
+		rt = alu_get_rt(inter, false);
+		rd = alu_get_rd(inter);
+
+		*rd = *rs - *rt;
+	}
 
 	return jump_next(inter);
 }
 
 static u32 int_special_AND(struct interpreter *inter)
 {
-	u32 *reg_cache = inter->state->native_reg_cache;
-	struct opcode_r *op = &inter->op->r;
-	u32 rs = reg_cache[op->rs];
-	u32 rt = reg_cache[op->rt];
+	const struct opcode_r *op = &inter->op->r;
+	u32 *rs, *rt, *rd;
 
-	if (likely(op->rd))
-		reg_cache[op->rd] = rs & rt;
+	if (likely(op->rd)) {
+		rs = alu_get_rs(inter);
+		rt = alu_get_rt(inter, false);
+		rd = alu_get_rd(inter);
+
+		*rd = *rs & *rt;
+	}
 
 	return jump_next(inter);
 }
 
 static u32 int_special_OR(struct interpreter *inter)
 {
-	u32 *reg_cache = inter->state->native_reg_cache;
-	struct opcode_r *op = &inter->op->r;
-	u32 rs = reg_cache[op->rs];
-	u32 rt = reg_cache[op->rt];
+	const struct opcode_r *op = &inter->op->r;
+	u32 *rs, *rt, *rd;
 
-	if (likely(op->rd))
-		reg_cache[op->rd] = rs | rt;
+	if (likely(op->rd)) {
+		rs = alu_get_rs(inter);
+		rt = alu_get_rt(inter, false);
+		rd = alu_get_rd(inter);
+
+		*rd = *rs | *rt;
+	}
 
 	return jump_next(inter);
 }
 
 static u32 int_special_XOR(struct interpreter *inter)
 {
-	u32 *reg_cache = inter->state->native_reg_cache;
-	struct opcode_r *op = &inter->op->r;
-	u32 rs = reg_cache[op->rs];
-	u32 rt = reg_cache[op->rt];
+	const struct opcode_r *op = &inter->op->r;
+	u32 *rs, *rt, *rd;
 
-	if (likely(op->rd))
-		reg_cache[op->rd] = rs ^ rt;
+	if (likely(op->rd)) {
+		rs = alu_get_rs(inter);
+		rt = alu_get_rt(inter, false);
+		rd = alu_get_rd(inter);
+
+		*rd = *rs ^ *rt;
+	}
 
 	return jump_next(inter);
 }
 
 static u32 int_special_NOR(struct interpreter *inter)
 {
-	u32 *reg_cache = inter->state->native_reg_cache;
-	struct opcode_r *op = &inter->op->r;
-	u32 rs = reg_cache[op->rs];
-	u32 rt = reg_cache[op->rt];
+	const struct opcode_r *op = &inter->op->r;
+	u32 *rs, *rt, *rd;
 
-	if (likely(op->rd))
-		reg_cache[op->rd] = ~(rs | rt);
+	if (likely(op->rd)) {
+		rs = alu_get_rs(inter);
+		rt = alu_get_rt(inter, false);
+		rd = alu_get_rd(inter);
+
+		*rd = ~(*rs | *rt);
+	}
 
 	return jump_next(inter);
 }
 
 static u32 int_special_SLT(struct interpreter *inter)
 {
-	u32 *reg_cache = inter->state->native_reg_cache;
-	struct opcode_r *op = &inter->op->r;
-	s32 rs = reg_cache[op->rs];
-	s32 rt = reg_cache[op->rt];
+	const struct opcode_r *op = &inter->op->r;
+	s32 *rs, *rt;
+	u32 *rd;
 
-	if (likely(op->rd))
-		reg_cache[op->rd] = rs < rt;
+	if (likely(op->rd)) {
+		rs = (s32 *)alu_get_rs(inter);
+		rt = (s32 *)alu_get_rt(inter, false);
+		rd = alu_get_rd(inter);
+
+		*rd = *rs < *rt;
+	}
 
 	return jump_next(inter);
 }
 
 static u32 int_special_SLTU(struct interpreter *inter)
 {
-	u32 *reg_cache = inter->state->native_reg_cache;
-	struct opcode_r *op = &inter->op->r;
-	u32 rs = reg_cache[op->rs];
-	u32 rt = reg_cache[op->rt];
+	const struct opcode_r *op = &inter->op->r;
+	u32 *rs, *rt, *rd;
 
-	if (likely(op->rd))
-		reg_cache[op->rd] = rs < rt;
+	if (likely(op->rd)) {
+		rs = alu_get_rs(inter);
+		rt = alu_get_rt(inter, false);
+		rd = alu_get_rd(inter);
+
+		*rd = *rs < *rt;
+	}
 
 	return jump_next(inter);
 }
 
 static u32 int_META_MOV(struct interpreter *inter)
 {
-	u32 *reg_cache = inter->state->native_reg_cache;
 	struct opcode_r *op = &inter->op->r;
+	u32 *rs, *rd;
 
-	if (likely(op->rd))
-		reg_cache[op->rd] = reg_cache[op->rs];
+	if (likely(op->rd)) {
+		rs = alu_get_rs(inter);
+		rd = alu_get_rd(inter);
+		*rd = *rs;
+	}
 
 	return jump_next(inter);
 }
 
 static u32 int_META_EXTC(struct interpreter *inter)
 {
-	u32 *reg_cache = inter->state->native_reg_cache;
 	struct opcode_i *op = &inter->op->i;
+	u32 *rs, *rt;
 
-	if (likely(op->rt))
-		reg_cache[op->rt] = (u32)(s32)(s8)reg_cache[op->rs];
+	if (likely(op->rt)) {
+		rs = alu_get_rs(inter);
+		rt = alu_get_rt(inter, true);
+
+		*rt = (u32)(s32)(s8)*rs;
+	}
 
 	return jump_next(inter);
 }
 
 static u32 int_META_EXTS(struct interpreter *inter)
 {
-	u32 *reg_cache = inter->state->native_reg_cache;
 	struct opcode_i *op = &inter->op->i;
+	u32 *rs, *rt;
 
-	if (likely(op->rt))
-		reg_cache[op->rt] = (u32)(s32)(s16)reg_cache[op->rs];
+	if (likely(op->rt)) {
+		rs = alu_get_rs(inter);
+		rt = alu_get_rt(inter, true);
+
+		*rt = (u32)(s32)(s16)*rs;
+	}
 
 	return jump_next(inter);
 }
