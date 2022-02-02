@@ -13,6 +13,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <strings.h>
 
 typedef void (*lightrec_rec_func_t)(struct lightrec_state *,
 				    const struct block *, u16);
@@ -1554,6 +1555,66 @@ static void rec_CP(struct lightrec_state *state, const struct block *block,
 	call_to_c_wrapper(state, block, c.opcode, true, C_WRAPPER_CP);
 }
 
+static void lightrec_commit_shadow_reg(struct regcache *cache,
+				       jit_state_t *_jit, union code c,
+				       u8 reg, u8 rt)
+{
+	u8 rs, rd;
+
+	rs = lightrec_alloc_reg_in(cache, _jit, reg, 0);
+
+	/* Since we don't know if Rd will be written, and it must have a
+	 * valid value after the opcode, open Rd as input then as output. */
+	lightrec_alloc_reg_in(cache, _jit, reg, REG_NO_SHADOW);
+	rd = lightrec_alloc_reg_out(cache, _jit, reg, REG_NO_SHADOW);
+
+	if (c.r.rd)
+		jit_movzr(rd, rs, rt);
+	else
+		jit_movnr(rd, rs, rt);
+
+	/* Discard the shadow register */
+	lightrec_unload_reg(cache, _jit, rs);
+	lightrec_free_reg(cache, rd);
+}
+
+static void rec_meta_COMMIT(struct lightrec_state *state,
+			    const struct block *block, u16 offset)
+{
+	struct regcache *cache = state->reg_cache;
+	union code c = block->opcode_list[offset].c;
+	u32 new_mask, mask = lightrec_get_shadow_mask(cache);
+	jit_state_t *_jit = block->_jit;
+	u8 reg, rt, temp;
+
+	_jit_name(block->_jit, __func__);
+	jit_note(__FILE__, __LINE__);
+
+	temp = lightrec_alloc_reg_temp(cache, _jit);
+	jit_addi(temp, LIGHTREC_REG_CYCLE, c.r.imm * 2);
+
+	rt = lightrec_alloc_reg_in(cache, _jit, c.r.rs, REG_NO_SHADOW);
+	if (!c.r.rd)
+		jit_movzr(LIGHTREC_REG_CYCLE, temp, rt);
+	else
+		jit_movnr(LIGHTREC_REG_CYCLE, temp, rt);
+
+	lightrec_free_reg(cache, temp);
+
+	for (new_mask = mask & ~BIT(c.r.rs); new_mask; new_mask &= ~BIT(reg)) {
+		reg = ffs(new_mask) - 1;
+		pr_debug("Found shadow register %s\n", lightrec_reg_name(reg));
+		lightrec_commit_shadow_reg(cache, _jit, c, reg, rt);
+	}
+
+	if (mask & BIT(c.r.rs)) {
+		pr_debug("Found shadow register %s\n", lightrec_reg_name(c.r.rs));
+		lightrec_commit_shadow_reg(cache, _jit, c, c.r.rs, rt);
+	}
+
+	lightrec_free_reg(cache, rt);
+}
+
 static void rec_meta_MOV(struct lightrec_state *state, const struct block *block,
 			 u16 offset)
 {
@@ -1645,6 +1706,7 @@ static const lightrec_rec_func_t rec_standard[64] = {
 	[OP_LWC2]		= rec_LWC2,
 	[OP_SWC2]		= rec_SWC2,
 
+	[OP_META_COMMIT]	= rec_meta_COMMIT,
 	[OP_META_MOV]		= rec_meta_MOV,
 	[OP_META_EXTC]		= rec_meta_EXTC_EXTS,
 	[OP_META_EXTS]		= rec_meta_EXTC_EXTS,
