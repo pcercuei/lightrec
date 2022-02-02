@@ -103,6 +103,10 @@ static const char *opcode_flags[] = {
 	"sync point",
 };
 
+static const char *opcode_alu_flags[] = {
+	"shadow register",
+};
+
 static const char *opcode_io_flags[] = {
 	"memory I/O",
 	"hardware I/O",
@@ -164,6 +168,8 @@ static int print_op_special(union code c, char *buf, size_t len,
 	case OP_SPECIAL_SLL:
 	case OP_SPECIAL_SRL:
 	case OP_SPECIAL_SRA:
+		*flags_ptr = opcode_alu_flags;
+		*nb_flags = ARRAY_SIZE(opcode_alu_flags);
 		return snprintf(buf, len, "%s%s,%s,%u",
 				special_opcodes[c.r.op],
 				lightrec_reg_name(c.r.rd),
@@ -182,6 +188,8 @@ static int print_op_special(union code c, char *buf, size_t len,
 	case OP_SPECIAL_NOR:
 	case OP_SPECIAL_SLT:
 	case OP_SPECIAL_SLTU:
+		*flags_ptr = opcode_alu_flags;
+		*nb_flags = ARRAY_SIZE(opcode_alu_flags);
 		return snprintf(buf, len, "%s%s,%s,%s",
 				special_opcodes[c.r.op],
 				lightrec_reg_name(c.r.rd),
@@ -295,6 +303,8 @@ static int print_op(union code c, u32 pc, char *buf, size_t len,
 	case OP_ANDI:
 	case OP_ORI:
 	case OP_XORI:
+		*flags_ptr = opcode_alu_flags;
+		*nb_flags = ARRAY_SIZE(opcode_alu_flags);
 		return snprintf(buf, len, "%s%s,%s,0x%04hx",
 				std_opcodes[c.i.op],
 				lightrec_reg_name(c.i.rt),
@@ -302,6 +312,8 @@ static int print_op(union code c, u32 pc, char *buf, size_t len,
 				(u16)c.i.imm);
 
 	case OP_LUI:
+		*flags_ptr = opcode_alu_flags;
+		*nb_flags = ARRAY_SIZE(opcode_alu_flags);
 		return snprintf(buf, len, "%s%s,0x%04hx",
 				std_opcodes[c.i.op],
 				lightrec_reg_name(c.i.rt),
@@ -339,14 +351,20 @@ static int print_op(union code c, u32 pc, char *buf, size_t len,
 				(s16)c.i.imm,
 				lightrec_reg_name(c.i.rs));
 	case OP_META_MOV:
+		*flags_ptr = opcode_alu_flags;
+		*nb_flags = ARRAY_SIZE(opcode_alu_flags);
 		return snprintf(buf, len, "move    %s,%s",
 				lightrec_reg_name(c.r.rd),
 				lightrec_reg_name(c.r.rs));
 	case OP_META_EXTC:
+		*flags_ptr = opcode_alu_flags;
+		*nb_flags = ARRAY_SIZE(opcode_alu_flags);
 		return snprintf(buf, len, "extc    %s,%s",
 				lightrec_reg_name(c.i.rt),
 				lightrec_reg_name(c.i.rs));
 	case OP_META_EXTS:
+		*flags_ptr = opcode_alu_flags;
+		*nb_flags = ARRAY_SIZE(opcode_alu_flags);
 		return snprintf(buf, len, "exts    %s,%s",
 				lightrec_reg_name(c.i.rt),
 				lightrec_reg_name(c.i.rs));

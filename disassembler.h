@@ -37,6 +37,9 @@
 #define LIGHTREC_NO_HI		BIT(6)
 #define LIGHTREC_NO_DIV_CHECK	BIT(7)
 
+/* Flags for ALU opcodes */
+#define LIGHTREC_REG_SHADOW	BIT(5)
+
 struct block;
 
 enum standard_opcodes {
