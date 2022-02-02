@@ -368,6 +368,10 @@ static int print_op(union code c, u32 pc, char *buf, size_t len,
 		return snprintf(buf, len, "exts    %s,%s",
 				lightrec_reg_name(c.i.rt),
 				lightrec_reg_name(c.i.rs));
+	case OP_META_COMMIT:
+		return snprintf(buf, len, "commit  %s%s,%u",
+				c.r.rd ? "!" : "",
+				lightrec_reg_name(c.r.rs), c.r.imm);
 	default:
 		return snprintf(buf, len, "unknown (0x%08x)", c.opcode);
 	}

@@ -76,6 +76,7 @@ enum standard_opcodes {
 	OP_LWC2			= 0x32,
 	OP_SWC2			= 0x3a,
 
+	OP_META_COMMIT		= 0x14,
 	OP_META_MOV		= 0x16,
 
 	OP_META_EXTC		= 0x17,
