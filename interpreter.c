@@ -10,6 +10,7 @@
 #include "regcache.h"
 
 #include <stdbool.h>
+#include <strings.h>
 
 struct interpreter;
 
@@ -31,11 +32,20 @@ struct interpreter {
 	u32 cycles;
 	bool delay_slot;
 	u16 offset;
+
+	u32 shadows[32];
+	u32 shadow_regs;
 };
 
 static u32 * alu_get_reg(struct interpreter *inter, u8 reg, bool is_dest)
 {
 	u32 *reg_cache = inter->state->native_reg_cache;
+
+	if ((inter->op->flags & LIGHTREC_REG_SHADOW) && is_dest)
+		inter->shadow_regs |= BIT(reg);
+
+	if (inter->shadow_regs & BIT(reg))
+		return &inter->shadows[reg];
 
 	return &reg_cache[reg];
 }
@@ -1069,6 +1079,30 @@ static u32 int_special_SLTU(struct interpreter *inter)
 	return jump_next(inter);
 }
 
+static u32 int_META_COMMIT(struct interpreter *inter)
+{
+	u32 *reg_cache = inter->state->native_reg_cache;
+	union code c = inter->op->c;
+	u32 mask;
+	u8 reg;
+
+	if (!reg_cache[c.r.rs] != !c.r.rd) {
+		for (mask = inter->shadow_regs & ~BIT(c.r.rs); mask; mask &= ~BIT(reg)) {
+			reg = ffs(mask) - 1;
+			reg_cache[reg] = inter->shadows[reg];
+		}
+
+		if (inter->shadow_regs & BIT(c.r.rs))
+			reg_cache[c.r.rs] = inter->shadows[c.r.rs];
+	} else {
+		inter->cycles -= c.r.imm * 2;
+	}
+
+	inter->shadow_regs = 0;
+
+	return jump_next(inter);
+}
+
 static u32 int_META_MOV(struct interpreter *inter)
 {
 	struct opcode_r *op = &inter->op->r;
@@ -1148,6 +1182,7 @@ static const lightrec_int_func_t int_standard[64] = {
 	[OP_LWC2]		= int_LWC2,
 	[OP_SWC2]		= int_store,
 
+	[OP_META_COMMIT]	= int_META_COMMIT,
 	[OP_META_MOV]		= int_META_MOV,
 	[OP_META_EXTC]		= int_META_EXTC,
 	[OP_META_EXTS]		= int_META_EXTS,
@@ -1263,6 +1298,7 @@ static u32 lightrec_emulate_block_list(struct lightrec_state *state,
 	inter.op = &block->opcode_list[offset];
 	inter.cycles = 0;
 	inter.delay_slot = false;
+	inter.shadow_regs = 0;
 
 	pc = lightrec_int_op(&inter);
 
