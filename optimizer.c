@@ -1111,6 +1111,64 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 	return 0;
 }
 
+static bool lightrec_can_switch_delay_slot(union code op, union code next_op)
+{
+	switch (op.i.op) {
+	case OP_SPECIAL:
+		switch (op.r.op) {
+		case OP_SPECIAL_JALR:
+			if (opcode_reads_register(next_op, op.r.rd) ||
+			    opcode_writes_register(next_op, op.r.rd))
+				return false;
+			fallthrough;
+		case OP_SPECIAL_JR:
+			if (opcode_writes_register(next_op, op.r.rs))
+				return false;
+			fallthrough;
+		default:
+			break;
+		}
+		fallthrough;
+	case OP_J:
+		break;
+	case OP_JAL:
+		if (opcode_reads_register(next_op, 31) ||
+		    opcode_writes_register(next_op, 31))
+			return false;;
+
+		break;
+	case OP_BEQ:
+	case OP_BNE:
+		if (op.i.rt && opcode_writes_register(next_op, op.i.rt))
+			return false;
+		fallthrough;
+	case OP_BLEZ:
+	case OP_BGTZ:
+		if (op.i.rs && opcode_writes_register(next_op, op.i.rs))
+			return false;
+		break;
+	case OP_REGIMM:
+		switch (op.r.rt) {
+		case OP_REGIMM_BLTZAL:
+		case OP_REGIMM_BGEZAL:
+			if (opcode_reads_register(next_op, 31) ||
+			    opcode_writes_register(next_op, 31))
+				return false;
+			fallthrough;
+		case OP_REGIMM_BLTZ:
+		case OP_REGIMM_BGEZ:
+			if (op.i.rs && opcode_writes_register(next_op, op.i.rs))
+				return false;
+			break;
+		}
+		fallthrough;
+	default:
+		break;
+	}
+
+	return true;
+}
+
 static int lightrec_switch_delay_slots(struct lightrec_state *state, struct block *block)
 {
 	struct opcode *list, *next = &block->opcode_list[0];
@@ -1136,59 +1194,8 @@ static int lightrec_switch_delay_slots(struct lightrec_state *state, struct bloc
 		if (op_flag_sync(next->flags))
 			continue;
 
-		switch (list->i.op) {
-		case OP_SPECIAL:
-			switch (op.r.op) {
-			case OP_SPECIAL_JALR:
-				if (opcode_reads_register(next_op, op.r.rd) ||
-				    opcode_writes_register(next_op, op.r.rd))
-					continue;
-				fallthrough;
-			case OP_SPECIAL_JR:
-				if (opcode_writes_register(next_op, op.r.rs))
-					continue;
-				fallthrough;
-			default:
-				break;
-			}
-			fallthrough;
-		case OP_J:
-			break;
-		case OP_JAL:
-			if (opcode_reads_register(next_op, 31) ||
-			    opcode_writes_register(next_op, 31))
-				continue;
-			else
-				break;
-		case OP_BEQ:
-		case OP_BNE:
-			if (op.i.rt && opcode_writes_register(next_op, op.i.rt))
-				continue;
-			fallthrough;
-		case OP_BLEZ:
-		case OP_BGTZ:
-			if (op.i.rs && opcode_writes_register(next_op, op.i.rs))
-				continue;
-			break;
-		case OP_REGIMM:
-			switch (op.r.rt) {
-			case OP_REGIMM_BLTZAL:
-			case OP_REGIMM_BGEZAL:
-				if (opcode_reads_register(next_op, 31) ||
-				    opcode_writes_register(next_op, 31))
-					continue;
-				fallthrough;
-			case OP_REGIMM_BLTZ:
-			case OP_REGIMM_BGEZ:
-				if (op.i.rs &&
-				    opcode_writes_register(next_op, op.i.rs))
-					continue;
-				break;
-			}
-			fallthrough;
-		default:
-			break;
-		}
+		if (!lightrec_can_switch_delay_slot(list->c, next_op))
+			continue;
 
 		pr_debug("Swap branch and delay slot opcodes "
 			 "at offsets 0x%x / 0x%x\n",
