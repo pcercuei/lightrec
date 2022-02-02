@@ -51,6 +51,45 @@ bool is_syscall(union code c)
 		 (c.r.rd == 12 || c.r.rd == 13));
 }
 
+static bool is_alu(union code op)
+{
+	switch (op.i.op) {
+	case OP_ADDI:
+	case OP_ADDIU:
+	case OP_SLTI:
+	case OP_SLTIU:
+	case OP_ANDI:
+	case OP_ORI:
+	case OP_XORI:
+	case OP_LUI:
+		return true;
+	case OP_SPECIAL:
+		switch (op.r.op) {
+		case OP_SPECIAL_SLL:
+		case OP_SPECIAL_SRL:
+		case OP_SPECIAL_SRA:
+		case OP_SPECIAL_SLLV:
+		case OP_SPECIAL_SRLV:
+		case OP_SPECIAL_SRAV:
+		case OP_SPECIAL_ADD:
+		case OP_SPECIAL_ADDU:
+		case OP_SPECIAL_SUB:
+		case OP_SPECIAL_SUBU:
+		case OP_SPECIAL_AND:
+		case OP_SPECIAL_OR:
+		case OP_SPECIAL_XOR:
+		case OP_SPECIAL_NOR:
+		case OP_SPECIAL_SLT:
+		case OP_SPECIAL_SLTU:
+			return true;
+		default:
+			return false;
+		}
+	default:
+		return false;
+	}
+}
+
 static u64 opcode_read_mask(union code op)
 {
 	switch (op.i.op) {
@@ -992,6 +1031,117 @@ static bool lightrec_can_switch_delay_slot(union code op, union code next_op)
 	return true;
 }
 
+static int lightrec_can_conditional_move(const struct opcode *list,
+					 unsigned int start, unsigned int end)
+{
+	for (; start < end; start++)
+		if (!is_alu(list[start].c) || (list[start].flags & LIGHTREC_SYNC))
+			return false;
+
+	return true;
+}
+
+static void lightrec_clear_sync(struct lightrec_state *state, struct block *block, u32 offset)
+{
+	struct opcode *list = block->opcode_list;
+	unsigned int i;
+	union code op;
+
+	for (i = 0; i < block->nb_ops - 1; i++) {
+		op = list[i].c;
+
+		switch (op.i.op) {
+		case OP_BEQ:
+		case OP_BNE:
+		case OP_BLEZ:
+		case OP_BGTZ:
+		case OP_REGIMM:
+			break;
+		default:
+			continue;
+		}
+
+		/* If we find any local branch pointing to this offset, return early. */
+		if (i + 1 + (s16)op.i.imm == offset)
+			return;
+	}
+
+	/* We found no branch pointing to this offset - clear the SYNC flag */
+	pr_debug("Clear sync flag at offset %u\n", offset);
+	list[offset].flags &= ~LIGHTREC_SYNC;
+}
+
+static int lightrec_conditional_moves(struct lightrec_state *state, struct block *block)
+{
+	struct opcode *list = block->opcode_list;
+	unsigned int i, idx_in, idx_out;
+	union code op;
+	u32 offset;
+	bool is_local, has_sync;
+
+	for (i = 0; i < block->nb_ops - 1; i++) {
+		op = list[i].c;
+
+		switch (op.i.op) {
+		case OP_BEQ:
+		case OP_BNE:
+			/* Verify that it's a forward BEQZ/BNEZ, and that all
+			 * instructions in-between the branch instruction and
+			 * the target are ALU opcodes. */
+			offset = i + 1 + (s16)op.i.imm;
+			if (offset > i && offset < block->nb_ops &&
+			    (op.i.rs == 0 || op.i.rt == 0) &&
+			    lightrec_can_conditional_move(list, i + 1, offset))
+				break;
+		default: /* fall-through */
+			continue;
+		}
+
+		if (!lightrec_can_switch_delay_slot(op, list[i + 1].c)) {
+			pr_debug("Conditional move at offset %u cannot be converted.\n", i);
+			continue;
+		}
+
+		pr_debug("Conditional move at offset %u\n", i);
+
+		is_local = list[i].flags & LIGHTREC_LOCAL_BRANCH;
+		has_sync = list[i].flags & LIGHTREC_SYNC;
+
+		/* Remove the branch, and compact the ALU opcodes. */
+		for (idx_in = i + 1, idx_out = i; idx_in < offset; idx_in++) {
+			if (is_nop(list[idx_in].c))
+				continue;
+
+			list[idx_out] = list[idx_in];
+			if (idx_in > i + 1)
+				list[idx_out].flags |= LIGHTREC_REG_SHADOW;
+			if (idx_out == i && has_sync)
+				list[idx_out].flags |= LIGHTREC_SYNC;
+
+			idx_out++;
+		}
+
+		/* Add COMMIT opcode */
+		list[idx_out].i.op = OP_META_COMMIT;
+		list[idx_out].r.rs = op.i.rs ?: op.i.rt;
+		list[idx_out].r.rd = op.i.op == OP_BNE;
+		list[idx_out].r.imm = offset - i - 2;
+		list[idx_out].flags = 0;
+		idx_out++;
+
+		/* Zero the rest of the space */
+		for (; idx_out < offset; idx_out++) {
+			list[idx_out].c.opcode = 0;
+			list[idx_out].flags = 0;
+		}
+
+		if (is_local)
+			lightrec_clear_sync(state, block, (u32) offset);
+	}
+
+	return 0;
+}
+
 static int lightrec_switch_delay_slots(struct lightrec_state *state, struct block *block)
 {
 	struct opcode *list, *next = &block->opcode_list[0];
@@ -1198,6 +1348,7 @@ static int lightrec_early_unload(struct lightrec_state *state, struct block *blo
 {
 	unsigned int i, offset;
 	struct opcode *op;
+	u32 shadows = 0;
 	u8 reg;
 
 	for (reg = 1; reg < 34; reg++) {
@@ -1206,10 +1357,19 @@ static int lightrec_early_unload(struct lightrec_state *state, struct block *blo
 		for (i = 0; i < block->nb_ops; i++) {
 			union code c = block->opcode_list[i].c;
 
-			if (opcode_reads_register(c, reg))
+			if (OPT_CONDITIONAL_MOVES && c.i.op == OP_META_COMMIT) {
+				if (shadows & BIT(reg))
+					last_w_id = i;
+				shadows = 0;
+			} else if (opcode_reads_register(c, reg)) {
 				last_r_id = i;
-			if (opcode_writes_register(c, reg))
-				last_w_id = i;
+			} else if (opcode_writes_register(c, reg)) {
+				if (OPT_CONDITIONAL_MOVES && is_alu(c) &&
+				    (block->opcode_list[i].flags & LIGHTREC_REG_SHADOW))
+					shadows |= BIT(reg);
+				else
+					last_w_id = i;
+			}
 		}
 
 		if (last_w_id > last_r_id)
@@ -1693,6 +1853,7 @@ static int (*lightrec_optimizers[])(struct lightrec_state *state, struct block *
 	IF_OPT(OPT_REPLACE_MEMSET, &lightrec_replace_memset),
 	IF_OPT(OPT_DETECT_IMPOSSIBLE_BRANCHES, &lightrec_detect_impossible_branches),
 	IF_OPT(OPT_LOCAL_BRANCHES, &lightrec_local_branches),
+	IF_OPT(OPT_CONDITIONAL_MOVES, &lightrec_conditional_moves),
 	IF_OPT(OPT_TRANSFORM_OPS, &lightrec_transform_ops),
 	IF_OPT(OPT_SWITCH_DELAY_SLOTS, &lightrec_switch_delay_slots),
 	IF_OPT(OPT_FLAG_IO || OPT_FLAG_STORES, &lightrec_flag_io),

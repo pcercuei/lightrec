@@ -66,6 +66,7 @@ option(OPT_REPLACE_MEMSET "(optimization) Detect and replace memset with host va
 option(OPT_DETECT_IMPOSSIBLE_BRANCHES "(optimization) Detect impossible branches" ON)
 option(OPT_TRANSFORM_OPS "(optimization) Transform opcodes" ON)
 option(OPT_LOCAL_BRANCHES "(optimization) Detect local branches" ON)
+option(OPT_CONDITIONAL_MOVES "(optimization) Detect conditional moves" ON)
 option(OPT_SWITCH_DELAY_SLOTS "(optimization) Switch delay slots" ON)
 option(OPT_FLAG_STORES "(optimization) Flag stores that don't require invalidation" ON)
 option(OPT_FLAG_IO "(optimization) Flag I/O opcodes whose target is known" ON)

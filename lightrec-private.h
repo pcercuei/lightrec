@@ -36,6 +36,12 @@
 #	define HTOLE16(x)	(x)
 #endif
 
+#ifdef _WIN32
+#	define popcount64(x) __popcnt64(x)
+#else
+#	define popcount64(x) __builtin_popcountll(x)
+#endif
+
 #if HAS_DEFAULT_ELM
 #define SET_DEFAULT_ELM(table, value) [0 ... ARRAY_SIZE(table) - 1] = value
 #else
