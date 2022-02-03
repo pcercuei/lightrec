@@ -927,7 +927,7 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 	lightrec_register(MEM_FOR_MIPS_CODE, length);
 
 	if (ENABLE_DISASSEMBLER) {
-		pr_debug("Disassembled block at PC: 0x%x\n", block->pc);
+		pr_debug("Disassembled block at PC: 0x%08x\n", block->pc);
 		lightrec_print_disassembly(block, code);
 	}
 
@@ -1154,7 +1154,7 @@ int lightrec_compile_block(struct lightrec_state *state, struct block *block)
 	block->code_size = code_size;
 
 	if (ENABLE_DISASSEMBLER) {
-		pr_debug("Compiling block at PC: 0x%x\n", block->pc);
+		pr_debug("Compiling block at PC: 0x%08x\n", block->pc);
 		jit_disassemble();
 	}
 
