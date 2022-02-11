@@ -247,6 +247,12 @@ void * lightrec_recompiler_run_first_pass(struct lightrec_state *state,
 {
 	bool freed;
 
+	/* If the block is already fully tagged, there is no point in running
+	 * the first pass. Request a recompilation of the block, and maybe the
+	 * interpreter will run the block in the meantime. */
+	if (block->flags & BLOCK_FULLY_TAGGED)
+		lightrec_recompiler_add(state->rec, block);
+
 	if (likely(block->function)) {
 		if (block->flags & BLOCK_FULLY_TAGGED) {
 			freed = atomic_flag_test_and_set(&block->op_list_freed);

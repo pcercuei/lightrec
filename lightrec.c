@@ -34,6 +34,7 @@
 
 static struct block * lightrec_precompile_block(struct lightrec_state *state,
 						u32 pc);
+static bool lightrec_block_is_fully_tagged(const struct block *block);
 
 static void lightrec_default_sb(struct lightrec_state *state, u32 opcode,
 				void *host, u32 addr, u8 data)
@@ -520,8 +521,12 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 		/* Block wasn't compiled yet - run the interpreter */
 		if (!ENABLE_THREADED_COMPILER &&
 		    ((ENABLE_FIRST_PASS && likely(!should_recompile)) ||
-		     unlikely(block->flags & BLOCK_NEVER_COMPILE)))
-			pc = lightrec_emulate_block(state, block, pc);
+		     unlikely(block->flags & BLOCK_NEVER_COMPILE))) {
+			if (block->flags & BLOCK_FULLY_TAGGED)
+				pr_debug("Block fully tagged, skipping first pass\n");
+			else
+				pc = lightrec_emulate_block(state, block, pc);
+		}
 
 		if (likely(!(block->flags & BLOCK_NEVER_COMPILE))) {
 			/* Then compile it using the profiled data */
@@ -887,6 +892,7 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 	const struct lightrec_mem_map *map = lightrec_get_map(state, &host, kunseg(pc));
 	const u32 *code = (u32 *) host;
 	unsigned int length;
+	bool fully_tagged;
 
 	if (!map)
 		return NULL;
@@ -933,6 +939,10 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 	 * block */
 	if (should_emulate(block->opcode_list))
 		block->flags |= BLOCK_NEVER_COMPILE;
+
+	fully_tagged = lightrec_block_is_fully_tagged(block);
+	if (fully_tagged)
+		block->flags |= BLOCK_FULLY_TAGGED;
 
 	if (OPT_REPLACE_MEMSET && (block->flags & BLOCK_IS_MEMSET))
 		state->code_lut[lut_offset(pc)] = state->memset_func;
