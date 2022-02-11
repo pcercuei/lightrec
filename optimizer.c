@@ -1158,12 +1158,14 @@ static int lightrec_early_unload(struct lightrec_state *state, struct block *blo
 	return 0;
 }
 
-static int lightrec_flag_stores(struct lightrec_state *state, struct block *block)
+static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 {
+	const struct lightrec_mem_map *map;
 	struct opcode *list;
 	u32 known = BIT(0);
 	u32 values[32] = { 0 };
 	unsigned int i;
+	u32 val;
 
 	for (i = 0; i < block->nb_ops; i++) {
 		list = &block->opcode_list[i];
@@ -1176,27 +1178,55 @@ static int lightrec_flag_stores(struct lightrec_state *state, struct block *bloc
 		case OP_SB:
 		case OP_SH:
 		case OP_SW:
-			/* Mark all store operations that target $sp or $gp
-			 * as not requiring code invalidation. This is based
-			 * on the heuristic that stores using one of these
-			 * registers as address will never hit a code page. */
-			if (list->i.rs >= 28 && list->i.rs <= 29 &&
-			    !state->maps[PSX_MAP_KERNEL_USER_RAM].ops) {
-				pr_debug("Flaging opcode 0x%08x as not requiring invalidation\n",
-					 list->opcode);
-				list->flags |= LIGHTREC_NO_INVALIDATE;
-			}
+			if (OPT_FLAG_STORES) {
+				/* Mark all store operations that target $sp or $gp
+				 * as not requiring code invalidation. This is based
+				 * on the heuristic that stores using one of these
+				 * registers as address will never hit a code page. */
+				if (list->i.rs >= 28 && list->i.rs <= 29 &&
+				    !state->maps[PSX_MAP_KERNEL_USER_RAM].ops) {
+					pr_debug("Flaging opcode 0x%08x as not "
+						 "requiring invalidation\n",
+						 list->opcode);
+					list->flags |= LIGHTREC_NO_INVALIDATE;
+				}
 
-			/* Detect writes whose destination address is inside the
-			 * current block, using constant propagation. When these
-			 * occur, we mark the blocks as not compilable. */
-			if ((known & BIT(list->i.rs)) &&
-			    kunseg(values[list->i.rs]) >= kunseg(block->pc) &&
-			    kunseg(values[list->i.rs]) < (kunseg(block->pc) +
-							  block->nb_ops * 4)) {
-				pr_debug("Self-modifying block detected\n");
-				block->flags |= BLOCK_NEVER_COMPILE;
-				list->flags |= LIGHTREC_SMC;
+				/* Detect writes whose destination address is inside the
+				 * current block, using constant propagation. When these
+				 * occur, we mark the blocks as not compilable. */
+				if ((known & BIT(list->i.rs)) &&
+				    kunseg(values[list->i.rs]) >= kunseg(block->pc) &&
+				    kunseg(values[list->i.rs]) < (kunseg(block->pc) +
+								  block->nb_ops * 4)) {
+					pr_debug("Self-modifying block detected\n");
+					block->flags |= BLOCK_NEVER_COMPILE;
+					list->flags |= LIGHTREC_SMC;
+				}
+			}
+		case OP_SWL: /* fall-through */
+		case OP_SWR:
+		case OP_SWC2:
+		case OP_LB:
+		case OP_LBU:
+		case OP_LH:
+		case OP_LHU:
+		case OP_LW:
+		case OP_LWL:
+		case OP_LWR:
+		case OP_LWC2:
+			if (OPT_FLAG_IO && (known & BIT(list->i.rs))) {
+				val = kunseg(values[list->i.rs] + (s16) list->i.imm);
+				map = lightrec_get_map(state, NULL, val);
+
+				if (!map || map->ops ||
+				    map == &state->maps[PSX_MAP_PARALLEL_PORT]) {
+					pr_debug("Flagging opcode %u as accessing I/O registers\n",
+						 i);
+					list->flags |= LIGHTREC_HW_IO;
+				} else {
+					pr_debug("Flaging opcode %u as direct memory access\n", i);
+					list->flags |= LIGHTREC_DIRECT_IO;
+				}
 			}
 		default: /* fall-through */
 			break;
@@ -1590,7 +1620,7 @@ static int (*lightrec_optimizers[])(struct lightrec_state *state, struct block *
 	IF_OPT(OPT_LOCAL_BRANCHES, &lightrec_local_branches),
 	IF_OPT(OPT_TRANSFORM_OPS, &lightrec_transform_ops),
 	IF_OPT(OPT_SWITCH_DELAY_SLOTS, &lightrec_switch_delay_slots),
-	IF_OPT(OPT_FLAG_STORES, &lightrec_flag_stores),
+	IF_OPT(OPT_FLAG_IO || OPT_FLAG_STORES, &lightrec_flag_io),
 	IF_OPT(OPT_FLAG_MULT_DIV, &lightrec_flag_mults_divs),
 	IF_OPT(OPT_EARLY_UNLOAD, &lightrec_early_unload),
 };
