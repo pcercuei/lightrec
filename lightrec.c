@@ -198,9 +198,8 @@ static void lightrec_invalidate_map(struct lightrec_state *state,
 	}
 }
 
-static const struct lightrec_mem_map *
-lightrec_get_map(struct lightrec_state *state,
-		 void **host, u32 kaddr)
+const struct lightrec_mem_map *
+lightrec_get_map(struct lightrec_state *state, void **host, u32 kaddr)
 {
 	const struct lightrec_mem_map *map;
 	unsigned int i;

@@ -149,6 +149,9 @@ void lightrec_free_block(struct lightrec_state *state, struct block *block);
 
 void remove_from_code_lut(struct blockcache *cache, struct block *block);
 
+const struct lightrec_mem_map *
+lightrec_get_map(struct lightrec_state *state, void **host, u32 kaddr);
+
 static inline u32 kunseg(u32 addr)
 {
 	if (unlikely(addr >= 0xa0000000))
