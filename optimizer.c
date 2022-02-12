@@ -781,38 +781,39 @@ static void lightrec_optimize_sll_sra(struct opcode *list, unsigned int offset)
 
 static int lightrec_transform_ops(struct lightrec_state *state, struct block *block)
 {
-	struct opcode *list;
+	struct opcode *list = block->opcode_list;
+	struct opcode *op;
 	unsigned int i;
 
 	for (i = 0; i < block->nb_ops; i++) {
-		list = &block->opcode_list[i];
+		op = &list[i];
 
 		/* Transform all opcodes detected as useless to real NOPs
 		 * (0x0: SLL r0, r0, #0) */
-		if (list->opcode != 0 && is_nop(list->c)) {
+		if (op->opcode != 0 && is_nop(op->c)) {
 			pr_debug("Converting useless opcode 0x%08x to NOP\n",
-					list->opcode);
-			list->opcode = 0x0;
+					op->opcode);
+			op->opcode = 0x0;
 		}
 
-		if (!list->opcode)
+		if (!op->opcode)
 			continue;
 
-		switch (list->i.op) {
+		switch (op->i.op) {
 		case OP_BEQ:
-			if (list->i.rs == list->i.rt) {
-				list->i.rs = 0;
-				list->i.rt = 0;
-			} else if (list->i.rs == 0) {
-				list->i.rs = list->i.rt;
-				list->i.rt = 0;
+			if (op->i.rs == op->i.rt) {
+				op->i.rs = 0;
+				op->i.rt = 0;
+			} else if (op->i.rs == 0) {
+				op->i.rs = op->i.rt;
+				op->i.rt = 0;
 			}
 			break;
 
 		case OP_BNE:
-			if (list->i.rs == 0) {
-				list->i.rs = list->i.rt;
-				list->i.rt = 0;
+			if (op->i.rs == 0) {
+				op->i.rs = op->i.rt;
+				op->i.rt = 0;
 			}
 			break;
 
@@ -821,19 +822,19 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 		case OP_ORI:
 		case OP_ADDI:
 		case OP_ADDIU:
-			if (list->i.imm == 0) {
+			if (op->i.imm == 0) {
 				pr_debug("Convert ORI/ADDI/ADDIU #0 to MOV\n");
-				list->i.op = OP_META_MOV;
-				list->r.rd = list->i.rt;
+				op->i.op = OP_META_MOV;
+				op->r.rd = op->i.rt;
 			}
 			break;
 		case OP_SPECIAL:
-			switch (list->r.op) {
+			switch (op->r.op) {
 			case OP_SPECIAL_SRA:
-				if (list->r.imm == 0) {
+				if (op->r.imm == 0) {
 					pr_debug("Convert SRA #0 to MOV\n");
-					list->i.op = OP_META_MOV;
-					list->r.rs = list->r.rt;
+					op->i.op = OP_META_MOV;
+					op->r.rs = op->r.rt;
 					break;
 				}
 
@@ -841,25 +842,25 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 				break;
 			case OP_SPECIAL_SLL:
 			case OP_SPECIAL_SRL:
-				if (list->r.imm == 0) {
+				if (op->r.imm == 0) {
 					pr_debug("Convert SLL/SRL #0 to MOV\n");
-					list->i.op = OP_META_MOV;
-					list->r.rs = list->r.rt;
+					op->i.op = OP_META_MOV;
+					op->r.rs = op->r.rt;
 				}
 				break;
 			case OP_SPECIAL_OR:
 			case OP_SPECIAL_ADD:
 			case OP_SPECIAL_ADDU:
-				if (list->r.rs == 0) {
+				if (op->r.rs == 0) {
 					pr_debug("Convert OR/ADD $zero to MOV\n");
-					list->i.op = OP_META_MOV;
-					list->r.rs = list->r.rt;
+					op->i.op = OP_META_MOV;
+					op->r.rs = op->r.rt;
 				}
 			case OP_SPECIAL_SUB: /* fall-through */
 			case OP_SPECIAL_SUBU:
-				if (list->r.rt == 0) {
+				if (op->r.rt == 0) {
 					pr_debug("Convert OR/ADD/SUB $zero to MOV\n");
-					list->i.op = OP_META_MOV;
+					op->i.op = OP_META_MOV;
 				}
 			default: /* fall-through */
 				break;
