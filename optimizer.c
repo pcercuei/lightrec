@@ -236,6 +236,32 @@ static int find_prev_writer(const struct opcode *list, unsigned int offset, u8 r
 	return -1;
 }
 
+static int find_next_reader(const struct opcode *list, unsigned int offset, u8 reg)
+{
+	unsigned int i;
+	union code c;
+
+	if (list[offset].flags & LIGHTREC_SYNC)
+		return -1;
+
+	for (i = offset; ; i++) {
+		c = list[i].c;
+
+		if (opcode_reads_register(c, reg)) {
+			if (i > 0 && has_delay_slot(list[i - 1].c))
+				break;
+
+			return i;
+		}
+
+		if ((list[i].flags & LIGHTREC_SYNC) ||
+		    has_delay_slot(c) || opcode_writes_register(c, reg))
+			break;
+	}
+
+	return -1;
+}
+
 static bool reg_is_dead(const struct opcode *list, unsigned int offset, u8 reg)
 {
 	unsigned int i;
@@ -791,6 +817,7 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 	u32 known = BIT(0);
 	u32 values[32] = { 0 };
 	unsigned int i;
+	int reader;
 
 	for (i = 0; i < block->nb_ops; i++) {
 		op = &list[i];
@@ -833,6 +860,24 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 			    (known & BIT(op->i.rt)) &&
 			    values[op->i.rt] == op->i.imm << 16) {
 				pr_debug("Converting duplicated LUI to NOP\n");
+				op->opcode = 0x0;
+			}
+
+			if (op->i.imm != 0 || op->i.rt == 0)
+				break;
+
+			reader = find_next_reader(list, i + 1, op->i.rt);
+			if (reader > 0 &&
+			    (opcode_writes_register(list[reader].c, op->i.rt) ||
+			     reg_is_dead(list, reader, op->i.rt))) {
+
+				pr_debug("Removing useless LUI 0x0\n");
+
+				if (list[reader].i.rs == op->i.rt)
+					list[reader].i.rs = 0;
+				if (list[reader].i.op == OP_SPECIAL &&
+				    list[reader].i.rt == op->i.rt)
+					list[reader].i.rt = 0;
 				op->opcode = 0x0;
 			}
 			break;
