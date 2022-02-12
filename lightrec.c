@@ -518,22 +518,20 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 		if (likely(func))
 			break;
 
-		/* Block wasn't compiled yet - run the interpreter */
-		if (!ENABLE_THREADED_COMPILER &&
-		    ((ENABLE_FIRST_PASS && likely(!should_recompile)) ||
-		     unlikely(block->flags & BLOCK_NEVER_COMPILE))) {
+		if (unlikely(block->flags & BLOCK_NEVER_COMPILE)) {
+			pc = lightrec_emulate_block(state, block, pc);
+
+		} else if (!ENABLE_THREADED_COMPILER) {
+			/* Block wasn't compiled yet - run the interpreter */
 			if (block->flags & BLOCK_FULLY_TAGGED)
 				pr_debug("Block fully tagged, skipping first pass\n");
-			else
+			else if (ENABLE_FIRST_PASS && likely(!should_recompile))
 				pc = lightrec_emulate_block(state, block, pc);
-		}
 
-		if (likely(!(block->flags & BLOCK_NEVER_COMPILE))) {
 			/* Then compile it using the profiled data */
-			if (ENABLE_THREADED_COMPILER)
-				lightrec_recompiler_add(state->rec, block);
-			else
-				lightrec_compile_block(state, block);
+			lightrec_compile_block(state, block);
+		} else {
+			lightrec_recompiler_add(state->rec, block);
 		}
 
 		if (state->exit_flags != LIGHTREC_EXIT_NORMAL ||

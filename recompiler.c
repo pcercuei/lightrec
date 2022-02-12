@@ -247,6 +247,11 @@ void * lightrec_recompiler_run_first_pass(struct lightrec_state *state,
 {
 	bool freed;
 
+	/* There's no point in running the first pass if the block will never
+	 * be compiled. Let the main loop run the interpreter instead. */
+	if (block->flags & BLOCK_NEVER_COMPILE)
+		return NULL;
+
 	/* If the block is already fully tagged, there is no point in running
 	 * the first pass. Request a recompilation of the block, and maybe the
 	 * interpreter will run the block in the meantime. */
