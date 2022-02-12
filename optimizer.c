@@ -433,8 +433,13 @@ bool load_in_delay_slot(union code op)
 	return false;
 }
 
-static u32 lightrec_propagate_consts(union code c, u32 known, u32 *v)
+static u32 lightrec_propagate_consts(const struct opcode *op, u32 known, u32 *v)
 {
+	union code c = op->c;
+
+	if (op->flags & LIGHTREC_SYNC)
+		return 0;
+
 	switch (c.i.op) {
 	case OP_SPECIAL:
 		switch (c.r.op) {
@@ -783,6 +788,8 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 {
 	struct opcode *list = block->opcode_list;
 	struct opcode *op;
+	u32 known = BIT(0);
+	u32 values[32] = { 0 };
 	unsigned int i;
 
 	for (i = 0; i < block->nb_ops; i++) {
@@ -799,6 +806,10 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 		if (!op->opcode)
 			continue;
 
+		/* Register $zero is always, well, zero */
+		known |= BIT(0);
+		values[0] = 0;
+
 		switch (op->i.op) {
 		case OP_BEQ:
 			if (op->i.rs == op->i.rt) {
@@ -814,6 +825,15 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 			if (op->i.rs == 0) {
 				op->i.rs = op->i.rt;
 				op->i.rt = 0;
+			}
+			break;
+
+		case OP_LUI:
+			if (!(op->flags & LIGHTREC_SYNC) &&
+			    (known & BIT(op->i.rt)) &&
+			    values[op->i.rt] == op->i.imm << 16) {
+				pr_debug("Converting duplicated LUI to NOP\n");
+				op->opcode = 0x0;
 			}
 			break;
 
@@ -868,6 +888,8 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 		default: /* fall-through */
 			break;
 		}
+
+		known = lightrec_propagate_consts(op, known, values);
 	}
 
 	return 0;
@@ -1233,7 +1255,7 @@ static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 			break;
 		}
 
-		known = lightrec_propagate_consts(list->c, known, values);
+		known = lightrec_propagate_consts(list, known, values);
 	}
 
 	return 0;
