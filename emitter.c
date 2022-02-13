@@ -1104,6 +1104,7 @@ static void rec_store_direct_no_invalidate(struct lightrec_state *state,
 static void rec_store_direct(struct lightrec_state *state, const struct block *block,
 			     u16 offset, jit_code_t code)
 {
+	u32 ram_size = state->mirrors_mapped ? RAM_SIZE * 4 : RAM_SIZE;
 	struct regcache *reg_cache = state->reg_cache;
 	union code c = block->opcode_list[offset].c;
 	jit_state_t *_jit = block->_jit;
@@ -1119,15 +1120,15 @@ static void rec_store_direct(struct lightrec_state *state, const struct block *b
 	/* Convert to KUNSEG and avoid RAM mirrors */
 	if (c.i.imm) {
 		jit_addi(tmp2, rs, (s16)c.i.imm);
-		jit_andi(tmp2, tmp2, 0x1f800000 | (RAM_SIZE - 1));
+		jit_andi(tmp2, tmp2, 0x1f800000 | (ram_size - 1));
 	} else {
-		jit_andi(tmp2, rs, 0x1f800000 | (RAM_SIZE - 1));
+		jit_andi(tmp2, rs, 0x1f800000 | (ram_size - 1));
 	}
 
 	lightrec_free_reg(reg_cache, rs);
 	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
 
-	to_not_ram = jit_bgti(tmp2, RAM_SIZE);
+	to_not_ram = jit_bgti(tmp2, ram_size);
 
 	lightrec_regcache_mark_live(reg_cache, _jit);
 
