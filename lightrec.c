@@ -18,6 +18,7 @@
 #include "optimizer.h"
 
 #include <errno.h>
+#include <inttypes.h>
 #include <limits.h>
 #if ENABLE_THREADED_COMPILER
 #include <stdatomic.h>
@@ -652,7 +653,7 @@ static u32 lightrec_memset(struct lightrec_state *state)
 		return 0;
 	}
 
-	pr_debug("Calling host memset, PC 0x%x (host address 0x%lx) for %u bytes\n",
+	pr_debug("Calling host memset, PC 0x%x (host address 0x%" PRIxPTR ") for %u bytes\n",
 		 kunseg_pc, (uintptr_t)host, length);
 	memset(host, 0, length);
 
