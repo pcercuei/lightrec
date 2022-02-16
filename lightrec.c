@@ -1455,16 +1455,6 @@ u32 lightrec_exit_flags(struct lightrec_state *state)
 	return state->exit_flags;
 }
 
-void lightrec_dump_registers(struct lightrec_state *state, u32 regs[34])
-{
-	memcpy(regs, &state->regs.gpr, sizeof(state->regs.gpr));
-}
-
-void lightrec_restore_registers(struct lightrec_state *state, u32 regs[34])
-{
-	memcpy(&state->regs.gpr, regs, sizeof(state->regs.gpr));
-}
-
 u32 lightrec_current_cycle_count(const struct lightrec_state *state)
 {
 	return state->current_cycle;
