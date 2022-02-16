@@ -1487,3 +1487,8 @@ void lightrec_set_target_cycle_count(struct lightrec_state *state, u32 cycles)
 		state->target_cycle = cycles;
 	}
 }
+
+struct lightrec_registers * lightrec_get_registers(struct lightrec_state *state)
+{
+	return &state->regs;
+}

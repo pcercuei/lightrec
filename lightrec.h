@@ -120,6 +120,7 @@ __api u32 lightrec_exit_flags(struct lightrec_state *state);
 __api void lightrec_dump_registers(struct lightrec_state *state, u32 regs[34]);
 __api void lightrec_restore_registers(struct lightrec_state *state,
 				      u32 regs[34]);
+__api struct lightrec_registers * lightrec_get_registers(struct lightrec_state *state);
 
 __api u32 lightrec_current_cycle_count(const struct lightrec_state *state);
 __api void lightrec_reset_cycle_count(struct lightrec_state *state, u32 cycles);
