@@ -142,7 +142,7 @@ static bool is_branch_taken(const u32 *reg_cache, union code op)
 static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 {
 	struct lightrec_state *state = inter->state;
-	u32 *reg_cache = state->native_reg_cache;
+	u32 *reg_cache = state->regs.gpr;
 	struct opcode new_op, *op = next_op(inter);
 	union code op_next;
 	struct interpreter inter2 = {
@@ -327,7 +327,7 @@ static u32 int_jump(struct interpreter *inter, bool link)
 	u32 pc = (old_pc & 0xf0000000) | (inter->op->j.imm << 2);
 
 	if (link)
-		state->native_reg_cache[31] = old_pc + 8;
+		state->regs.gpr[31] = old_pc + 8;
 
 	if (inter->op->flags & LIGHTREC_NO_DS)
 		return pc;
@@ -348,11 +348,11 @@ static u32 int_JAL(struct interpreter *inter)
 static u32 int_jumpr(struct interpreter *inter, u8 link_reg)
 {
 	struct lightrec_state *state = inter->state;
-	u32 old_pc, next_pc = state->native_reg_cache[inter->op->r.rs];
+	u32 old_pc, next_pc = state->regs.gpr[inter->op->r.rs];
 
 	if (link_reg) {
 		old_pc = int_get_branch_pc(inter);
-		state->native_reg_cache[link_reg] = old_pc + 8;
+		state->regs.gpr[link_reg] = old_pc + 8;
 	}
 
 	if (inter->op->flags & LIGHTREC_NO_DS)
@@ -413,8 +413,8 @@ static u32 int_beq(struct interpreter *inter, bool bne)
 {
 	u32 rs, rt, old_pc = int_get_branch_pc(inter);
 
-	rs = inter->state->native_reg_cache[inter->op->i.rs];
-	rt = inter->state->native_reg_cache[inter->op->i.rt];
+	rs = inter->state->regs.gpr[inter->op->i.rs];
+	rt = inter->state->regs.gpr[inter->op->i.rt];
 
 	return int_branch(inter, old_pc, inter->op->c, (rs == rt) ^ bne);
 }
@@ -435,9 +435,9 @@ static u32 int_bgez(struct interpreter *inter, bool link, bool lt, bool regimm)
 	s32 rs;
 
 	if (link)
-		inter->state->native_reg_cache[31] = old_pc + 8;
+		inter->state->regs.gpr[31] = old_pc + 8;
 
-	rs = (s32)inter->state->native_reg_cache[inter->op->i.rs];
+	rs = (s32)inter->state->regs.gpr[inter->op->i.rs];
 
 	return int_branch(inter, old_pc, inter->op->c,
 			  ((regimm && !rs) || rs > 0) ^ lt);
@@ -482,7 +482,7 @@ static u32 int_cfc(struct interpreter *inter)
 	val = lightrec_mfc(state, op->c);
 
 	if (likely(op->r.rt))
-		state->native_reg_cache[op->r.rt] = val;
+		state->regs.gpr[op->r.rt] = val;
 
 	return jump_next(inter);
 }
@@ -492,7 +492,7 @@ static u32 int_ctc(struct interpreter *inter)
 	struct lightrec_state *state = inter->state;
 	const struct opcode *op = inter->op;
 
-	lightrec_mtc(state, op->c, state->native_reg_cache[op->r.rt]);
+	lightrec_mtc(state, op->c, state->regs.gpr[op->r.rt]);
 
 	/* If we have a MTC0 or CTC0 to CP0 register 12 (Status) or 13 (Cause),
 	 * return early so that the emulator will be able to check software
@@ -539,7 +539,7 @@ static u32 int_CP(struct interpreter *inter)
 
 static u32 int_ADDI(struct interpreter *inter)
 {
-	u32 *reg_cache = inter->state->native_reg_cache;
+	u32 *reg_cache = inter->state->regs.gpr;
 	struct opcode_i *op = &inter->op->i;
 
 	if (likely(op->rt))
@@ -550,7 +550,7 @@ static u32 int_ADDI(struct interpreter *inter)
 
 static u32 int_SLTI(struct interpreter *inter)
 {
-	u32 *reg_cache = inter->state->native_reg_cache;
+	u32 *reg_cache = inter->state->regs.gpr;
 	struct opcode_i *op = &inter->op->i;
 
 	if (likely(op->rt))
@@ -561,7 +561,7 @@ static u32 int_SLTI(struct interpreter *inter)
 
 static u32 int_SLTIU(struct interpreter *inter)
 {
-	u32 *reg_cache = inter->state->native_reg_cache;
+	u32 *reg_cache = inter->state->regs.gpr;
 	struct opcode_i *op = &inter->op->i;
 
 	if (likely(op->rt))
@@ -572,7 +572,7 @@ static u32 int_SLTIU(struct interpreter *inter)
 
 static u32 int_ANDI(struct interpreter *inter)
 {
-	u32 *reg_cache = inter->state->native_reg_cache;
+	u32 *reg_cache = inter->state->regs.gpr;
 	struct opcode_i *op = &inter->op->i;
 
 	if (likely(op->rt))
@@ -583,7 +583,7 @@ static u32 int_ANDI(struct interpreter *inter)
 
 static u32 int_ORI(struct interpreter *inter)
 {
-	u32 *reg_cache = inter->state->native_reg_cache;
+	u32 *reg_cache = inter->state->regs.gpr;
 	struct opcode_i *op = &inter->op->i;
 
 	if (likely(op->rt))
@@ -594,7 +594,7 @@ static u32 int_ORI(struct interpreter *inter)
 
 static u32 int_XORI(struct interpreter *inter)
 {
-	u32 *reg_cache = inter->state->native_reg_cache;
+	u32 *reg_cache = inter->state->regs.gpr;
 	struct opcode_i *op = &inter->op->i;
 
 	if (likely(op->rt))
@@ -607,7 +607,7 @@ static u32 int_LUI(struct interpreter *inter)
 {
 	struct opcode_i *op = &inter->op->i;
 
-	inter->state->native_reg_cache[op->rt] = op->imm << 16;
+	inter->state->regs.gpr[op->rt] = op->imm << 16;
 
 	return jump_next(inter);
 }
@@ -615,7 +615,7 @@ static u32 int_LUI(struct interpreter *inter)
 static u32 int_io(struct interpreter *inter, bool is_load)
 {
 	struct opcode_i *op = &inter->op->i;
-	u32 *reg_cache = inter->state->native_reg_cache;
+	u32 *reg_cache = inter->state->regs.gpr;
 	u32 val;
 
 	val = lightrec_rw(inter->state, inter->op->c,
@@ -641,8 +641,8 @@ static u32 int_store(struct interpreter *inter)
 		return int_io(inter, false);
 
 	lightrec_rw(inter->state, inter->op->c,
-		    inter->state->native_reg_cache[inter->op->i.rs],
-		    inter->state->native_reg_cache[inter->op->i.rt],
+		    inter->state->regs.gpr[inter->op->i.rs],
+		    inter->state->regs.gpr[inter->op->i.rt],
 		    &inter->op->flags, inter->block);
 
 	next_pc = int_get_ds_pc(inter, 1);
@@ -664,8 +664,8 @@ static u32 int_special_SLL(struct interpreter *inter)
 	u32 rt;
 
 	if (op->opcode) { /* Handle NOPs */
-		rt = inter->state->native_reg_cache[op->r.rt];
-		inter->state->native_reg_cache[op->r.rd] = rt << op->r.imm;
+		rt = inter->state->regs.gpr[op->r.rt];
+		inter->state->regs.gpr[op->r.rd] = rt << op->r.imm;
 	}
 
 	return jump_next(inter);
@@ -674,9 +674,9 @@ static u32 int_special_SLL(struct interpreter *inter)
 static u32 int_special_SRL(struct interpreter *inter)
 {
 	struct opcode *op = inter->op;
-	u32 rt = inter->state->native_reg_cache[op->r.rt];
+	u32 rt = inter->state->regs.gpr[op->r.rt];
 
-	inter->state->native_reg_cache[op->r.rd] = rt >> op->r.imm;
+	inter->state->regs.gpr[op->r.rd] = rt >> op->r.imm;
 
 	return jump_next(inter);
 }
@@ -684,9 +684,9 @@ static u32 int_special_SRL(struct interpreter *inter)
 static u32 int_special_SRA(struct interpreter *inter)
 {
 	struct opcode *op = inter->op;
-	s32 rt = inter->state->native_reg_cache[op->r.rt];
+	s32 rt = inter->state->regs.gpr[op->r.rt];
 
-	inter->state->native_reg_cache[op->r.rd] = rt >> op->r.imm;
+	inter->state->regs.gpr[op->r.rd] = rt >> op->r.imm;
 
 	return jump_next(inter);
 }
@@ -694,10 +694,10 @@ static u32 int_special_SRA(struct interpreter *inter)
 static u32 int_special_SLLV(struct interpreter *inter)
 {
 	struct opcode *op = inter->op;
-	u32 rs = inter->state->native_reg_cache[op->r.rs];
-	u32 rt = inter->state->native_reg_cache[op->r.rt];
+	u32 rs = inter->state->regs.gpr[op->r.rs];
+	u32 rt = inter->state->regs.gpr[op->r.rt];
 
-	inter->state->native_reg_cache[op->r.rd] = rt << (rs & 0x1f);
+	inter->state->regs.gpr[op->r.rd] = rt << (rs & 0x1f);
 
 	return jump_next(inter);
 }
@@ -705,10 +705,10 @@ static u32 int_special_SLLV(struct interpreter *inter)
 static u32 int_special_SRLV(struct interpreter *inter)
 {
 	struct opcode *op = inter->op;
-	u32 rs = inter->state->native_reg_cache[op->r.rs];
-	u32 rt = inter->state->native_reg_cache[op->r.rt];
+	u32 rs = inter->state->regs.gpr[op->r.rs];
+	u32 rt = inter->state->regs.gpr[op->r.rt];
 
-	inter->state->native_reg_cache[op->r.rd] = rt >> (rs & 0x1f);
+	inter->state->regs.gpr[op->r.rd] = rt >> (rs & 0x1f);
 
 	return jump_next(inter);
 }
@@ -716,10 +716,10 @@ static u32 int_special_SRLV(struct interpreter *inter)
 static u32 int_special_SRAV(struct interpreter *inter)
 {
 	struct opcode *op = inter->op;
-	u32 rs = inter->state->native_reg_cache[op->r.rs];
-	s32 rt = inter->state->native_reg_cache[op->r.rt];
+	u32 rs = inter->state->regs.gpr[op->r.rs];
+	s32 rt = inter->state->regs.gpr[op->r.rt];
 
-	inter->state->native_reg_cache[op->r.rd] = rt >> (rs & 0x1f);
+	inter->state->regs.gpr[op->r.rd] = rt >> (rs & 0x1f);
 
 	return jump_next(inter);
 }
@@ -737,7 +737,7 @@ static u32 int_syscall_break(struct interpreter *inter)
 
 static u32 int_special_MFHI(struct interpreter *inter)
 {
-	u32 *reg_cache = inter->state->native_reg_cache;
+	u32 *reg_cache = inter->state->regs.gpr;
 	struct opcode_r *op = &inter->op->r;
 
 	if (likely(op->rd))
@@ -748,7 +748,7 @@ static u32 int_special_MFHI(struct interpreter *inter)
 
 static u32 int_special_MTHI(struct interpreter *inter)
 {
-	u32 *reg_cache = inter->state->native_reg_cache;
+	u32 *reg_cache = inter->state->regs.gpr;
 
 	reg_cache[REG_HI] = reg_cache[inter->op->r.rs];
 
@@ -757,7 +757,7 @@ static u32 int_special_MTHI(struct interpreter *inter)
 
 static u32 int_special_MFLO(struct interpreter *inter)
 {
-	u32 *reg_cache = inter->state->native_reg_cache;
+	u32 *reg_cache = inter->state->regs.gpr;
 	struct opcode_r *op = &inter->op->r;
 
 	if (likely(op->rd))
@@ -768,7 +768,7 @@ static u32 int_special_MFLO(struct interpreter *inter)
 
 static u32 int_special_MTLO(struct interpreter *inter)
 {
-	u32 *reg_cache = inter->state->native_reg_cache;
+	u32 *reg_cache = inter->state->regs.gpr;
 
 	reg_cache[REG_LO] = reg_cache[inter->op->r.rs];
 
@@ -777,7 +777,7 @@ static u32 int_special_MTLO(struct interpreter *inter)
 
 static u32 int_special_MULT(struct interpreter *inter)
 {
-	u32 *reg_cache = inter->state->native_reg_cache;
+	u32 *reg_cache = inter->state->regs.gpr;
 	s32 rs = reg_cache[inter->op->r.rs];
 	s32 rt = reg_cache[inter->op->r.rt];
 	u8 reg_lo = get_mult_div_lo(inter->op->c);
@@ -794,7 +794,7 @@ static u32 int_special_MULT(struct interpreter *inter)
 
 static u32 int_special_MULTU(struct interpreter *inter)
 {
-	u32 *reg_cache = inter->state->native_reg_cache;
+	u32 *reg_cache = inter->state->regs.gpr;
 	u32 rs = reg_cache[inter->op->r.rs];
 	u32 rt = reg_cache[inter->op->r.rt];
 	u8 reg_lo = get_mult_div_lo(inter->op->c);
@@ -811,7 +811,7 @@ static u32 int_special_MULTU(struct interpreter *inter)
 
 static u32 int_special_DIV(struct interpreter *inter)
 {
-	u32 *reg_cache = inter->state->native_reg_cache;
+	u32 *reg_cache = inter->state->regs.gpr;
 	s32 rs = reg_cache[inter->op->r.rs];
 	s32 rt = reg_cache[inter->op->r.rt];
 	u8 reg_lo = get_mult_div_lo(inter->op->c);
@@ -836,7 +836,7 @@ static u32 int_special_DIV(struct interpreter *inter)
 
 static u32 int_special_DIVU(struct interpreter *inter)
 {
-	u32 *reg_cache = inter->state->native_reg_cache;
+	u32 *reg_cache = inter->state->regs.gpr;
 	u32 rs = reg_cache[inter->op->r.rs];
 	u32 rt = reg_cache[inter->op->r.rt];
 	u8 reg_lo = get_mult_div_lo(inter->op->c);
@@ -861,7 +861,7 @@ static u32 int_special_DIVU(struct interpreter *inter)
 
 static u32 int_special_ADD(struct interpreter *inter)
 {
-	u32 *reg_cache = inter->state->native_reg_cache;
+	u32 *reg_cache = inter->state->regs.gpr;
 	struct opcode_r *op = &inter->op->r;
 	s32 rs = reg_cache[op->rs];
 	s32 rt = reg_cache[op->rt];
@@ -874,7 +874,7 @@ static u32 int_special_ADD(struct interpreter *inter)
 
 static u32 int_special_SUB(struct interpreter *inter)
 {
-	u32 *reg_cache = inter->state->native_reg_cache;
+	u32 *reg_cache = inter->state->regs.gpr;
 	struct opcode_r *op = &inter->op->r;
 	u32 rs = reg_cache[op->rs];
 	u32 rt = reg_cache[op->rt];
@@ -887,7 +887,7 @@ static u32 int_special_SUB(struct interpreter *inter)
 
 static u32 int_special_AND(struct interpreter *inter)
 {
-	u32 *reg_cache = inter->state->native_reg_cache;
+	u32 *reg_cache = inter->state->regs.gpr;
 	struct opcode_r *op = &inter->op->r;
 	u32 rs = reg_cache[op->rs];
 	u32 rt = reg_cache[op->rt];
@@ -900,7 +900,7 @@ static u32 int_special_AND(struct interpreter *inter)
 
 static u32 int_special_OR(struct interpreter *inter)
 {
-	u32 *reg_cache = inter->state->native_reg_cache;
+	u32 *reg_cache = inter->state->regs.gpr;
 	struct opcode_r *op = &inter->op->r;
 	u32 rs = reg_cache[op->rs];
 	u32 rt = reg_cache[op->rt];
@@ -913,7 +913,7 @@ static u32 int_special_OR(struct interpreter *inter)
 
 static u32 int_special_XOR(struct interpreter *inter)
 {
-	u32 *reg_cache = inter->state->native_reg_cache;
+	u32 *reg_cache = inter->state->regs.gpr;
 	struct opcode_r *op = &inter->op->r;
 	u32 rs = reg_cache[op->rs];
 	u32 rt = reg_cache[op->rt];
@@ -926,7 +926,7 @@ static u32 int_special_XOR(struct interpreter *inter)
 
 static u32 int_special_NOR(struct interpreter *inter)
 {
-	u32 *reg_cache = inter->state->native_reg_cache;
+	u32 *reg_cache = inter->state->regs.gpr;
 	struct opcode_r *op = &inter->op->r;
 	u32 rs = reg_cache[op->rs];
 	u32 rt = reg_cache[op->rt];
@@ -939,7 +939,7 @@ static u32 int_special_NOR(struct interpreter *inter)
 
 static u32 int_special_SLT(struct interpreter *inter)
 {
-	u32 *reg_cache = inter->state->native_reg_cache;
+	u32 *reg_cache = inter->state->regs.gpr;
 	struct opcode_r *op = &inter->op->r;
 	s32 rs = reg_cache[op->rs];
 	s32 rt = reg_cache[op->rt];
@@ -952,7 +952,7 @@ static u32 int_special_SLT(struct interpreter *inter)
 
 static u32 int_special_SLTU(struct interpreter *inter)
 {
-	u32 *reg_cache = inter->state->native_reg_cache;
+	u32 *reg_cache = inter->state->regs.gpr;
 	struct opcode_r *op = &inter->op->r;
 	u32 rs = reg_cache[op->rs];
 	u32 rt = reg_cache[op->rt];
@@ -965,7 +965,7 @@ static u32 int_special_SLTU(struct interpreter *inter)
 
 static u32 int_META_MOV(struct interpreter *inter)
 {
-	u32 *reg_cache = inter->state->native_reg_cache;
+	u32 *reg_cache = inter->state->regs.gpr;
 	struct opcode_r *op = &inter->op->r;
 
 	if (likely(op->rd))
@@ -976,7 +976,7 @@ static u32 int_META_MOV(struct interpreter *inter)
 
 static u32 int_META_EXTC(struct interpreter *inter)
 {
-	u32 *reg_cache = inter->state->native_reg_cache;
+	u32 *reg_cache = inter->state->regs.gpr;
 	struct opcode_i *op = &inter->op->i;
 
 	if (likely(op->rt))
@@ -987,7 +987,7 @@ static u32 int_META_EXTC(struct interpreter *inter)
 
 static u32 int_META_EXTS(struct interpreter *inter)
 {
-	u32 *reg_cache = inter->state->native_reg_cache;
+	u32 *reg_cache = inter->state->regs.gpr;
 	struct opcode_i *op = &inter->op->i;
 
 	if (likely(op->rt))

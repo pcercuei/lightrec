@@ -108,7 +108,7 @@ enum c_wrappers {
 };
 
 struct lightrec_state {
-	u32 native_reg_cache[34];
+	struct lightrec_registers regs;
 	u32 next_pc;
 	u32 current_cycle;
 	u32 target_cycle;

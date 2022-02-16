@@ -209,7 +209,7 @@ static void lightrec_unload_nreg(struct regcache *cache, jit_state_t *_jit,
 {
 	/* If we get a dirty register, store back the old value */
 	if (nreg->dirty) {
-		s16 offset = offsetof(struct lightrec_state, native_reg_cache)
+		s16 offset = offsetof(struct lightrec_state, regs.gpr)
 			+ (nreg->emulated_register << 2);
 
 		jit_stxi_i(offset, LIGHTREC_REG_STATE, jit_reg);
@@ -334,7 +334,7 @@ u8 lightrec_alloc_reg_in(struct regcache *cache, jit_state_t *_jit,
 		lightrec_unload_nreg(cache, _jit, nreg, jit_reg);
 
 	if (!nreg->loaded && !nreg->dirty && reg != 0) {
-		s16 offset = offsetof(struct lightrec_state, native_reg_cache)
+		s16 offset = offsetof(struct lightrec_state, regs.gpr)
 			+ (reg << 2);
 
 		nreg->zero_extended = flags & REG_ZEXT;
@@ -393,7 +393,7 @@ u8 lightrec_request_reg_in(struct regcache *cache, jit_state_t *_jit,
 	lightrec_unload_nreg(cache, _jit, nreg, jit_reg);
 
 	/* Load previous value from register cache */
-	offset = offsetof(struct lightrec_state, native_reg_cache) + (reg << 2);
+	offset = offsetof(struct lightrec_state, regs.gpr) + (reg << 2);
 	jit_ldxi_i(jit_reg, LIGHTREC_REG_STATE, offset);
 
 	nreg->extended = true;
@@ -435,7 +435,7 @@ static void clean_reg(jit_state_t *_jit,
 		struct native_register *nreg, u8 jit_reg, bool clean)
 {
 	if (nreg->dirty) {
-		s16 offset = offsetof(struct lightrec_state, native_reg_cache)
+		s16 offset = offsetof(struct lightrec_state, regs.gpr)
 			+ (nreg->emulated_register << 2);
 
 		jit_stxi_i(offset, LIGHTREC_REG_STATE, jit_reg);

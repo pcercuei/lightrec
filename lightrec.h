@@ -93,6 +93,10 @@ struct lightrec_ops {
 	struct lightrec_cop_ops cop2_ops;
 };
 
+struct lightrec_registers {
+	u32 gpr[34];
+};
+
 __api struct lightrec_state *lightrec_init(char *argv0,
 					   const struct lightrec_mem_map *map,
 					   size_t nb,

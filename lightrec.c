@@ -302,10 +302,8 @@ static void lightrec_rw_helper(struct lightrec_state *state,
 			       union code op, u16 *flags,
 			       struct block *block)
 {
-	u32 ret = lightrec_rw(state, op,
-			  state->native_reg_cache[op.i.rs],
-			  state->native_reg_cache[op.i.rt], flags,
-			  block);
+	u32 ret = lightrec_rw(state, op, state->regs.gpr[op.i.rs],
+			      state->regs.gpr[op.i.rt], flags, block);
 
 	switch (op.i.op) {
 	case OP_LB:
@@ -316,7 +314,7 @@ static void lightrec_rw_helper(struct lightrec_state *state,
 	case OP_LWR:
 	case OP_LW:
 		if (op.i.rt)
-			state->native_reg_cache[op.i.rt] = ret;
+			state->regs.gpr[op.i.rt] = ret;
 	default: /* fall-through */
 		break;
 	}
@@ -380,7 +378,7 @@ static void lightrec_mfc_cb(struct lightrec_state *state, union code op)
 	u32 rt = lightrec_mfc(state, op);
 
 	if (op.r.rt)
-		state->native_reg_cache[op.r.rt] = rt;
+		state->regs.gpr[op.r.rt] = rt;
 }
 
 void lightrec_mtc(struct lightrec_state *state, union code op, u32 data)
@@ -405,7 +403,7 @@ void lightrec_mtc(struct lightrec_state *state, union code op, u32 data)
 
 static void lightrec_mtc_cb(struct lightrec_state *state, union code op)
 {
-	lightrec_mtc(state, op, state->native_reg_cache[op.r.rt]);
+	lightrec_mtc(state, op, state->regs.gpr[op.r.rt]);
 }
 
 static void lightrec_rfe_cb(struct lightrec_state *state, union code op)
@@ -642,10 +640,10 @@ err_no_mem:
 
 static u32 lightrec_memset(struct lightrec_state *state)
 {
-	u32 kunseg_pc = kunseg(state->native_reg_cache[4]);
+	u32 kunseg_pc = kunseg(state->regs.gpr[4]);
 	void *host;
 	const struct lightrec_mem_map *map = lightrec_get_map(state, &host, kunseg_pc);
-	u32 length = state->native_reg_cache[5] * 4;
+	u32 length = state->regs.gpr[5] * 4;
 
 	if (!map) {
 		pr_err("Unable to find memory map for memset target address "
@@ -713,7 +711,7 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 		jit_finishi(lightrec_memset);
 
 		jit_ldxi_ui(JIT_V0, LIGHTREC_REG_STATE,
-			    offsetof(struct lightrec_state, native_reg_cache[31]));
+			    offsetof(struct lightrec_state, regs.gpr[31]));
 
 		jit_retval(JIT_R0);
 		jit_subr(LIGHTREC_REG_CYCLE, LIGHTREC_REG_CYCLE, JIT_R0);
@@ -1459,12 +1457,12 @@ u32 lightrec_exit_flags(struct lightrec_state *state)
 
 void lightrec_dump_registers(struct lightrec_state *state, u32 regs[34])
 {
-	memcpy(regs, state->native_reg_cache, sizeof(state->native_reg_cache));
+	memcpy(regs, &state->regs.gpr, sizeof(state->regs.gpr));
 }
 
 void lightrec_restore_registers(struct lightrec_state *state, u32 regs[34])
 {
-	memcpy(state->native_reg_cache, regs, sizeof(state->native_reg_cache));
+	memcpy(&state->regs.gpr, regs, sizeof(state->regs.gpr));
 }
 
 u32 lightrec_current_cycle_count(const struct lightrec_state *state)
