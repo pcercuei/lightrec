@@ -1450,32 +1450,142 @@ static void rec_mtc(struct lightrec_state *state, const struct block *block, u16
 					   0, 0, true);
 }
 
+static void
+rec_mfc0(struct lightrec_state *state, const struct block *block, u16 offset)
+{
+	struct regcache *reg_cache = state->reg_cache;
+	union code c = block->opcode_list[offset].c;
+	jit_state_t *_jit = block->_jit;
+	u8 rt;
+
+	jit_note(__FILE__, __LINE__);
+
+	rt = lightrec_alloc_reg_out(reg_cache, _jit, c.i.rt, REG_EXT);
+
+	jit_ldxi_i(rt, LIGHTREC_REG_STATE,
+		   offsetof(struct lightrec_state, regs.cp0[c.r.rd]));
+
+	lightrec_free_reg(reg_cache, rt);
+}
+
+static bool block_in_bios(const struct lightrec_state *state,
+			  const struct block *block)
+{
+	const struct lightrec_mem_map *bios = &state->maps[PSX_MAP_BIOS];
+	u32 pc = kunseg(block->pc);
+
+	return pc >= bios->pc && pc < bios->pc + bios->length;
+}
+
+static void
+rec_mtc0(struct lightrec_state *state, const struct block *block, u16 offset)
+{
+	struct regcache *reg_cache = state->reg_cache;
+	const union code c = block->opcode_list[offset].c;
+	jit_state_t *_jit = block->_jit;
+	u8 rt, tmp, tmp2, status;
+
+	jit_note(__FILE__, __LINE__);
+
+	switch(c.r.rd) {
+	case 1:
+	case 4:
+	case 8:
+	case 14:
+	case 15:
+		/* Those registers are read-only */
+		return;
+	default:
+		break;
+	}
+
+	if (block_in_bios(state, block) && c.r.rd == 12) {
+		/* If we are running code from the BIOS, handle writes to the
+		 * Status register in C. BIOS code may toggle bit 16 which will
+		 * map/unmap the RAM, while game code cannot do that. */
+		rec_mtc(state, block, offset);
+		return;
+	}
+
+	rt = lightrec_alloc_reg_in(reg_cache, _jit, c.i.rt, 0);
+
+	if (c.r.rd != 13) {
+		jit_stxi_i(offsetof(struct lightrec_state, regs.cp0[c.r.rd]),
+			   LIGHTREC_REG_STATE, rt);
+	}
+
+	if (c.r.rd == 12 || c.r.rd == 13) {
+		tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
+		jit_ldxi_i(tmp, LIGHTREC_REG_STATE,
+			   offsetof(struct lightrec_state, regs.cp0[13]));
+	}
+
+	if (c.r.rd == 12) {
+		status = rt;
+	} else if (c.r.rd == 13) {
+		tmp2 = lightrec_alloc_reg_temp(reg_cache, _jit);
+
+		/* Cause = (Cause & ~0x0300) | (value & 0x0300) */
+		jit_andi(tmp2, rt, 0x0300);
+		jit_ori(tmp, tmp, 0x0300);
+		jit_xori(tmp, tmp, 0x0300);
+		jit_orr(tmp, tmp, tmp2);
+		jit_ldxi_i(tmp2, LIGHTREC_REG_STATE,
+			   offsetof(struct lightrec_state, regs.cp0[12]));
+		jit_stxi_i(offsetof(struct lightrec_state, regs.cp0[13]),
+			   LIGHTREC_REG_STATE, tmp);
+		status = tmp2;
+	}
+
+	if (c.r.rd == 12 || c.r.rd == 13) {
+		/* Exit dynarec in case there's a software interrupt.
+		 * exit_flags = !!(status & tmp & 0x0300) & status; */
+		jit_andr(tmp, tmp, status);
+		jit_andi(tmp, tmp, 0x0300);
+		jit_nei(tmp, tmp, 0);
+		jit_andr(tmp, tmp, status);
+		jit_stxi_i(offsetof(struct lightrec_state, exit_flags),
+			   LIGHTREC_REG_STATE, tmp);
+
+		lightrec_free_reg(reg_cache, tmp);
+	}
+
+	if (c.r.rd == 13)
+		lightrec_free_reg(reg_cache, tmp2);
+
+	lightrec_free_reg(reg_cache, rt);
+
+	if (!(block->opcode_list[offset].flags & LIGHTREC_NO_DS) &&
+	    (c.r.rd == 12 || c.r.rd == 13))
+		lightrec_emit_eob(state, block, offset + 1, true);
+}
+
 static void rec_cp0_MFC0(struct lightrec_state *state, const struct block *block,
 			 u16 offset)
 {
 	_jit_name(block->_jit, __func__);
-	rec_mfc(state, block, offset);
+	rec_mfc0(state, block, offset);
 }
 
 static void rec_cp0_CFC0(struct lightrec_state *state, const struct block *block,
 			 u16 offset)
 {
 	_jit_name(block->_jit, __func__);
-	rec_mfc(state, block, offset);
+	rec_mfc0(state, block, offset);
 }
 
 static void rec_cp0_MTC0(struct lightrec_state *state, const struct block *block,
 			 u16 offset)
 {
 	_jit_name(block->_jit, __func__);
-	rec_mtc(state, block, offset);
+	rec_mtc0(state, block, offset);
 }
 
 static void rec_cp0_CTC0(struct lightrec_state *state, const struct block *block,
 			 u16 offset)
 {
 	_jit_name(block->_jit, __func__);
-	rec_mtc(state, block, offset);
+	rec_mtc0(state, block, offset);
 }
 
 static void rec_cp2_basic_MFC2(struct lightrec_state *state, const struct block *block,
