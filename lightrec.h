@@ -43,9 +43,9 @@ struct lightrec_mem_map;
 
 /* Exit flags */
 #define LIGHTREC_EXIT_NORMAL	(0)
-#define LIGHTREC_EXIT_SYSCALL	(1 << 0)
+#define LIGHTREC_EXIT_CHECK_INTERRUPT	(1 << 0)
 #define LIGHTREC_EXIT_BREAK	(1 << 1)
-#define LIGHTREC_EXIT_CHECK_INTERRUPT	(1 << 2)
+#define LIGHTREC_EXIT_SYSCALL	(1 << 2)
 #define LIGHTREC_EXIT_SEGFAULT	(1 << 3)
 
 enum psx_map {
