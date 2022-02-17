@@ -460,11 +460,6 @@ void lightrec_rfe(struct lightrec_state *state)
 	lightrec_mtc0(state, 12, status);
 }
 
-static void lightrec_rfe_cb(struct lightrec_state *state, union code op)
-{
-	lightrec_rfe(state);
-}
-
 void lightrec_cp(struct lightrec_state *state, union code op)
 {
 	if (op.i.op == OP_CP0) {
@@ -1374,7 +1369,6 @@ struct lightrec_state * lightrec_init(char *argv0,
 	state->c_wrappers[C_WRAPPER_RW_GENERIC] = lightrec_rw_generic_cb;
 	state->c_wrappers[C_WRAPPER_MFC] = lightrec_mfc_cb;
 	state->c_wrappers[C_WRAPPER_MTC] = lightrec_mtc_cb;
-	state->c_wrappers[C_WRAPPER_RFE] = lightrec_rfe_cb;
 	state->c_wrappers[C_WRAPPER_CP] = lightrec_cp;
 	state->c_wrappers[C_WRAPPER_SYSCALL] = lightrec_syscall_cb;
 	state->c_wrappers[C_WRAPPER_BREAK] = lightrec_break_cb;
