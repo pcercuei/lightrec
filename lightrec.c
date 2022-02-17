@@ -1315,8 +1315,6 @@ struct lightrec_state * lightrec_init(char *argv0,
 
 	/* Sanity-check ops */
 	if (!ops ||
-	    !ops->cop0_ops.mfc || !ops->cop0_ops.cfc || !ops->cop0_ops.mtc ||
-	    !ops->cop0_ops.ctc || !ops->cop0_ops.op ||
 	    !ops->cop2_ops.mfc || !ops->cop2_ops.cfc || !ops->cop2_ops.mtc ||
 	    !ops->cop2_ops.ctc || !ops->cop2_ops.op || !ops->enable_ram) {
 		pr_err("Missing callbacks in lightrec_ops structure\n");

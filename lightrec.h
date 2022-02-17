@@ -89,7 +89,6 @@ struct lightrec_cop_ops {
 };
 
 struct lightrec_ops {
-	struct lightrec_cop_ops cop0_ops;
 	struct lightrec_cop_ops cop2_ops;
 	void (*enable_ram)(struct lightrec_state *state, _Bool enable);
 };
