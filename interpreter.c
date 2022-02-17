@@ -513,16 +513,7 @@ static u32 int_cp0_RFE(struct interpreter *inter)
 
 static u32 int_CP(struct interpreter *inter)
 {
-	struct lightrec_state *state = inter->state;
-	const struct lightrec_cop_ops *ops;
-	const struct opcode *op = inter->op;
-
-	if (op->i.op == OP_CP2)
-		ops = &state->ops.cop2_ops;
-	else
-		ops = &state->ops.cop0_ops;
-
-	(*ops->op)(state, (op->j.imm) & ~(1 << 25));
+	lightrec_cp(inter->state, inter->op->c);
 
 	return jump_next(inter);
 }

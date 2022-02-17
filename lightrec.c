@@ -465,16 +465,14 @@ static void lightrec_rfe_cb(struct lightrec_state *state, union code op)
 	lightrec_rfe(state);
 }
 
-static void lightrec_cp_cb(struct lightrec_state *state, union code op)
+void lightrec_cp(struct lightrec_state *state, union code op)
 {
-	void (*func)(struct lightrec_state *, u32);
+	if (op.i.op == OP_CP0) {
+		pr_err("Invalid CP opcode to coprocessor #0\n");
+		return;
+	}
 
-	if (op.i.op == OP_CP2)
-		func = state->ops.cop2_ops.op;
-	else
-		func = state->ops.cop0_ops.op;
-
-	(*func)(state, op.opcode);
+	(*state->ops.cop2_ops.op)(state, op.opcode);
 }
 
 static void lightrec_syscall_cb(struct lightrec_state *state, union code op)
@@ -1379,7 +1377,7 @@ struct lightrec_state * lightrec_init(char *argv0,
 	state->c_wrappers[C_WRAPPER_MFC] = lightrec_mfc_cb;
 	state->c_wrappers[C_WRAPPER_MTC] = lightrec_mtc_cb;
 	state->c_wrappers[C_WRAPPER_RFE] = lightrec_rfe_cb;
-	state->c_wrappers[C_WRAPPER_CP] = lightrec_cp_cb;
+	state->c_wrappers[C_WRAPPER_CP] = lightrec_cp;
 	state->c_wrappers[C_WRAPPER_SYSCALL] = lightrec_syscall_cb;
 	state->c_wrappers[C_WRAPPER_BREAK] = lightrec_break_cb;
 
