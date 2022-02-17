@@ -1619,12 +1619,41 @@ static void rec_cp2_basic_CTC2(struct lightrec_state *state, const struct block 
 static void rec_cp0_RFE(struct lightrec_state *state, const struct block *block,
 			u16 offset)
 {
+	struct regcache *reg_cache = state->reg_cache;
 	jit_state_t *_jit = block->_jit;
+	u8 status, tmp;
 
 	jit_name(__func__);
 	jit_note(__FILE__, __LINE__);
 
-	call_to_c_wrapper(state, block, 0, false, C_WRAPPER_RFE);
+	status = lightrec_alloc_reg_temp(reg_cache, _jit);
+	jit_ldxi_i(status, LIGHTREC_REG_STATE,
+		   offsetof(struct lightrec_state, regs.cp0[12]));
+
+	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
+
+	/* status = ((status >> 2) & 0xf) | status & ~0xf; */
+	jit_rshi(tmp, status, 2);
+	jit_andi(tmp, tmp, 0xf);
+	jit_andi(status, status, ~0xful);
+	jit_orr(status, status, tmp);
+
+	jit_ldxi_i(tmp, LIGHTREC_REG_STATE,
+		   offsetof(struct lightrec_state, regs.cp0[13]));
+	jit_stxi_i(offsetof(struct lightrec_state, regs.cp0[12]),
+		   LIGHTREC_REG_STATE, status);
+
+	/* Exit dynarec in case there's a software interrupt.
+	 * exit_flags = !!(status & cause & 0x0300) & status; */
+	jit_andr(tmp, tmp, status);
+	jit_andi(tmp, tmp, 0x0300);
+	jit_nei(tmp, tmp, 0);
+	jit_andr(tmp, tmp, status);
+	jit_stxi_i(offsetof(struct lightrec_state, exit_flags),
+		   LIGHTREC_REG_STATE, tmp);
+
+	lightrec_free_reg(reg_cache, status);
+	lightrec_free_reg(reg_cache, tmp);
 }
 
 static void rec_CP(struct lightrec_state *state, const struct block *block,
