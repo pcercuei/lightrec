@@ -353,24 +353,25 @@ static void lightrec_rw_generic_cb(struct lightrec_state *state, u32 arg)
 	}
 }
 
-u32 lightrec_mfc(struct lightrec_state *state, union code op)
+static u32 lightrec_mfc2(struct lightrec_state *state, union code op)
 {
-	bool is_cfc = (op.i.op == OP_CP0 && op.r.rs == OP_CP0_CFC0) ||
-		      (op.i.op == OP_CP2 && op.r.rs == OP_CP2_BASIC_CFC2);
+	bool is_cfc = op.r.rs == OP_CP2_BASIC_CFC2;
 	u32 (*func)(struct lightrec_state *, u32, u8);
-	const struct lightrec_cop_ops *ops;
-
-	if (op.i.op == OP_CP0)
-		ops = &state->ops.cop0_ops;
-	else
-		ops = &state->ops.cop2_ops;
 
 	if (is_cfc)
-		func = ops->cfc;
+		func = state->ops.cop2_ops.cfc;
 	else
-		func = ops->mfc;
+		func = state->ops.cop2_ops.mfc;
 
 	return (*func)(state, op.opcode, op.r.rd);
+}
+
+u32 lightrec_mfc(struct lightrec_state *state, union code op)
+{
+	if (op.i.op == OP_CP0)
+		return state->regs.cp0[op.r.rd];
+	else
+		return lightrec_mfc2(state, op);
 }
 
 static void lightrec_mfc_cb(struct lightrec_state *state, union code op)
@@ -381,24 +382,63 @@ static void lightrec_mfc_cb(struct lightrec_state *state, union code op)
 		state->regs.gpr[op.r.rt] = rt;
 }
 
-void lightrec_mtc(struct lightrec_state *state, union code op, u32 data)
+static void lightrec_mtc0(struct lightrec_state *state, u8 reg, u32 data)
 {
-	bool is_ctc = (op.i.op == OP_CP0 && op.r.rs == OP_CP0_CTC0) ||
-		      (op.i.op == OP_CP2 && op.r.rs == OP_CP2_BASIC_CTC2);
-	void (*func)(struct lightrec_state *, u32, u8, u32);
-	const struct lightrec_cop_ops *ops;
+	u32 status, cause;
 
-	if (op.i.op == OP_CP0)
-		ops = &state->ops.cop0_ops;
-	else
-		ops = &state->ops.cop2_ops;
+	switch (reg) {
+	case 1:
+	case 4:
+	case 8:
+	case 14:
+	case 15:
+		/* Those registers are read-only */
+		return;
+	default: /* fall-through */
+		break;
+	}
+
+	if (reg == 12) {
+		status = state->regs.cp0[12];
+
+		if (status & ~data & BIT(16)) {
+			state->ops.enable_ram(state, true);
+			lightrec_invalidate_all(state);
+		} else if (~status & data & BIT(16)) {
+			state->ops.enable_ram(state, false);
+		}
+	}
+
+	state->regs.cp0[reg] = data;
+
+	if (reg == 12 || reg == 13) {
+		cause = state->regs.cp0[13];
+		status = state->regs.cp0[12];
+
+		if (!!(status & cause & 0x300) & status)
+			lightrec_set_exit_flags(state, LIGHTREC_EXIT_CHECK_INTERRUPT);
+	}
+}
+
+static void lightrec_mtc2(struct lightrec_state *state, union code op, u32 data)
+{
+	bool is_ctc = op.r.rs == OP_CP2_BASIC_CTC2;
+	void (*func)(struct lightrec_state *, u32, u8, u32);
 
 	if (is_ctc)
-		func = ops->ctc;
+		func = state->ops.cop2_ops.ctc;
 	else
-		func = ops->mtc;
+		func = state->ops.cop2_ops.mtc;
 
 	(*func)(state, op.opcode, op.r.rd, data);
+}
+
+void lightrec_mtc(struct lightrec_state *state, union code op, u32 data)
+{
+	if (op.i.op == OP_CP0)
+		lightrec_mtc0(state, op.r.rd, data);
+	else
+		lightrec_mtc2(state, op, data);
 }
 
 static void lightrec_mtc_cb(struct lightrec_state *state, union code op)
@@ -406,18 +446,23 @@ static void lightrec_mtc_cb(struct lightrec_state *state, union code op)
 	lightrec_mtc(state, op, state->regs.gpr[op.r.rt]);
 }
 
-static void lightrec_rfe_cb(struct lightrec_state *state, union code op)
+void lightrec_rfe(struct lightrec_state *state)
 {
 	u32 status;
 
 	/* Read CP0 Status register (r12) */
-	status = state->ops.cop0_ops.mfc(state, op.opcode, 12);
+	status = state->regs.cp0[12];
 
 	/* Switch the bits */
 	status = ((status & 0x3c) >> 2) | (status & ~0xf);
 
 	/* Write it back */
-	state->ops.cop0_ops.ctc(state, op.opcode, 12, status);
+	lightrec_mtc0(state, 12, status);
+}
+
+static void lightrec_rfe_cb(struct lightrec_state *state, union code op)
+{
+	lightrec_rfe(state);
 }
 
 static void lightrec_cp_cb(struct lightrec_state *state, union code op)

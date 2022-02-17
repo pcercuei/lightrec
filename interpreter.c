@@ -167,8 +167,8 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 		 * but on branch boundaries, we need to adjust the return
 		 * address so that the GTE opcode is effectively executed.
 		 */
-		cause = (*state->ops.cop0_ops.cfc)(state, op->c.opcode, 13);
-		epc = (*state->ops.cop0_ops.cfc)(state, op->c.opcode, 14);
+		cause = state->regs.cp0[13];
+		epc = state->regs.cp0[14];
 
 		if (!(cause & 0x7c) && epc == pc - 4)
 			pc -= 4;
@@ -506,17 +506,7 @@ static u32 int_ctc(struct interpreter *inter)
 
 static u32 int_cp0_RFE(struct interpreter *inter)
 {
-	struct lightrec_state *state = inter->state;
-	u32 status;
-
-	/* Read CP0 Status register (r12) */
-	status = state->ops.cop0_ops.mfc(state, inter->op->c.opcode, 12);
-
-	/* Switch the bits */
-	status = ((status & 0x3c) >> 2) | (status & ~0xf);
-
-	/* Write it back */
-	state->ops.cop0_ops.ctc(state, inter->op->c.opcode, 12, status);
+	lightrec_rfe(inter->state);
 
 	return jump_next(inter);
 }

@@ -96,6 +96,7 @@ struct lightrec_ops {
 
 struct lightrec_registers {
 	u32 gpr[34];
+	u32 cp0[32];
 };
 
 __api struct lightrec_state *lightrec_init(char *argv0,

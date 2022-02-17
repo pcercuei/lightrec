@@ -188,6 +188,7 @@ static inline u32 get_branch_pc(const struct block *block, u16 offset, s16 imm)
 
 void lightrec_mtc(struct lightrec_state *state, union code op, u32 data);
 u32 lightrec_mfc(struct lightrec_state *state, union code op);
+void lightrec_rfe(struct lightrec_state *state);
 
 union code lightrec_read_opcode(struct lightrec_state *state, u32 pc);
 
