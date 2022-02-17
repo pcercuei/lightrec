@@ -1095,7 +1095,7 @@ int lightrec_compile_block(struct lightrec_state *state, struct block *block)
 			pr_debug("Branch at offset 0x%x will be emulated\n",
 				 i << 2);
 
-			lightrec_emit_eob(state, block, i);
+			lightrec_emit_eob(state, block, i, false);
 			skip_next = !(elm->flags & LIGHTREC_NO_DS);
 		} else {
 			lightrec_rec_opcode(state, block, i);

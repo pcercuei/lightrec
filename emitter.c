@@ -85,17 +85,20 @@ static void lightrec_emit_end_of_block(struct lightrec_state *state,
 }
 
 void lightrec_emit_eob(struct lightrec_state *state, const struct block *block,
-		       u16 offset)
+		       u16 offset, bool after_op)
 {
 	struct regcache *reg_cache = state->reg_cache;
 	jit_state_t *_jit = block->_jit;
 	union code c = block->opcode_list[offset].c;
+	u32 cycles = state->cycles;
+
+	if (!after_op)
+		cycles -= lightrec_cycles_of_opcode(c);
 
 	lightrec_storeback_regs(reg_cache, _jit);
 
 	jit_movi(JIT_V0, block->pc + (offset << 2));
-	jit_subi(LIGHTREC_REG_CYCLE, LIGHTREC_REG_CYCLE,
-		 state->cycles - lightrec_cycles_of_opcode(c));
+	jit_subi(LIGHTREC_REG_CYCLE, LIGHTREC_REG_CYCLE, cycles);
 
 	state->branches[state->nb_branches++] = jit_jmpi();
 }

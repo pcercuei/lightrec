@@ -14,6 +14,6 @@ struct opcode;
 void lightrec_rec_opcode(struct lightrec_state *state, const struct block *block,
 			 u16 offset);
 void lightrec_emit_eob(struct lightrec_state *state, const struct block *block,
-			 u16 offset);
+			 u16 offset, _Bool after_op);
 
 #endif /* __EMITTER_H__ */
