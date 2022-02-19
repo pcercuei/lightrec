@@ -37,6 +37,9 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 						u32 pc);
 static bool lightrec_block_is_fully_tagged(const struct block *block);
 
+static void lightrec_mtc2(struct lightrec_state *state, u8 reg, u32 data);
+static u32 lightrec_mfc2(struct lightrec_state *state, u8 reg);
+
 static void lightrec_default_sb(struct lightrec_state *state, u32 opcode,
 				void *host, u32 addr, u8 data)
 {
@@ -143,7 +146,7 @@ static void lightrec_swc2(struct lightrec_state *state, union code op,
 			  const struct lightrec_mem_map_ops *ops,
 			  void *host, u32 addr)
 {
-	u32 data = state->ops.cop2_ops.mfc(state, op.opcode, op.i.rt);
+	u32 data = lightrec_mfc2(state, op.i.rt);
 
 	ops->sw(state, op.opcode, host, addr, data);
 }
@@ -188,7 +191,7 @@ static void lightrec_lwc2(struct lightrec_state *state, union code op,
 {
 	u32 data = ops->lw(state, op.opcode, host, addr);
 
-	state->ops.cop2_ops.mtc(state, op.opcode, op.i.rt, data);
+	lightrec_mtc2(state, op.i.rt, data);
 }
 
 static void lightrec_invalidate_map(struct lightrec_state *state,
@@ -353,25 +356,54 @@ static void lightrec_rw_generic_cb(struct lightrec_state *state, u32 arg)
 	}
 }
 
-static u32 lightrec_mfc2(struct lightrec_state *state, union code op)
+static u32 clamp_s32(s32 val, s32 min, s32 max)
 {
-	bool is_cfc = op.r.rs == OP_CP2_BASIC_CFC2;
-	u32 (*func)(struct lightrec_state *, u32, u8);
+	return val < min ? min : val > max ? max : val;
+}
 
-	if (is_cfc)
-		func = state->ops.cop2_ops.cfc;
-	else
-		func = state->ops.cop2_ops.mfc;
+static u32 lightrec_mfc2(struct lightrec_state *state, u8 reg)
+{
+	s16 gteir1, gteir2, gteir3;
 
-	return (*func)(state, op.opcode, op.r.rd);
+	switch (reg) {
+	case 1:
+	case 3:
+	case 5:
+	case 8:
+	case 9:
+	case 10:
+	case 11:
+		return (s32)(s16) state->regs.cp2d[reg];
+	case 7:
+	case 16:
+	case 17:
+	case 18:
+	case 19:
+		return (u16) state->regs.cp2d[reg];
+	case 28:
+	case 29:
+		gteir1 = (s16) state->regs.cp2d[9];
+		gteir2 = (s16) state->regs.cp2d[10];
+		gteir3 = (s16) state->regs.cp2d[11];
+
+		return clamp_s32(gteir1 >> 7, 0, 0x1f) << 0 |
+			clamp_s32(gteir2 >> 7, 0, 0x1f) << 5 |
+			clamp_s32(gteir3 >> 7, 0, 0x1f) << 10;
+	case 15:
+		reg = 14;
+	default: /* fall-through */
+		return state->regs.cp2d[reg];
+	}
 }
 
 u32 lightrec_mfc(struct lightrec_state *state, union code op)
 {
 	if (op.i.op == OP_CP0)
 		return state->regs.cp0[op.r.rd];
+	else if (op.r.rs == OP_CP2_BASIC_MFC2)
+		return lightrec_mfc2(state, op.r.rd);
 	else
-		return lightrec_mfc2(state, op);
+		return state->regs.cp2c[op.r.rd];
 }
 
 static void lightrec_mfc_cb(struct lightrec_state *state, union code op)
@@ -420,25 +452,76 @@ static void lightrec_mtc0(struct lightrec_state *state, u8 reg, u32 data)
 	}
 }
 
-static void lightrec_mtc2(struct lightrec_state *state, union code op, u32 data)
+static u32 count_leading_bits(s32 data)
 {
-	bool is_ctc = op.r.rs == OP_CP2_BASIC_CTC2;
-	void (*func)(struct lightrec_state *, u32, u8, u32);
+#if defined(__has_builtin) && __has_builtin(__builtin_clrsb)
+	return 1 + __builtin_clrsb(data);
+#else
+	u32 cnt = 33;
 
-	if (is_ctc)
-		func = state->ops.cop2_ops.ctc;
-	else
-		func = state->ops.cop2_ops.mtc;
+	data = (data ^ (data >> 31)) << 1;
 
-	(*func)(state, op.opcode, op.r.rd, data);
+	do {
+		cnt -= 1;
+		data >>= 1;
+	} while (data);
+
+	return cnt;
+#endif
+}
+
+static void lightrec_mtc2(struct lightrec_state *state, u8 reg, u32 data)
+{
+	switch (reg) {
+	case 15:
+		state->regs.cp2d[12] = state->regs.cp2d[13];
+		state->regs.cp2d[13] = state->regs.cp2d[14];
+		state->regs.cp2d[14] = data;
+		break;
+	case 28:
+		state->regs.cp2d[9] = (data << 7) & 0xf80;
+		state->regs.cp2d[10] = (data << 2) & 0xf80;
+		state->regs.cp2d[11] = (data >> 3) & 0xf80;
+		break;
+	case 31:
+		return;
+	case 30:
+		state->regs.cp2d[31] = count_leading_bits((s32) data);
+	default: /* fall-through */
+		state->regs.cp2d[reg] = data;
+		break;
+	}
+}
+
+static void lightrec_ctc2(struct lightrec_state *state, u8 reg, u32 data)
+{
+	switch (reg) {
+	case 4:
+	case 12:
+	case 20:
+	case 26:
+	case 27:
+	case 29:
+	case 30:
+		data = (s32)(s16) data;
+		break;
+	case 31:
+		data = (data & 0x7ffff000) | !!(data & 0x7f87e000) << 31;
+	default: /* fall-through */
+		break;
+	}
+
+	state->regs.cp2c[reg] = data;
 }
 
 void lightrec_mtc(struct lightrec_state *state, union code op, u32 data)
 {
 	if (op.i.op == OP_CP0)
 		lightrec_mtc0(state, op.r.rd, data);
+	else if (op.r.rs == OP_CP2_BASIC_CTC2)
+		lightrec_ctc2(state, op.r.rd, data);
 	else
-		lightrec_mtc2(state, op, data);
+		lightrec_mtc2(state, op.r.rd, data);
 }
 
 static void lightrec_mtc_cb(struct lightrec_state *state, union code op)
