@@ -119,7 +119,7 @@ if (LOG_LEVEL STREQUAL Debug)
 	target_sources(${PROJECT_NAME} PRIVATE disassembler.c)
 endif()
 
-configure_file(config.h.cmakein config.h @ONLY)
+configure_file(lightrec-config.h.cmakein lightrec-config.h @ONLY)
 
 include(GNUInstallDirs)
 install(TARGETS ${PROJECT_NAME}

@@ -4,11 +4,11 @@
  */
 
 #include "blockcache.h"
-#include "config.h"
 #include "debug.h"
 #include "disassembler.h"
 #include "emitter.h"
 #include "interpreter.h"
+#include "lightrec-config.h"
 #include "lightning-wrapper.h"
 #include "lightrec.h"
 #include "memmanager.h"

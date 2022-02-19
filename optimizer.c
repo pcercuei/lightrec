@@ -3,7 +3,7 @@
  * Copyright (C) 2014-2021 Paul Cercueil <paul@crapouillou.net>
  */
 
-#include "config.h"
+#include "lightrec-config.h"
 #include "disassembler.h"
 #include "lightrec.h"
 #include "memmanager.h"

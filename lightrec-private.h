@@ -6,7 +6,7 @@
 #ifndef __LIGHTREC_PRIVATE_H__
 #define __LIGHTREC_PRIVATE_H__
 
-#include "config.h"
+#include "lightrec-config.h"
 #include "disassembler.h"
 #include "lightrec.h"
 
