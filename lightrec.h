@@ -80,16 +80,8 @@ struct lightrec_mem_map {
 	const struct lightrec_mem_map *mirror_of;
 };
 
-struct lightrec_cop_ops {
-	u32 (*mfc)(struct lightrec_state *state, u32 op, u8 reg);
-	u32 (*cfc)(struct lightrec_state *state, u32 op, u8 reg);
-	void (*mtc)(struct lightrec_state *state, u32 op, u8 reg, u32 value);
-	void (*ctc)(struct lightrec_state *state, u32 op, u8 reg, u32 value);
-	void (*op)(struct lightrec_state *state, u32 op);
-};
-
 struct lightrec_ops {
-	struct lightrec_cop_ops cop2_ops;
+	void (*cop2_op)(struct lightrec_state *state, u32 op);
 	void (*enable_ram)(struct lightrec_state *state, _Bool enable);
 };
 

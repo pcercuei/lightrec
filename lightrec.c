@@ -550,7 +550,7 @@ void lightrec_cp(struct lightrec_state *state, union code op)
 		return;
 	}
 
-	(*state->ops.cop2_ops.op)(state, op.opcode);
+	(*state->ops.cop2_op)(state, op.opcode);
 }
 
 static void lightrec_syscall_cb(struct lightrec_state *state, union code op)
@@ -1392,9 +1392,7 @@ struct lightrec_state * lightrec_init(char *argv0,
 	struct lightrec_state *state;
 
 	/* Sanity-check ops */
-	if (!ops ||
-	    !ops->cop2_ops.mfc || !ops->cop2_ops.cfc || !ops->cop2_ops.mtc ||
-	    !ops->cop2_ops.ctc || !ops->cop2_ops.op || !ops->enable_ram) {
+	if (!ops || !ops->cop2_op || !ops->enable_ram) {
 		pr_err("Missing callbacks in lightrec_ops structure\n");
 		return NULL;
 	}
