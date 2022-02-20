@@ -1444,18 +1444,18 @@ struct lightrec_state * lightrec_init(char *argv0,
 	if (!state->block_cache)
 		goto err_free_tinymm;
 
-	state->cstate = lightrec_create_cstate(state);
-	if (!state->cstate)
-		goto err_free_block_cache;
-
 	if (ENABLE_THREADED_COMPILER) {
 		state->rec = lightrec_recompiler_init(state);
 		if (!state->rec)
-			goto err_free_cstate;
+			goto err_free_block_cache;
 
 		state->reaper = lightrec_reaper_init(state);
 		if (!state->reaper)
 			goto err_free_recompiler;
+	} else {
+		state->cstate = lightrec_create_cstate(state);
+		if (!state->cstate)
+			goto err_free_block_cache;
 	}
 
 	state->nb_maps = nb;
@@ -1514,8 +1514,8 @@ err_free_reaper:
 err_free_recompiler:
 	if (ENABLE_THREADED_COMPILER)
 		lightrec_free_recompiler(state->rec);
-err_free_cstate:
-	lightrec_free_cstate(state->cstate);
+	else
+		lightrec_free_cstate(state->cstate);
 err_free_block_cache:
 	lightrec_free_block_cache(state->block_cache);
 err_free_tinymm:
@@ -1540,9 +1540,10 @@ void lightrec_destroy(struct lightrec_state *state)
 	if (ENABLE_THREADED_COMPILER) {
 		lightrec_free_recompiler(state->rec);
 		lightrec_reaper_destroy(state->reaper);
+	} else {
+		lightrec_free_cstate(state->cstate);
 	}
 
-	lightrec_free_cstate(state->cstate);
 	lightrec_free_block_cache(state->block_cache);
 	lightrec_free_block(state, state->dispatcher);
 	lightrec_free_block(state, state->c_wrapper_block);
