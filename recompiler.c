@@ -24,6 +24,7 @@ struct recompiler {
 	struct lightrec_state *state;
 	pthread_t thd;
 	pthread_cond_t cond;
+	pthread_cond_t cond2;
 	pthread_mutex_t mutex;
 	bool stop;
 	struct block *current_block;
@@ -55,7 +56,7 @@ static void lightrec_compile_list(struct recompiler *rec)
 		slist_remove(&rec->slist, next);
 		lightrec_free(rec->state, MEM_FOR_LIGHTREC,
 			      sizeof(*block_rec), block_rec);
-		pthread_cond_signal(&rec->cond);
+		pthread_cond_signal(&rec->cond2);
 	}
 
 	rec->current_block = NULL;
@@ -106,10 +107,16 @@ struct recompiler *lightrec_recompiler_init(struct lightrec_state *state)
 		goto err_free_rec;
 	}
 
+	ret = pthread_cond_init(&rec->cond2, NULL);
+	if (ret) {
+		pr_err("Cannot init cond variable: %d\n", ret);
+		goto err_cnd_destroy;
+	}
+
 	ret = pthread_mutex_init(&rec->mutex, NULL);
 	if (ret) {
 		pr_err("Cannot init mutex variable: %d\n", ret);
-		goto err_cnd_destroy;
+		goto err_cnd2_destroy;
 	}
 
 	ret = pthread_create(&rec->thd, NULL, lightrec_recompiler_thd, rec);
@@ -124,6 +131,8 @@ struct recompiler *lightrec_recompiler_init(struct lightrec_state *state)
 
 err_mtx_destroy:
 	pthread_mutex_destroy(&rec->mutex);
+err_cnd2_destroy:
+	pthread_cond_destroy(&rec->cond2);
 err_cnd_destroy:
 	pthread_cond_destroy(&rec->cond);
 err_free_rec:
@@ -143,6 +152,7 @@ void lightrec_free_recompiler(struct recompiler *rec)
 
 	pthread_mutex_destroy(&rec->mutex);
 	pthread_cond_destroy(&rec->cond);
+	pthread_cond_destroy(&rec->cond2);
 	lightrec_free(rec->state, MEM_FOR_LIGHTREC, sizeof(*rec), rec);
 }
 
@@ -224,7 +234,7 @@ void lightrec_recompiler_remove(struct recompiler *rec, struct block *block)
 				/* Block is being recompiled - wait for
 				 * completion */
 				do {
-					pthread_cond_wait(&rec->cond,
+					pthread_cond_wait(&rec->cond2,
 							  &rec->mutex);
 				} while (block == rec->current_block);
 			} else {
