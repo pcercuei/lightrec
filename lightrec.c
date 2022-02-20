@@ -1123,6 +1123,27 @@ static void lightrec_reap_jit(struct lightrec_state *state, void *data)
 	_jit_destroy_state(data);
 }
 
+static void lightrec_fill_code_lut(struct lightrec_cstate *cstate,
+				   struct block *block)
+{
+	struct lightrec_state *state = cstate->state;
+	struct lightrec_branch_target *target;
+	jit_state_t *_jit = block->_jit;
+	unsigned int i;
+	u32 offset;
+
+	state->code_lut[lut_offset(block->pc)] = block->function;
+
+	for (i = 0; i < cstate->nb_targets; i++) {
+		target = &cstate->targets[i];
+
+		if (target->offset) {
+			offset = lut_offset(block->pc) + target->offset;
+			state->code_lut[offset] = jit_address(target->label);
+		}
+	}
+}
+
 int lightrec_compile_block(struct lightrec_cstate *cstate,
 			   struct block *block)
 {
@@ -1227,18 +1248,8 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 	block->function = jit_emit();
 	block->flags &= ~BLOCK_SHOULD_RECOMPILE;
 
-	/* Add compiled function to the LUT */
-	state->code_lut[lut_offset(block->pc)] = block->function;
-
-	/* Fill code LUT with the block's entry points */
-	for (i = 0; i < cstate->nb_targets; i++) {
-		target = &cstate->targets[i];
-
-		if (target->offset) {
-			offset = lut_offset(block->pc) + target->offset;
-			state->code_lut[offset] = jit_address(target->label);
-		}
-	}
+	/* Fill code LUT with the block's entry points. */
+	lightrec_fill_code_lut(cstate, block);
 
 	/* Detect old blocks that have been covered by the new one */
 	for (i = 0; i < cstate->nb_targets; i++) {
@@ -1268,6 +1279,23 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 				lightrec_free_block(state, block2);
 			}
 		}
+	}
+
+	if (ENABLE_THREADED_COMPILER) {
+		/* Fill the code LUT with the block's entry points a second
+		 * time. The first time, with the threaded compiler enabled it
+		 * tried to prevent the dynarec from trying to compile outdated
+		 * blocks that were going to be replaced by this block's entry
+		 * points. It had to be done before to avoid invalid pointers in
+		 * the code LUT. However, at that point it was not possible to
+		 * guarantee that one of the blocks meant to be replaced wasn't
+		 * being compiled in parallel of this one; it only becomes a
+		 * guarantee after lightrec_recompiler_remove() has been called
+		 * on all entry points. In the case where one sub-block was
+		 * indeed being compiled in parallel, it has overwritten our
+		 * entry points in the code LUT, and therefore we need to set
+		 * them once again. */
+		lightrec_fill_code_lut(cstate, block);
 	}
 
 	jit_get_code(&code_size);
