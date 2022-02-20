@@ -18,6 +18,7 @@
 struct block_rec {
 	struct block *block;
 	struct slist_elm slist;
+	bool compiling;
 };
 
 struct recompiler {
@@ -27,7 +28,6 @@ struct recompiler {
 	pthread_cond_t cond2;
 	pthread_mutex_t mutex;
 	bool stop;
-	struct block *current_block;
 	struct slist_elm slist;
 };
 
@@ -40,8 +40,12 @@ static void lightrec_compile_list(struct recompiler *rec)
 
 	while (!!(next = slist_first(&rec->slist))) {
 		block_rec = container_of(next, struct block_rec, slist);
+
+		if (block_rec->compiling)
+			continue;
+
+		block_rec->compiling = true;
 		block = block_rec->block;
-		rec->current_block = block;
 
 		pthread_mutex_unlock(&rec->mutex);
 
@@ -58,8 +62,6 @@ static void lightrec_compile_list(struct recompiler *rec)
 			      sizeof(*block_rec), block_rec);
 		pthread_cond_signal(&rec->cond2);
 	}
-
-	rec->current_block = NULL;
 }
 
 static void * lightrec_recompiler_thd(void *d)
@@ -98,7 +100,6 @@ struct recompiler *lightrec_recompiler_init(struct lightrec_state *state)
 
 	rec->state = state;
 	rec->stop = false;
-	rec->current_block = NULL;
 	slist_init(&rec->slist);
 
 	ret = pthread_cond_init(&rec->cond, NULL);
@@ -201,6 +202,7 @@ int lightrec_recompiler_add(struct recompiler *rec, struct block *block)
 	pr_debug("Adding block PC 0x%x to recompiler\n", block->pc);
 
 	block_rec->block = block;
+	block_rec->compiling = false;
 
 	elm = &rec->slist;
 
@@ -226,29 +228,40 @@ void lightrec_recompiler_remove(struct recompiler *rec, struct block *block)
 
 	pthread_mutex_lock(&rec->mutex);
 
-	for (elm = slist_first(&rec->slist); elm; elm = elm->next) {
-		block_rec = container_of(elm, struct block_rec, slist);
+	while (true) {
+		for (elm = slist_first(&rec->slist); elm; elm = elm->next) {
+			block_rec = container_of(elm, struct block_rec, slist);
 
-		if (block_rec->block == block) {
-			if (block == rec->current_block) {
+			if (block_rec->block != block)
+				continue;
+
+			if (block_rec->compiling) {
 				/* Block is being recompiled - wait for
 				 * completion */
-				do {
-					pthread_cond_wait(&rec->cond2,
-							  &rec->mutex);
-				} while (block == rec->current_block);
+				pthread_cond_wait(&rec->cond2, &rec->mutex);
+
+				/* We can't guarantee the signal was for us.
+				 * Since block_rec may have been removed while
+				 * we were waiting on the condition, we cannot
+				 * check block_rec->compiling again. The best
+				 * thing is just to restart the function. */
+				break;
 			} else {
 				/* Block is not yet being processed - remove it
 				 * from the list */
 				slist_remove(&rec->slist, elm);
 				lightrec_free(rec->state, MEM_FOR_LIGHTREC,
 					      sizeof(*block_rec), block_rec);
-			}
 
-			break;
+				goto out_unlock;
+			}
 		}
+
+		if (!elm)
+			break;
 	}
 
+out_unlock:
 	pthread_mutex_unlock(&rec->mutex);
 }
 
