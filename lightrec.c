@@ -1114,6 +1114,7 @@ static void lightrec_reap_block(struct lightrec_state *state, void *data)
 	struct block *block = data;
 
 	pr_debug("Reap dead block at PC 0x%08x\n", block->pc);
+	lightrec_unregister_block(state->block_cache, block);
 	lightrec_free_block(state, block);
 }
 
@@ -1255,14 +1256,13 @@ int lightrec_compile_block(struct lightrec_state *state, struct block *block)
 			pr_debug("Reap block 0x%08x as it's covered by block "
 				 "0x%08x\n", block2->pc, block->pc);
 
-			lightrec_unregister_block(state->block_cache, block2);
-
 			if (ENABLE_THREADED_COMPILER) {
 				lightrec_recompiler_remove(state->rec, block2);
 				lightrec_reaper_add(state->reaper,
 						    lightrec_reap_block,
 						    block2);
 			} else {
+				lightrec_unregister_block(state->block_cache, block2);
 				lightrec_free_block(state, block2);
 			}
 		}
