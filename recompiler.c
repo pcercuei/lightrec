@@ -44,7 +44,7 @@ static void lightrec_compile_list(struct recompiler *rec)
 
 		pthread_mutex_unlock(&rec->mutex);
 
-		ret = lightrec_compile_block(rec->state, block);
+		ret = lightrec_compile_block(rec->state->cstate, block);
 		if (ret) {
 			pr_err("Unable to compile block at PC 0x%x: %d\n",
 			       block->pc, ret);

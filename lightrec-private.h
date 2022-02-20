@@ -106,6 +106,20 @@ enum c_wrappers {
 	C_WRAPPERS_COUNT,
 };
 
+struct lightrec_cstate {
+	struct lightrec_state *state;
+
+	struct jit_node *branches[512];
+	struct lightrec_branch local_branches[512];
+	struct lightrec_branch_target targets[512];
+	unsigned int nb_branches;
+	unsigned int nb_local_branches;
+	unsigned int nb_targets;
+	unsigned int cycles;
+
+	struct regcache *reg_cache;
+};
+
 struct lightrec_state {
 	struct lightrec_registers regs;
 	u32 next_pc;
@@ -115,23 +129,16 @@ struct lightrec_state {
 	u32 old_cycle_counter;
 	struct block *dispatcher, *c_wrapper_block;
 	void *c_wrapper, *c_wrappers[C_WRAPPERS_COUNT];
-	struct jit_node *branches[512];
-	struct lightrec_branch local_branches[512];
-	struct lightrec_branch_target targets[512];
-	unsigned int nb_branches;
-	unsigned int nb_local_branches;
-	unsigned int nb_targets;
 	struct tinymm *tinymm;
 	struct blockcache *block_cache;
-	struct regcache *reg_cache;
 	struct recompiler *rec;
+	struct lightrec_cstate *cstate;
 	struct reaper *reaper;
 	void (*eob_wrapper_func)(void);
 	void (*memset_func)(void);
 	void (*get_next_block)(void);
 	struct lightrec_ops ops;
 	unsigned int nb_precompile;
-	unsigned int cycles;
 	unsigned int nb_maps;
 	const struct lightrec_mem_map *maps;
 	uintptr_t offset_ram, offset_bios, offset_scratch;
@@ -190,10 +197,13 @@ u32 lightrec_mfc(struct lightrec_state *state, union code op);
 void lightrec_rfe(struct lightrec_state *state);
 void lightrec_cp(struct lightrec_state *state, union code op);
 
+struct lightrec_cstate * lightrec_create_cstate(struct lightrec_state *state);
+void lightrec_free_cstate(struct lightrec_cstate *cstate);
+
 union code lightrec_read_opcode(struct lightrec_state *state, u32 pc);
 
 struct block * lightrec_get_block(struct lightrec_state *state, u32 pc);
-int lightrec_compile_block(struct lightrec_state *state, struct block *block);
+int lightrec_compile_block(struct lightrec_cstate *cstate, struct block *block);
 void lightrec_free_opcode_list(struct lightrec_state *state, struct block *block);
 
 unsigned int lightrec_cycles_of_opcode(union code code);

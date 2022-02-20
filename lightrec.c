@@ -627,7 +627,7 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 			if (ENABLE_THREADED_COMPILER)
 				lightrec_recompiler_add(state->rec, block);
 			else
-				lightrec_compile_block(state, block);
+				lightrec_compile_block(state->cstate, block);
 		}
 
 		if (ENABLE_THREADED_COMPILER && likely(!should_recompile))
@@ -649,7 +649,7 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 				pc = lightrec_emulate_block(state, block, pc);
 
 			/* Then compile it using the profiled data */
-			lightrec_compile_block(state, block);
+			lightrec_compile_block(state->cstate, block);
 		} else {
 			lightrec_recompiler_add(state->rec, block);
 		}
@@ -1123,8 +1123,10 @@ static void lightrec_reap_jit(struct lightrec_state *state, void *data)
 	_jit_destroy_state(data);
 }
 
-int lightrec_compile_block(struct lightrec_state *state, struct block *block)
+int lightrec_compile_block(struct lightrec_cstate *cstate,
+			   struct block *block)
 {
+	struct lightrec_state *state = cstate->state;
 	struct lightrec_branch_target *target;
 	bool op_list_freed = false, fully_tagged = false;
 	struct block *block2;
@@ -1147,11 +1149,11 @@ int lightrec_compile_block(struct lightrec_state *state, struct block *block)
 	oldjit = block->_jit;
 	block->_jit = _jit;
 
-	lightrec_regcache_reset(state->reg_cache);
-	state->cycles = 0;
-	state->nb_branches = 0;
-	state->nb_local_branches = 0;
-	state->nb_targets = 0;
+	lightrec_regcache_reset(cstate->reg_cache);
+	cstate->cycles = 0;
+	cstate->nb_branches = 0;
+	cstate->nb_local_branches = 0;
+	cstate->nb_targets = 0;
 
 	jit_prolog();
 	jit_tramp(256);
@@ -1166,16 +1168,16 @@ int lightrec_compile_block(struct lightrec_state *state, struct block *block)
 			continue;
 		}
 
-		state->cycles += lightrec_cycles_of_opcode(elm->c);
+		cstate->cycles += lightrec_cycles_of_opcode(elm->c);
 
 		if (should_emulate(elm)) {
 			pr_debug("Branch at offset 0x%x will be emulated\n",
 				 i << 2);
 
-			lightrec_emit_eob(state, block, i, false);
+			lightrec_emit_eob(cstate, block, i, false);
 			skip_next = !(elm->flags & LIGHTREC_NO_DS);
 		} else {
-			lightrec_rec_opcode(state, block, i);
+			lightrec_rec_opcode(cstate, block, i);
 			skip_next = has_delay_slot(elm->c) &&
 				!(elm->flags & LIGHTREC_NO_DS);
 #if _WIN32
@@ -1183,16 +1185,16 @@ int lightrec_compile_block(struct lightrec_state *state, struct block *block)
 			 * mapped registers as temporaries. Until the actual bug
 			 * is found and fixed, unconditionally mark our
 			 * registers as live here. */
-			lightrec_regcache_mark_live(state->reg_cache, _jit);
+			lightrec_regcache_mark_live(cstate->reg_cache, _jit);
 #endif
 		}
 	}
 
-	for (i = 0; i < state->nb_branches; i++)
-		jit_patch(state->branches[i]);
+	for (i = 0; i < cstate->nb_branches; i++)
+		jit_patch(cstate->branches[i]);
 
-	for (i = 0; i < state->nb_local_branches; i++) {
-		struct lightrec_branch *branch = &state->local_branches[i];
+	for (i = 0; i < cstate->nb_local_branches; i++) {
+		struct lightrec_branch *branch = &cstate->local_branches[i];
 
 		pr_debug("Patch local branch to offset 0x%x\n",
 			 branch->target << 2);
@@ -1202,15 +1204,15 @@ int lightrec_compile_block(struct lightrec_state *state, struct block *block)
 			continue;
 		}
 
-		for (j = 0; j < state->nb_targets; j++) {
-			if (state->targets[j].offset == branch->target) {
+		for (j = 0; j < cstate->nb_targets; j++) {
+			if (cstate->targets[j].offset == branch->target) {
 				jit_patch_at(branch->branch,
-					     state->targets[j].label);
+					     cstate->targets[j].label);
 				break;
 			}
 		}
 
-		if (j == state->nb_targets)
+		if (j == cstate->nb_targets)
 			pr_err("Unable to find branch target\n");
 	}
 
@@ -1229,8 +1231,8 @@ int lightrec_compile_block(struct lightrec_state *state, struct block *block)
 	state->code_lut[lut_offset(block->pc)] = block->function;
 
 	/* Fill code LUT with the block's entry points */
-	for (i = 0; i < state->nb_targets; i++) {
-		target = &state->targets[i];
+	for (i = 0; i < cstate->nb_targets; i++) {
+		target = &cstate->targets[i];
 
 		if (target->offset) {
 			offset = lut_offset(block->pc) + target->offset;
@@ -1239,8 +1241,8 @@ int lightrec_compile_block(struct lightrec_state *state, struct block *block)
 	}
 
 	/* Detect old blocks that have been covered by the new one */
-	for (i = 0; i < state->nb_targets; i++) {
-		target = &state->targets[i];
+	for (i = 0; i < cstate->nb_targets; i++) {
+		target = &cstate->targets[i];
 
 		if (!target->offset)
 			continue;
@@ -1384,6 +1386,31 @@ void lightrec_free_block(struct lightrec_state *state, struct block *block)
 	lightrec_free(state, MEM_FOR_IR, sizeof(*block), block);
 }
 
+struct lightrec_cstate * lightrec_create_cstate(struct lightrec_state *state)
+{
+	struct lightrec_cstate *cstate;
+
+	cstate = lightrec_malloc(state, MEM_FOR_LIGHTREC, sizeof(*cstate));
+	if (!cstate)
+		return NULL;
+
+	cstate->reg_cache = lightrec_regcache_init(state);
+	if (!cstate->reg_cache) {
+		lightrec_free(state, MEM_FOR_LIGHTREC, sizeof(*cstate), cstate);
+		return NULL;
+	}
+
+	cstate->state = state;
+
+	return cstate;
+}
+
+void lightrec_free_cstate(struct lightrec_cstate *cstate)
+{
+	lightrec_free_regcache(cstate->reg_cache);
+	lightrec_free(cstate->state, MEM_FOR_LIGHTREC, sizeof(*cstate), cstate);
+}
+
 struct lightrec_state * lightrec_init(char *argv0,
 				      const struct lightrec_mem_map *map,
 				      size_t nb,
@@ -1417,14 +1444,14 @@ struct lightrec_state * lightrec_init(char *argv0,
 	if (!state->block_cache)
 		goto err_free_tinymm;
 
-	state->reg_cache = lightrec_regcache_init(state);
-	if (!state->reg_cache)
+	state->cstate = lightrec_create_cstate(state);
+	if (!state->cstate)
 		goto err_free_block_cache;
 
 	if (ENABLE_THREADED_COMPILER) {
 		state->rec = lightrec_recompiler_init(state);
 		if (!state->rec)
-			goto err_free_reg_cache;
+			goto err_free_cstate;
 
 		state->reaper = lightrec_reaper_init(state);
 		if (!state->reaper)
@@ -1487,8 +1514,8 @@ err_free_reaper:
 err_free_recompiler:
 	if (ENABLE_THREADED_COMPILER)
 		lightrec_free_recompiler(state->rec);
-err_free_reg_cache:
-	lightrec_free_regcache(state->reg_cache);
+err_free_cstate:
+	lightrec_free_cstate(state->cstate);
 err_free_block_cache:
 	lightrec_free_block_cache(state->block_cache);
 err_free_tinymm:
@@ -1515,7 +1542,7 @@ void lightrec_destroy(struct lightrec_state *state)
 		lightrec_reaper_destroy(state->reaper);
 	}
 
-	lightrec_free_regcache(state->reg_cache);
+	lightrec_free_cstate(state->cstate);
 	lightrec_free_block_cache(state->block_cache);
 	lightrec_free_block(state, state->dispatcher);
 	lightrec_free_block(state, state->c_wrapper_block);
