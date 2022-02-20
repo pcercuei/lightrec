@@ -14,6 +14,9 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <pthread.h>
+#ifdef __linux__
+#include <unistd.h>
+#endif
 
 struct block_rec {
 	struct block *block;
@@ -38,6 +41,24 @@ struct recompiler {
 	unsigned int nb_recs;
 	struct recompiler_thd thds[];
 };
+
+static unsigned int get_processors_count(void)
+{
+	unsigned int nb;
+
+#if defined(PTW32_VERSION)
+        nb = pthread_num_processors_np();
+#elif defined(__APPLE__) || defined(__FreeBSD__)
+        int count;
+        size_t size = sizeof(count);
+
+        nb = sysctlbyname("hw.ncpu", &count, &size, NULL, 0) ? 1 : count;
+#elif defined(__linux__)
+	nb = sysconf(_SC_NPROCESSORS_ONLN);
+#endif
+
+	return nb < 1 ? 1 : nb;
+}
 
 static struct slist_elm * lightrec_get_first_elm(struct slist_elm *head)
 {
@@ -113,8 +134,10 @@ out_unlock:
 struct recompiler *lightrec_recompiler_init(struct lightrec_state *state)
 {
 	struct recompiler *rec;
-	unsigned int i, nb_recs = 1;
+	unsigned int i, nb_recs;
 	int ret;
+
+	nb_recs = get_processors_count() - 1;
 
 	rec = lightrec_malloc(state, MEM_FOR_LIGHTREC, sizeof(*rec)
 			      + nb_recs * sizeof(*rec->thds));
@@ -273,6 +296,7 @@ int lightrec_recompiler_add(struct recompiler *rec, struct block *block)
 
 out_unlock:
 	pthread_mutex_unlock(&rec->mutex);
+
 	return ret;
 }
 
