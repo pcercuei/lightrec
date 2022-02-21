@@ -12,6 +12,7 @@
 
 #include <errno.h>
 #include <pthread.h>
+#include <stdatomic.h>
 #include <stdbool.h>
 
 struct reaper_elm {
@@ -24,6 +25,8 @@ struct reaper {
 	struct lightrec_state *state;
 	pthread_mutex_t mutex;
 	struct slist_elm reap_list;
+
+	atomic_uint sem;
 };
 
 struct reaper *lightrec_reaper_init(struct lightrec_state *state)
@@ -38,6 +41,7 @@ struct reaper *lightrec_reaper_init(struct lightrec_state *state)
 	}
 
 	reaper->state = state;
+	reaper->sem = 0;
 	slist_init(&reaper->reap_list);
 
 	ret = pthread_mutex_init(&reaper->mutex, NULL);
@@ -89,6 +93,11 @@ out_unlock:
 	return ret;
 }
 
+static bool lightrec_reaper_can_reap(struct reaper *reaper)
+{
+	return !atomic_load_explicit(&reaper->sem, memory_order_relaxed);
+}
+
 void lightrec_reaper_reap(struct reaper *reaper)
 {
 	struct reaper_elm *reaper_elm;
@@ -96,7 +105,8 @@ void lightrec_reaper_reap(struct reaper *reaper)
 
 	pthread_mutex_lock(&reaper->mutex);
 
-	while (!!(elm = slist_first(&reaper->reap_list))) {
+	while (lightrec_reaper_can_reap(reaper) &&
+	       !!(elm = slist_first(&reaper->reap_list))) {
 		slist_remove(&reaper->reap_list, elm);
 		pthread_mutex_unlock(&reaper->mutex);
 
@@ -111,4 +121,14 @@ void lightrec_reaper_reap(struct reaper *reaper)
 	}
 
 	pthread_mutex_unlock(&reaper->mutex);
+}
+
+void lightrec_reaper_pause(struct reaper *reaper)
+{
+	atomic_fetch_add_explicit(&reaper->sem, 1, memory_order_relaxed);
+}
+
+void lightrec_reaper_continue(struct reaper *reaper)
+{
+	atomic_fetch_sub_explicit(&reaper->sem, 1, memory_order_relaxed);
 }
