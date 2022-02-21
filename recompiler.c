@@ -134,10 +134,11 @@ out_unlock:
 struct recompiler *lightrec_recompiler_init(struct lightrec_state *state)
 {
 	struct recompiler *rec;
-	unsigned int i, nb_recs;
+	unsigned int i, nb_recs, nb_cpus;
 	int ret;
 
-	nb_recs = get_processors_count() - 1;
+	nb_cpus = get_processors_count();
+	nb_recs = nb_cpus < 2 ? 1 : nb_cpus - 1;
 
 	rec = lightrec_malloc(state, MEM_FOR_LIGHTREC, sizeof(*rec)
 			      + nb_recs * sizeof(*rec->thds));
