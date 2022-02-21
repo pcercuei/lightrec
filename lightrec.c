@@ -1230,14 +1230,11 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 	/* Add compiled function to the LUT */
 	state->code_lut[lut_offset(block->pc)] = block->function;
 
-	/* Fill code LUT with the block's entry points */
-	for (i = 0; i < cstate->nb_targets; i++) {
-		target = &cstate->targets[i];
-
-		if (target->offset) {
-			offset = lut_offset(block->pc) + target->offset;
-			state->code_lut[offset] = jit_address(target->label);
-		}
+	if (ENABLE_THREADED_COMPILER) {
+		/* Since we might try to reap the same block multiple times,
+		 * we need the reaper to wait until everything has been
+		 * submitted, so that the duplicate entries can be dropped. */
+		lightrec_reaper_pause(state->reaper);
 	}
 
 	/* Detect old blocks that have been covered by the new one */
@@ -1253,13 +1250,27 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 			/* No need to check if block2 is compilable - it must
 			 * be, otherwise block wouldn't be compilable either */
 
+			/* Set the "block dead" flag to prevent the dynarec from
+			 * recompiling this block */
 			block2->flags |= BLOCK_IS_DEAD;
+
+			/* If block2 was pending for compilation, cancel it.
+			 * If it's being compiled right now, wait until it
+			 * finishes. */
+			if (ENABLE_THREADED_COMPILER)
+				lightrec_recompiler_remove(state->rec, block2);
+
+			/* We know from now on that block2 isn't going to be
+			 * compiled. We can override the LUT entry with our
+			 * new block's entry point. */
+			offset = lut_offset(block->pc) + target->offset;
+			state->code_lut[offset] = jit_address(target->label);
 
 			pr_debug("Reap block 0x%08x as it's covered by block "
 				 "0x%08x\n", block2->pc, block->pc);
 
+			/* Finally, reap the block. */
 			if (ENABLE_THREADED_COMPILER) {
-				lightrec_recompiler_remove(state->rec, block2);
 				lightrec_reaper_add(state->reaper,
 						    lightrec_reap_block,
 						    block2);
@@ -1269,6 +1280,9 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 			}
 		}
 	}
+
+	if (ENABLE_DISASSEMBLER)
+		lightrec_reaper_continue(state->reaper);
 
 	jit_get_code(&code_size);
 	lightrec_register(MEM_FOR_CODE, code_size);
