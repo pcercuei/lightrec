@@ -985,24 +985,20 @@ static void call_to_c_wrapper(struct lightrec_cstate *state, const struct block 
 {
 	struct regcache *reg_cache = state->reg_cache;
 	jit_state_t *_jit = block->_jit;
-	u8 tmp, tmp2, tmp3;
+	u8 tmp, tmp3;
 
 	if (with_arg)
 		tmp3 = lightrec_alloc_reg(reg_cache, _jit, JIT_R1);
-	tmp2 = lightrec_alloc_reg(reg_cache, _jit, JIT_R0);
 	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
 
 	jit_ldxi(tmp, LIGHTREC_REG_STATE,
-		 offsetof(struct lightrec_state, c_wrapper));
-	jit_ldxi(tmp2, LIGHTREC_REG_STATE,
-		 offsetof(struct lightrec_state, c_wrappers[wrapper]));
+		 offsetof(struct lightrec_state, wrappers_eps[wrapper]));
 	if (with_arg)
 		jit_movi(tmp3, arg);
 
 	jit_callr(tmp);
 
 	lightrec_free_reg(reg_cache, tmp);
-	lightrec_free_reg(reg_cache, tmp2);
 	if (with_arg)
 		lightrec_free_reg(reg_cache, tmp3);
 	lightrec_regcache_mark_live(reg_cache, _jit);

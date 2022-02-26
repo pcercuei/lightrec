@@ -684,6 +684,7 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 	int stack_ptr;
 	jit_word_t code_size;
 	jit_node_t *to_tramp, *to_fn_epilog;
+	jit_node_t *addr[C_WRAPPERS_COUNT - 1];
 
 	block = lightrec_malloc(state, MEM_FOR_IR, sizeof(*block));
 	if (!block)
@@ -698,9 +699,22 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 
 	/* Wrapper entry point */
 	jit_prolog();
+	jit_tramp(256);
+
+	/* Add entry points; separate them by opcodes that increment
+	 * LIGHTREC_REG_STATE (since we cannot touch other registers).
+	 * The difference will then tell us which C function to call. */
+	for (i = C_WRAPPERS_COUNT - 1; i > 0; i--) {
+		jit_addi(LIGHTREC_REG_STATE, LIGHTREC_REG_STATE, 1);
+		addr[i - 1] = jit_indirect();
+	}
+
+	jit_epilog();
+	jit_prolog();
 
 	stack_ptr = jit_allocai(sizeof(uintptr_t) * NUM_TEMPS);
 
+	/* Save all temporaries on stack */
 	for (i = 0; i < NUM_TEMPS; i++)
 		jit_stxi(stack_ptr + i * sizeof(uintptr_t), JIT_FP, JIT_R(i));
 
@@ -710,6 +724,7 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 	/* The trampoline will jump back here */
 	to_fn_epilog = jit_label();
 
+	/* Restore temporaries from stack */
 	for (i = 0; i < NUM_TEMPS; i++)
 		jit_ldxi(JIT_R(i), JIT_FP, stack_ptr + i * sizeof(uintptr_t));
 
@@ -723,6 +738,19 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 	jit_prolog();
 	jit_tramp(256);
 	jit_patch(to_tramp);
+
+	/* Retrieve the wrapper number into JIT_R0 */
+	jit_movi(JIT_R2, (uintptr_t)state);
+	jit_subr(JIT_R0, LIGHTREC_REG_STATE, JIT_R2);
+
+	/* Retrieve the wrapper function from its number */
+	jit_lshi(JIT_R0, JIT_R0, 1 + __WORDSIZE / 32);
+	jit_addr(JIT_R0, JIT_R0, JIT_R2);
+	jit_ldxi(JIT_R0, JIT_R0,
+		 offsetof(struct lightrec_state, c_wrappers));
+
+	/* Restore LIGHTREC_REG_STATE to its correct value */
+	jit_movr(LIGHTREC_REG_STATE, JIT_R2);
 
 	jit_prepare();
 	jit_pushargr(LIGHTREC_REG_STATE);
@@ -740,6 +768,11 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 	block->opcode_list = NULL;
 	block->flags = 0;
 	block->nb_ops = 0;
+
+	state->wrappers_eps[C_WRAPPERS_COUNT - 1] = block->function;
+
+	for (i = 0; i < C_WRAPPERS_COUNT - 1; i++)
+		state->wrappers_eps[i] = jit_address(addr[i]);
 
 	jit_get_code(&code_size);
 	lightrec_register(MEM_FOR_CODE, code_size);
@@ -1488,8 +1521,6 @@ struct lightrec_state * lightrec_init(char *argv0,
 	state->c_wrapper_block = generate_wrapper(state);
 	if (!state->c_wrapper_block)
 		goto err_free_dispatcher;
-
-	state->c_wrapper = state->c_wrapper_block->function;
 
 	state->c_wrappers[C_WRAPPER_RW] = lightrec_rw_cb;
 	state->c_wrappers[C_WRAPPER_RW_GENERIC] = lightrec_rw_generic_cb;
