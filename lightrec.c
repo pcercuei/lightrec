@@ -1261,13 +1261,15 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 			 * finishes. */
 			if (ENABLE_THREADED_COMPILER)
 				lightrec_recompiler_remove(state->rec, block2);
+		}
 
-			/* We know from now on that block2 isn't going to be
-			 * compiled. We can override the LUT entry with our
-			 * new block's entry point. */
-			offset = lut_offset(block->pc) + target->offset;
-			state->code_lut[offset] = jit_address(target->label);
+		/* We know from now on that block2 (if present) isn't going to
+		 * be compiled. We can override the LUT entry with our new
+		 * block's entry point. */
+		offset = lut_offset(block->pc) + target->offset;
+		state->code_lut[offset] = jit_address(target->label);
 
+		if (block2) {
 			pr_debug("Reap block 0x%08x as it's covered by block "
 				 "0x%08x\n", block2->pc, block->pc);
 
