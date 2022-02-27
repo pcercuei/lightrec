@@ -705,7 +705,7 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 	 * LIGHTREC_REG_STATE (since we cannot touch other registers).
 	 * The difference will then tell us which C function to call. */
 	for (i = C_WRAPPERS_COUNT - 1; i > 0; i--) {
-		jit_addi(LIGHTREC_REG_STATE, LIGHTREC_REG_STATE, 1);
+		jit_addi(LIGHTREC_REG_STATE, LIGHTREC_REG_STATE, __WORDSIZE / 8);
 		addr[i - 1] = jit_indirect();
 	}
 
@@ -739,18 +739,12 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 	jit_tramp(256);
 	jit_patch(to_tramp);
 
-	/* Retrieve the wrapper number into JIT_R0 */
-	jit_movi(JIT_R2, (uintptr_t)state);
-	jit_subr(JIT_R0, LIGHTREC_REG_STATE, JIT_R2);
-
-	/* Retrieve the wrapper function from its number */
-	jit_lshi(JIT_R0, JIT_R0, 1 + __WORDSIZE / 32);
-	jit_addr(JIT_R0, JIT_R0, JIT_R2);
-	jit_ldxi(JIT_R0, JIT_R0,
+	/* Retrieve the wrapper function */
+	jit_ldxi(JIT_R0, LIGHTREC_REG_STATE,
 		 offsetof(struct lightrec_state, c_wrappers));
 
 	/* Restore LIGHTREC_REG_STATE to its correct value */
-	jit_movr(LIGHTREC_REG_STATE, JIT_R2);
+	jit_movi(LIGHTREC_REG_STATE, (uintptr_t) state);
 
 	jit_prepare();
 	jit_pushargr(LIGHTREC_REG_STATE);
