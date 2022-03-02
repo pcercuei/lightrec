@@ -887,6 +887,38 @@ static void lightrec_modify_lui(struct block *block, unsigned int offset)
 	}
 }
 
+static int lightrec_transform_branches(struct lightrec_state *state,
+				       struct block *block)
+{
+	struct opcode *op;
+	unsigned int i;
+	s32 offset;
+
+	for (i = 0; i < block->nb_ops; i++) {
+		op = &block->opcode_list[i];
+
+		switch (op->i.op) {
+		case OP_J:
+			/* Transform J opcode into BEQ $zero, $zero if possible. */
+			offset = (s32)((block->pc & 0xf0000000) >> 2 | op->j.imm)
+				- (s32)(block->pc >> 2) - (s32)i - 1;
+
+			if (offset == (s16)offset) {
+				pr_debug("Transform J into BEQ $zero, $zero\n");
+				op->i.op = OP_BEQ;
+				op->i.rs = 0;
+				op->i.rt = 0;
+				op->i.imm = offset;
+
+			}
+		default: /* fall-through */
+			break;
+		}
+	}
+
+	return 0;
+}
+
 static int lightrec_transform_ops(struct lightrec_state *state, struct block *block)
 {
 	struct opcode *list = block->opcode_list;
@@ -1896,6 +1928,7 @@ static int (*lightrec_optimizers[])(struct lightrec_state *state, struct block *
 	IF_OPT(OPT_REMOVE_DIV_BY_ZERO_SEQ, &lightrec_remove_div_by_zero_check_sequence),
 	IF_OPT(OPT_REPLACE_MEMSET, &lightrec_replace_memset),
 	IF_OPT(OPT_DETECT_IMPOSSIBLE_BRANCHES, &lightrec_detect_impossible_branches),
+	IF_OPT(OPT_TRANSFORM_OPS, &lightrec_transform_branches),
 	IF_OPT(OPT_LOCAL_BRANCHES, &lightrec_local_branches),
 	IF_OPT(OPT_TRANSFORM_OPS, &lightrec_transform_ops),
 	IF_OPT(OPT_SWITCH_DELAY_SLOTS, &lightrec_switch_delay_slots),
