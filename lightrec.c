@@ -970,7 +970,7 @@ err_no_mem:
 
 union code lightrec_read_opcode(struct lightrec_state *state, u32 pc)
 {
-	void *host;
+	void *host = NULL;
 
 	lightrec_get_map(state, &host, kunseg(pc));
 

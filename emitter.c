@@ -827,7 +827,7 @@ static void rec_alu_div(struct lightrec_cstate *state,
 	u8 reg_hi = get_mult_div_hi(c);
 	jit_state_t *_jit = block->_jit;
 	jit_node_t *branch, *to_end;
-	u8 lo, hi, rs, rt, rflags = 0;
+	u8 lo = 0, hi = 0, rs, rt, rflags = 0;
 
 	jit_note(__FILE__, __LINE__);
 
@@ -1479,7 +1479,7 @@ rec_mtc0(struct lightrec_cstate *state, const struct block *block, u16 offset)
 	struct regcache *reg_cache = state->reg_cache;
 	const union code c = block->opcode_list[offset].c;
 	jit_state_t *_jit = block->_jit;
-	u8 rt, tmp, tmp2, status;
+	u8 rt, tmp = 0, tmp2, status;
 
 	jit_note(__FILE__, __LINE__);
 
