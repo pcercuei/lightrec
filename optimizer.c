@@ -463,6 +463,10 @@ static u32 lightrec_propagate_consts(const struct opcode *op, u32 known, u32 *v)
 {
 	union code c = op->c;
 
+	/* Register $zero is always, well, zero */
+	known |= BIT(0);
+	v[0] = 0;
+
 	if (op->flags & LIGHTREC_SYNC)
 		return 0;
 
@@ -832,10 +836,6 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 
 		if (!op->opcode)
 			continue;
-
-		/* Register $zero is always, well, zero */
-		known |= BIT(0);
-		values[0] = 0;
 
 		switch (op->i.op) {
 		case OP_BEQ:
@@ -1237,10 +1237,6 @@ static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 
 	for (i = 0; i < block->nb_ops; i++) {
 		list = &block->opcode_list[i];
-
-		/* Register $zero is always, well, zero */
-		known |= BIT(0);
-		values[0] = 0;
 
 		switch (list->i.op) {
 		case OP_SB:
