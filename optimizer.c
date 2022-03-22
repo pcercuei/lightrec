@@ -1477,6 +1477,8 @@ static int lightrec_flag_mults_divs(struct lightrec_state *state, struct block *
 	struct opcode *list;
 	u8 reg_hi, reg_lo;
 	unsigned int i;
+	u32 known = BIT(0);
+	u32 values[32] = { 0 };
 
 	for (i = 0; i < block->nb_ops - 1; i++) {
 		list = &block->opcode_list[i];
@@ -1485,19 +1487,26 @@ static int lightrec_flag_mults_divs(struct lightrec_state *state, struct block *
 			continue;
 
 		switch (list->r.op) {
-		case OP_SPECIAL_MULT:
-		case OP_SPECIAL_MULTU:
 		case OP_SPECIAL_DIV:
 		case OP_SPECIAL_DIVU:
+			/* If we are dividing by a non-zero constant, don't
+			 * emit the div-by-zero check. */
+			if (known & BIT(list->c.r.rt) && values[list->c.r.rt])
+				list->flags |= LIGHTREC_NO_DIV_CHECK;
+		case OP_SPECIAL_MULT: /* fall-through */
+		case OP_SPECIAL_MULTU:
 			break;
 		default:
+			known = lightrec_propagate_consts(list, known, values);
 			continue;
 		}
 
 		/* Don't support opcodes in delay slots */
 		if ((i && has_delay_slot(block->opcode_list[i - 1].c)) ||
-		    (list->flags & LIGHTREC_NO_DS))
+		    (list->flags & LIGHTREC_NO_DS)) {
+			known = lightrec_propagate_consts(list, known, values);
 			continue;
+		}
 
 		reg_lo = get_mfhi_mflo_reg(block, i + 1, NULL, 0, false, true, false);
 		if (reg_lo == 0) {
@@ -1539,6 +1548,8 @@ static int lightrec_flag_mults_divs(struct lightrec_state *state, struct block *
 		} else {
 			list->r.imm = 0;
 		}
+
+		known = lightrec_propagate_consts(list, known, values);
 	}
 
 	return 0;
