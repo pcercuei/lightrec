@@ -1472,6 +1472,15 @@ static void lightrec_replace_lo_hi(struct block *block, u16 offset,
 	}
 }
 
+static bool lightrec_always_skip_div_check(void)
+{
+#ifdef __mips__
+	return true;
+#else
+	return false;
+#endif
+}
+
 static int lightrec_flag_mults_divs(struct lightrec_state *state, struct block *block)
 {
 	struct opcode *list;
@@ -1491,7 +1500,8 @@ static int lightrec_flag_mults_divs(struct lightrec_state *state, struct block *
 		case OP_SPECIAL_DIVU:
 			/* If we are dividing by a non-zero constant, don't
 			 * emit the div-by-zero check. */
-			if (known & BIT(list->c.r.rt) && values[list->c.r.rt])
+			if (lightrec_always_skip_div_check() ||
+			    (known & BIT(list->c.r.rt) && values[list->c.r.rt]))
 				list->flags |= LIGHTREC_NO_DIV_CHECK;
 		case OP_SPECIAL_MULT: /* fall-through */
 		case OP_SPECIAL_MULTU:
