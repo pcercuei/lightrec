@@ -408,7 +408,7 @@ u32 lightrec_mfc(struct lightrec_state *state, union code op)
 
 static void lightrec_mtc0(struct lightrec_state *state, u8 reg, u32 data)
 {
-	u32 status, cause;
+	u32 status, oldstatus, cause;
 
 	switch (reg) {
 	case 1:
@@ -418,12 +418,13 @@ static void lightrec_mtc0(struct lightrec_state *state, u8 reg, u32 data)
 	case 15:
 		/* Those registers are read-only */
 		return;
-	default: /* fall-through */
+	default:
 		break;
 	}
 
 	if (reg == 12) {
 		status = state->regs.cp0[12];
+		oldstatus = status;
 
 		if (status & ~data & BIT(16)) {
 			state->ops.enable_ram(state, true);
@@ -444,7 +445,12 @@ static void lightrec_mtc0(struct lightrec_state *state, u8 reg, u32 data)
 		cause = state->regs.cp0[13];
 		status = state->regs.cp0[12];
 
+		/* Handle software interrupts */
 		if (!!(status & cause & 0x300) & status)
+			lightrec_set_exit_flags(state, LIGHTREC_EXIT_CHECK_INTERRUPT);
+
+		/* Handle hardware interrupts */
+		if (reg == 12 && !(~status & 0x401) && (~oldstatus & 0x401))
 			lightrec_set_exit_flags(state, LIGHTREC_EXIT_CHECK_INTERRUPT);
 	}
 }
