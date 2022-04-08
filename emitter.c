@@ -1500,13 +1500,13 @@ rec_mtc0(struct lightrec_cstate *state, const struct block *block, u16 offset)
 		tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
 		jit_ldxi_i(tmp, LIGHTREC_REG_STATE,
 			   offsetof(struct lightrec_state, regs.cp0[13]));
+
+		tmp2 = lightrec_alloc_reg_temp(reg_cache, _jit);
 	}
 
 	if (c.r.rd == 12) {
 		status = rt;
 	} else if (c.r.rd == 13) {
-		tmp2 = lightrec_alloc_reg_temp(reg_cache, _jit);
-
 		/* Cause = (Cause & ~0x0300) | (value & 0x0300) */
 		jit_andi(tmp2, rt, 0x0300);
 		jit_ori(tmp, tmp, 0x0300);
@@ -1526,14 +1526,25 @@ rec_mtc0(struct lightrec_cstate *state, const struct block *block, u16 offset)
 		jit_andi(tmp, tmp, 0x0300);
 		jit_nei(tmp, tmp, 0);
 		jit_andr(tmp, tmp, status);
+	}
+
+	if (c.r.rd == 12) {
+		/* Exit dynarec in case we unmask a hardware interrupt.
+		 * exit_flags = !(~status & 0x401) */
+
+		jit_comr(tmp2, status);
+		jit_andi(tmp2, tmp2, 0x401);
+		jit_eqi(tmp2, tmp2, 0);
+		jit_orr(tmp, tmp, tmp2);
+	}
+
+	if (c.r.rd == 12 || c.r.rd == 13) {
 		jit_stxi_i(offsetof(struct lightrec_state, exit_flags),
 			   LIGHTREC_REG_STATE, tmp);
 
 		lightrec_free_reg(reg_cache, tmp);
-	}
-
-	if (c.r.rd == 13)
 		lightrec_free_reg(reg_cache, tmp2);
+	}
 
 	lightrec_free_reg(reg_cache, rt);
 
