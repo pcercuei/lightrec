@@ -433,7 +433,12 @@ static void lightrec_mtc0(struct lightrec_state *state, u8 reg, u32 data)
 		}
 	}
 
-	state->regs.cp0[reg] = data;
+	if (reg == 13) {
+		state->regs.cp0[13] &= ~0x300;
+		state->regs.cp0[13] |= data & 0x300;
+	} else {
+		state->regs.cp0[reg] = data;
+	}
 
 	if (reg == 12 || reg == 13) {
 		cause = state->regs.cp0[13];
