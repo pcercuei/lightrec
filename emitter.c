@@ -1217,6 +1217,74 @@ static void rec_SWC2(struct lightrec_cstate *state,
 	rec_io(state, block, offset, false, false);
 }
 
+static void rec_load_memory(struct lightrec_cstate *cstate,
+			    const struct block *block,
+			    u16 offset, jit_code_t code, bool is_unsigned,
+			    uintptr_t addr_offset, u32 addr_mask)
+{
+	struct regcache *reg_cache = cstate->reg_cache;
+	struct opcode *op = &block->opcode_list[offset];
+	jit_state_t *_jit = block->_jit;
+	u8 rs, rt, addr_reg, flags = REG_EXT;
+	union code c = op->c;
+
+	if (!c.i.rt)
+		return;
+
+	if (is_unsigned)
+		flags |= REG_ZEXT;
+
+	rs = lightrec_alloc_reg_in(reg_cache, _jit, c.i.rs, 0);
+	rt = lightrec_alloc_reg_out(reg_cache, _jit, c.i.rt, flags);
+
+	if (!(op->flags & LIGHTREC_NO_MASK)) {
+		jit_andi(rt, rs, addr_mask);
+		addr_reg = rt;
+	} else {
+		addr_reg = rs;
+	}
+
+	if (addr_offset) {
+		jit_addi(rt, addr_reg, addr_offset);
+		addr_reg = rt;
+	}
+
+	jit_new_node_www(code, rt, addr_reg, (s16)c.i.imm);
+
+	lightrec_free_reg(reg_cache, rs);
+	lightrec_free_reg(reg_cache, rt);
+}
+
+static void rec_load_ram(struct lightrec_cstate *cstate,
+			 const struct block *block,
+			 u16 offset, jit_code_t code, bool is_unsigned)
+{
+	_jit_note(block->_jit, __FILE__, __LINE__);
+
+	rec_load_memory(cstate, block, offset, code, is_unsigned,
+			cstate->state->offset_ram, RAM_SIZE - 1);
+}
+
+static void rec_load_bios(struct lightrec_cstate *cstate,
+			  const struct block *block,
+			  u16 offset, jit_code_t code, bool is_unsigned)
+{
+	_jit_note(block->_jit, __FILE__, __LINE__);
+
+	rec_load_memory(cstate, block, offset, code, is_unsigned,
+			cstate->state->offset_bios, 0x1fffffff);
+}
+
+static void rec_load_scratch(struct lightrec_cstate *cstate,
+			     const struct block *block,
+			     u16 offset, jit_code_t code, bool is_unsigned)
+{
+	_jit_note(block->_jit, __FILE__, __LINE__);
+
+	rec_load_memory(cstate, block, offset, code, is_unsigned,
+			cstate->state->offset_scratch, 0x1fffffff);
+}
+
 static void rec_load_direct(struct lightrec_cstate *cstate, const struct block *block,
 			    u16 offset, jit_code_t code, bool is_unsigned)
 {
@@ -1324,8 +1392,14 @@ static void rec_load(struct lightrec_cstate *state, const struct block *block,
 
 	switch (LIGHTREC_FLAGS_GET_IO_MODE(flags)) {
 	case LIGHTREC_IO_RAM:
+		rec_load_ram(state, block, offset, code, is_unsigned);
+		break;
 	case LIGHTREC_IO_BIOS:
+		rec_load_bios(state, block, offset, code, is_unsigned);
+		break;
 	case LIGHTREC_IO_SCRATCH:
+		rec_load_scratch(state, block, offset, code, is_unsigned);
+		break;
 	case LIGHTREC_IO_DIRECT:
 		rec_load_direct(state, block, offset, code, is_unsigned);
 		break;
