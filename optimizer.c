@@ -1284,12 +1284,18 @@ static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 
 				if (!map || map->ops ||
 				    map == &state->maps[PSX_MAP_PARALLEL_PORT]) {
-					pr_debug("Flagging opcode %u as accessing I/O registers\n",
+					pr_debug("Flagging opcode %u as I/O access\n",
 						 i);
 					list->flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_HW);
-				} else {
-					pr_debug("Flaging opcode %u as direct memory access\n", i);
-					list->flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_DIRECT);
+				} else if (map == &state->maps[PSX_MAP_KERNEL_USER_RAM]) {
+					pr_debug("Flaging opcode %u as RAM access\n", i);
+					list->flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_RAM);
+				} else if (map == &state->maps[PSX_MAP_BIOS]) {
+					pr_debug("Flaging opcode %u as BIOS access\n", i);
+					list->flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_BIOS);
+				} else if (map == &state->maps[PSX_MAP_SCRATCH_PAD]) {
+					pr_debug("Flaging opcode %u as scratchpad access\n", i);
+					list->flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_SCRATCH);
 				}
 			}
 		default: /* fall-through */
