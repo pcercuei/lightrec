@@ -1279,15 +1279,21 @@ static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 		case OP_LWR:
 		case OP_LWC2:
 			if (OPT_FLAG_IO && (known & BIT(list->i.rs))) {
-				val = kunseg(values[list->i.rs] + (s16) list->i.imm);
-				map = lightrec_get_map(state, NULL, val);
+				val = values[list->i.rs] + (s16) list->i.imm;
+				map = lightrec_get_map(state, NULL, kunseg(val));
 
 				if (!map || map->ops ||
 				    map == &state->maps[PSX_MAP_PARALLEL_PORT]) {
 					pr_debug("Flagging opcode %u as I/O access\n",
 						 i);
 					list->flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_HW);
-				} else if (map == &state->maps[PSX_MAP_KERNEL_USER_RAM]) {
+					break;
+				}
+
+				if (val - map->pc < map->length)
+					list->flags |= LIGHTREC_NO_MASK;
+
+				if (map == &state->maps[PSX_MAP_KERNEL_USER_RAM]) {
 					pr_debug("Flaging opcode %u as RAM access\n", i);
 					list->flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_RAM);
 				} else if (map == &state->maps[PSX_MAP_BIOS]) {

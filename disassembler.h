@@ -25,9 +25,10 @@
 /* Flags for load/store opcodes */
 #define LIGHTREC_SMC		BIT(5)
 #define LIGHTREC_NO_INVALIDATE	BIT(6)
+#define LIGHTREC_NO_MASK	BIT(7)
 
 /* I/O mode for load/store opcodes */
-#define LIGHTREC_IO_MODE_LSB	7
+#define LIGHTREC_IO_MODE_LSB	8
 #define LIGHTREC_IO_MODE(x)	((x) << LIGHTREC_IO_MODE_LSB)
 #define LIGHTREC_IO_UNKNOWN	0x0
 #define LIGHTREC_IO_DIRECT	0x1

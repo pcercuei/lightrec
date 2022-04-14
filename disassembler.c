@@ -106,6 +106,7 @@ static const char *opcode_flags[] = {
 static const char *opcode_io_flags[] = {
 	"self-modifying code",
 	"no invalidation",
+	"no mask",
 };
 
 static const char *opcode_io_modes[] = {
