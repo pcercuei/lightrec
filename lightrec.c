@@ -251,12 +251,12 @@ u32 lightrec_rw(struct lightrec_state *state, union code op,
 
 	if (unlikely(map->ops)) {
 		if (flags)
-			*flags |= LIGHTREC_HW_IO;
+			*flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_HW);
 
 		ops = map->ops;
 	} else {
 		if (flags)
-			*flags |= LIGHTREC_DIRECT_IO;
+			*flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_DIRECT);
 
 		ops = &lightrec_default_ops;
 	}
@@ -345,7 +345,7 @@ static void lightrec_rw_generic_cb(struct lightrec_state *state)
 	}
 
 	op = &block->opcode_list[offset];
-	was_tagged = op->flags & (LIGHTREC_HW_IO | LIGHTREC_DIRECT_IO);
+	was_tagged = LIGHTREC_FLAGS_GET_IO_MODE(op->flags);
 
 	lightrec_rw_helper(state, op->c, &op->flags, block);
 
@@ -1136,8 +1136,7 @@ static bool lightrec_block_is_fully_tagged(const struct block *block)
 		case OP_SWR:
 		case OP_LWC2:
 		case OP_SWC2:
-			if (!(op->flags & (LIGHTREC_DIRECT_IO |
-					   LIGHTREC_HW_IO)))
+			if (!LIGHTREC_FLAGS_GET_IO_MODE(op->flags))
 				return false;
 		default: /* fall-through */
 			continue;

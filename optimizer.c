@@ -1286,10 +1286,10 @@ static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 				    map == &state->maps[PSX_MAP_PARALLEL_PORT]) {
 					pr_debug("Flagging opcode %u as accessing I/O registers\n",
 						 i);
-					list->flags |= LIGHTREC_HW_IO;
+					list->flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_HW);
 				} else {
 					pr_debug("Flaging opcode %u as direct memory access\n", i);
-					list->flags |= LIGHTREC_DIRECT_IO;
+					list->flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_DIRECT);
 				}
 			}
 		default: /* fall-through */

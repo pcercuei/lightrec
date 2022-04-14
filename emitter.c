@@ -1002,7 +1002,7 @@ static void rec_io(struct lightrec_cstate *state,
 	jit_state_t *_jit = block->_jit;
 	union code c = block->opcode_list[offset].c;
 	u16 flags = block->opcode_list[offset].flags;
-	bool is_tagged = flags & (LIGHTREC_HW_IO | LIGHTREC_DIRECT_IO);
+	bool is_tagged = LIGHTREC_FLAGS_GET_IO_MODE(flags);
 	u32 lut_entry;
 
 	jit_note(__FILE__, __LINE__);
@@ -1158,15 +1158,19 @@ static void rec_store(struct lightrec_cstate *state,
 {
 	u16 flags = block->opcode_list[offset].flags;
 
-	if (flags & LIGHTREC_NO_INVALIDATE) {
-		rec_store_direct_no_invalidate(state, block, offset, code);
-	} else if (flags & LIGHTREC_DIRECT_IO) {
-		if (state->state->invalidate_from_dma_only)
+	switch (LIGHTREC_FLAGS_GET_IO_MODE(flags)) {
+	case LIGHTREC_IO_RAM:
+	case LIGHTREC_IO_SCRATCH:
+	case LIGHTREC_IO_DIRECT:
+		if ((flags & LIGHTREC_NO_INVALIDATE) ||
+		    state->state->invalidate_from_dma_only)
 			rec_store_direct_no_invalidate(state, block, offset, code);
 		else
 			rec_store_direct(state, block, offset, code);
-	} else {
+		break;
+	default:
 		rec_io(state, block, offset, true, false);
+		break;
 	}
 }
 
@@ -1318,10 +1322,17 @@ static void rec_load(struct lightrec_cstate *state, const struct block *block,
 {
 	u16 flags = block->opcode_list[offset].flags;
 
-	if (flags & LIGHTREC_DIRECT_IO)
+	switch (LIGHTREC_FLAGS_GET_IO_MODE(flags)) {
+	case LIGHTREC_IO_RAM:
+	case LIGHTREC_IO_BIOS:
+	case LIGHTREC_IO_SCRATCH:
+	case LIGHTREC_IO_DIRECT:
 		rec_load_direct(state, block, offset, code, is_unsigned);
-	else
+		break;
+	default:
 		rec_io(state, block, offset, false, true);
+		break;
+	}
 }
 
 static void rec_LB(struct lightrec_cstate *state, const struct block *block, u16 offset)
