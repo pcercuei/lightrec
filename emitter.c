@@ -1023,6 +1023,111 @@ static void rec_io(struct lightrec_cstate *state,
 	}
 }
 
+static void rec_store_memory(struct lightrec_cstate *cstate,
+			     const struct block *block,
+			     u16 offset, jit_code_t code,
+			     uintptr_t addr_offset, u32 addr_mask,
+			     bool invalidate)
+{
+	struct regcache *reg_cache = cstate->reg_cache;
+	struct opcode *op = &block->opcode_list[offset];
+	jit_state_t *_jit = block->_jit;
+	union code c = op->c;
+	u8 rs, rt, tmp, tmp2, tmp3, addr_reg, addr_reg2;
+	s16 imm = (s16)c.i.imm;
+	s32 simm = (s32)imm << (__WORDSIZE / 32 - 1);
+	s32 lut_offt = offsetof(struct lightrec_state, code_lut);
+	bool no_mask = op->flags & LIGHTREC_NO_MASK;
+	bool add_imm = c.i.imm && invalidate && simm + lut_offt != (s16)(simm + lut_offt);
+	bool need_tmp = !no_mask || addr_offset || add_imm;
+	bool need_tmp2 = addr_offset || invalidate;
+
+	rt = lightrec_alloc_reg_in(reg_cache, _jit, c.i.rt, 0);
+	rs = lightrec_alloc_reg_in(reg_cache, _jit, c.i.rs, 0);
+	if (need_tmp)
+		tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
+
+	addr_reg = rs;
+
+	if (add_imm) {
+		jit_addi(tmp, addr_reg, (s16)c.i.imm);
+		addr_reg = tmp;
+		imm = 0;
+	} else if (simm) {
+		lut_offt += simm;
+	}
+
+	if (!no_mask) {
+		jit_andi(tmp, addr_reg, addr_mask);
+		addr_reg = tmp;
+	}
+
+	if (need_tmp2)
+		tmp2 = lightrec_alloc_reg_temp(reg_cache, _jit);
+
+	if (addr_offset) {
+		jit_addi(tmp2, addr_reg, addr_offset);
+		addr_reg2 = tmp2;
+	} else {
+		addr_reg2 = addr_reg;
+	}
+
+	jit_new_node_www(code, imm, addr_reg2, rt);
+	lightrec_free_reg(reg_cache, rt);
+
+	if (invalidate) {
+		tmp3 = lightrec_alloc_reg_in(reg_cache, _jit, 0, 0);
+
+		if (c.i.op != OP_SW) {
+			jit_andi(tmp2, addr_reg, ~3);
+			addr_reg = tmp2;
+		}
+
+		if (__WORDSIZE == 64) {
+			jit_lshi(tmp2, addr_reg, 1);
+			addr_reg = tmp2;
+		}
+
+		if (__WORDSIZE == 64 || addr_reg != rs || c.i.rs != 0) {
+			jit_addr(tmp2, addr_reg, LIGHTREC_REG_STATE);
+			addr_reg = tmp2;
+		}
+
+		jit_stxi(lut_offt, addr_reg, tmp3);
+
+		lightrec_free_reg(reg_cache, tmp3);
+	}
+
+	if (need_tmp2)
+		lightrec_free_reg(reg_cache, tmp2);
+	if (need_tmp)
+		lightrec_free_reg(reg_cache, tmp);
+	lightrec_free_reg(reg_cache, rs);
+}
+
+static void rec_store_ram(struct lightrec_cstate *cstate,
+			  const struct block *block,
+			  u16 offset, jit_code_t code,
+			  bool invalidate)
+{
+	_jit_note(block->_jit, __FILE__, __LINE__);
+
+	return rec_store_memory(cstate, block, offset, code,
+				cstate->state->offset_ram,
+				RAM_SIZE - 1, invalidate);
+}
+
+static void rec_store_scratch(struct lightrec_cstate *cstate,
+			      const struct block *block,
+			      u16 offset, jit_code_t code)
+{
+	_jit_note(block->_jit, __FILE__, __LINE__);
+
+	return rec_store_memory(cstate, block, offset, code,
+				cstate->state->offset_scratch,
+				0x1fffffff, false);
+}
+
 static void rec_store_direct_no_invalidate(struct lightrec_cstate *cstate,
 					   const struct block *block,
 					   u16 offset, jit_code_t code)
@@ -1157,13 +1262,18 @@ static void rec_store(struct lightrec_cstate *state,
 		      const struct block *block, u16 offset, jit_code_t code)
 {
 	u16 flags = block->opcode_list[offset].flags;
+	bool no_invalidate = (flags & LIGHTREC_NO_INVALIDATE) ||
+		state->state->invalidate_from_dma_only;
 
 	switch (LIGHTREC_FLAGS_GET_IO_MODE(flags)) {
 	case LIGHTREC_IO_RAM:
+		rec_store_ram(state, block, offset, code, !no_invalidate);
+		break;
 	case LIGHTREC_IO_SCRATCH:
+		rec_store_scratch(state, block, offset, code);
+		break;
 	case LIGHTREC_IO_DIRECT:
-		if ((flags & LIGHTREC_NO_INVALIDATE) ||
-		    state->state->invalidate_from_dma_only)
+		if (no_invalidate)
 			rec_store_direct_no_invalidate(state, block, offset, code);
 		else
 			rec_store_direct(state, block, offset, code);
