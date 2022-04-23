@@ -834,8 +834,11 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 			op->opcode = 0x0;
 		}
 
-		if (!op->opcode)
+		if (!op->opcode) {
+			if (op->flags & LIGHTREC_SYNC)
+				known = BIT(0);
 			continue;
+		}
 
 		switch (op->i.op) {
 		case OP_BEQ:
