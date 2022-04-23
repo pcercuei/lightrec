@@ -76,7 +76,7 @@ static void lightrec_emit_end_of_block(struct lightrec_cstate *state,
 	}
 
 	if (offset + !!(op->flags & LIGHTREC_NO_DS) < block->nb_ops - 1)
-		state->branches[state->nb_branches++] = jit_jmpi();
+		state->branches[state->nb_branches++] = jit_b();
 }
 
 void lightrec_emit_eob(struct lightrec_cstate *state, const struct block *block,
@@ -95,7 +95,7 @@ void lightrec_emit_eob(struct lightrec_cstate *state, const struct block *block,
 	jit_movi(JIT_V0, block->pc + (offset << 2));
 	jit_subi(LIGHTREC_REG_CYCLE, LIGHTREC_REG_CYCLE, cycles);
 
-	state->branches[state->nb_branches++] = jit_jmpi();
+	state->branches[state->nb_branches++] = jit_b();
 }
 
 static u8 get_jr_jalr_reg(struct lightrec_cstate *state, const struct block *block, u16 offset)
@@ -212,7 +212,7 @@ static void rec_b(struct lightrec_cstate *state, const struct block *block, u16 
 
 		branch->target = target_offset;
 		if (is_forward)
-			branch->branch = jit_jmpi();
+			branch->branch = jit_b();
 		else
 			branch->branch = jit_bgti(LIGHTREC_REG_CYCLE, 0);
 	}
@@ -857,7 +857,7 @@ static void rec_alu_div(struct lightrec_cstate *state,
 		lightrec_regcache_mark_live(reg_cache, _jit);
 
 		/* Jump above the div-by-zero handler */
-		to_end = jit_jmpi();
+		to_end = jit_b();
 
 		jit_patch(branch);
 
@@ -1169,7 +1169,7 @@ static void rec_store_direct_no_invalidate(struct lightrec_cstate *cstate,
 
 		jit_movi(tmp2, state->offset_ram);
 
-		to_end = jit_jmpi();
+		to_end = jit_b();
 		jit_patch(to_not_ram);
 
 		jit_movi(tmp2, state->offset_scratch);
@@ -1234,7 +1234,7 @@ static void rec_store_direct(struct lightrec_cstate *cstate, const struct block 
 	if (state->offset_ram != state->offset_scratch) {
 		jit_movi(tmp, state->offset_ram);
 
-		to_end = jit_jmpi();
+		to_end = jit_b();
 	}
 
 	jit_patch(to_not_ram);
@@ -1456,7 +1456,7 @@ static void rec_load_direct(struct lightrec_cstate *cstate, const struct block *
 		if (state->offset_ram)
 			jit_movi(tmp, state->offset_ram);
 
-		to_end = jit_jmpi();
+		to_end = jit_b();
 
 		jit_patch(to_not_ram);
 
@@ -1469,7 +1469,7 @@ static void rec_load_direct(struct lightrec_cstate *cstate, const struct block *
 		jit_movi(tmp, state->offset_bios);
 
 		if (state->offset_bios != state->offset_scratch) {
-			to_end2 = jit_jmpi();
+			to_end2 = jit_b();
 
 			jit_patch(to_not_bios);
 
