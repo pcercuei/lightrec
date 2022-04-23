@@ -250,12 +250,12 @@ u32 lightrec_rw(struct lightrec_state *state, union code op,
 	}
 
 	if (unlikely(map->ops)) {
-		if (flags)
+		if (flags && !LIGHTREC_FLAGS_GET_IO_MODE(*flags))
 			*flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_HW);
 
 		ops = map->ops;
 	} else {
-		if (flags)
+		if (flags && !LIGHTREC_FLAGS_GET_IO_MODE(*flags))
 			*flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_DIRECT);
 
 		ops = &lightrec_default_ops;
