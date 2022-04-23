@@ -468,7 +468,7 @@ static u32 lightrec_propagate_consts(const struct opcode *op, u32 known, u32 *v)
 	v[0] = 0;
 
 	if (op->flags & LIGHTREC_SYNC)
-		return 0;
+		return BIT(0);
 
 	switch (c.i.op) {
 	case OP_SPECIAL:
