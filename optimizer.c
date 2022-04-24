@@ -1232,13 +1232,14 @@ static int lightrec_early_unload(struct lightrec_state *state, struct block *blo
 static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 {
 	const struct lightrec_mem_map *map;
-	struct opcode *prev, *list = NULL;
+	struct opcode *prev2, *prev = NULL, *list = NULL;
 	u32 known = BIT(0);
 	u32 values[32] = { 0 };
 	unsigned int i;
 	u32 val;
 
 	for (i = 0; i < block->nb_ops; i++) {
+		prev2 = prev;
 		prev = list;
 		list = &block->opcode_list[i];
 
@@ -1284,6 +1285,7 @@ static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 		case OP_LWC2:
 			if (OPT_FLAG_IO && (known & BIT(list->i.rs))) {
 				if (prev && prev->i.op == OP_LUI &&
+				    !(prev2 && has_delay_slot(prev2->c)) &&
 				    prev->i.rt == list->i.rs &&
 				    list->i.rt == list->i.rs &&
 				    prev->i.imm & 0x8000) {
