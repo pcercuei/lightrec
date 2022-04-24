@@ -854,8 +854,6 @@ static void rec_alu_div(struct lightrec_cstate *state,
 	}
 
 	if (!no_check) {
-		lightrec_regcache_mark_live(reg_cache, _jit);
-
 		/* Jump above the div-by-zero handler */
 		to_end = jit_b();
 
@@ -988,6 +986,7 @@ static void call_to_c_wrapper(struct lightrec_cstate *state, const struct block 
 		lightrec_free_reg(reg_cache, tmp2);
 	}
 
+	lightrec_regcache_mark_live(reg_cache, _jit);
 	jit_callr(tmp);
 
 	lightrec_free_reg(reg_cache, tmp);
@@ -1165,8 +1164,6 @@ static void rec_store_direct_no_invalidate(struct lightrec_cstate *cstate,
 	if (state->offset_ram != state->offset_scratch) {
 		to_not_ram = jit_bmsi(tmp, BIT(28));
 
-		lightrec_regcache_mark_live(reg_cache, _jit);
-
 		jit_movi(tmp2, state->offset_ram);
 
 		to_end = jit_b();
@@ -1219,8 +1216,6 @@ static void rec_store_direct(struct lightrec_cstate *cstate, const struct block 
 	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
 
 	to_not_ram = jit_bgti(tmp2, ram_size);
-
-	lightrec_regcache_mark_live(reg_cache, _jit);
 
 	/* Compute the offset to the code LUT */
 	jit_andi(tmp, tmp2, (RAM_SIZE - 1) & ~3);
@@ -1447,8 +1442,6 @@ static void rec_load_direct(struct lightrec_cstate *cstate, const struct block *
 			jit_movi(tmp, state->offset_ram);
 	} else {
 		to_not_ram = jit_bmsi(addr_reg, BIT(28));
-
-		lightrec_regcache_mark_live(reg_cache, _jit);
 
 		/* Convert to KUNSEG and avoid RAM mirrors */
 		jit_andi(rt, addr_reg, RAM_SIZE - 1);
