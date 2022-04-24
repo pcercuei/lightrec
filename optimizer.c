@@ -459,9 +459,11 @@ bool load_in_delay_slot(union code op)
 	return false;
 }
 
-static u32 lightrec_propagate_consts(const struct opcode *op, u32 known, u32 *v)
+static u32 lightrec_propagate_consts(const struct opcode *op,
+				     const struct opcode *prev,
+				     u32 known, u32 *v)
 {
-	union code c = op->c;
+	union code c = prev->c;
 
 	/* Register $zero is always, well, zero */
 	known |= BIT(0);
@@ -817,14 +819,18 @@ static void lightrec_optimize_sll_sra(struct opcode *list, unsigned int offset)
 static int lightrec_transform_ops(struct lightrec_state *state, struct block *block)
 {
 	struct opcode *list = block->opcode_list;
-	struct opcode *op;
+	struct opcode *prev, *op = NULL;
 	u32 known = BIT(0);
 	u32 values[32] = { 0 };
 	unsigned int i;
 	int reader;
 
 	for (i = 0; i < block->nb_ops; i++) {
+		prev = op;
 		op = &list[i];
+
+		if (prev)
+			known = lightrec_propagate_consts(op, prev, known, values);
 
 		/* Transform all opcodes detected as useless to real NOPs
 		 * (0x0: SLL r0, r0, #0) */
@@ -834,11 +840,8 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 			op->opcode = 0x0;
 		}
 
-		if (!op->opcode) {
-			if (op->flags & LIGHTREC_SYNC)
-				known = BIT(0);
+		if (!op->opcode)
 			continue;
-		}
 
 		switch (op->i.op) {
 		case OP_BEQ:
@@ -936,8 +939,6 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 		default: /* fall-through */
 			break;
 		}
-
-		known = lightrec_propagate_consts(op, known, values);
 	}
 
 	return 0;
@@ -1243,6 +1244,9 @@ static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 		prev = list;
 		list = &block->opcode_list[i];
 
+		if (prev)
+			known = lightrec_propagate_consts(list, prev, known, values);
+
 		switch (list->i.op) {
 		case OP_SB:
 		case OP_SH:
@@ -1325,8 +1329,6 @@ static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 		default: /* fall-through */
 			break;
 		}
-
-		known = lightrec_propagate_consts(list, known, values);
 	}
 
 	return 0;
@@ -1513,14 +1515,18 @@ static bool lightrec_always_skip_div_check(void)
 
 static int lightrec_flag_mults_divs(struct lightrec_state *state, struct block *block)
 {
-	struct opcode *list;
+	struct opcode *prev, *list = NULL;
 	u8 reg_hi, reg_lo;
 	unsigned int i;
 	u32 known = BIT(0);
 	u32 values[32] = { 0 };
 
 	for (i = 0; i < block->nb_ops - 1; i++) {
+		prev = list;
 		list = &block->opcode_list[i];
+
+		if (prev)
+			known = lightrec_propagate_consts(list, prev, known, values);
 
 		if (list->i.op != OP_SPECIAL)
 			continue;
@@ -1537,14 +1543,12 @@ static int lightrec_flag_mults_divs(struct lightrec_state *state, struct block *
 		case OP_SPECIAL_MULTU:
 			break;
 		default:
-			known = lightrec_propagate_consts(list, known, values);
 			continue;
 		}
 
 		/* Don't support opcodes in delay slots */
 		if ((i && has_delay_slot(block->opcode_list[i - 1].c)) ||
 		    (list->flags & LIGHTREC_NO_DS)) {
-			known = lightrec_propagate_consts(list, known, values);
 			continue;
 		}
 
@@ -1588,8 +1592,6 @@ static int lightrec_flag_mults_divs(struct lightrec_state *state, struct block *
 		} else {
 			list->r.imm = 0;
 		}
-
-		known = lightrec_propagate_consts(list, known, values);
 	}
 
 	return 0;
