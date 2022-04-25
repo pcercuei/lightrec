@@ -277,7 +277,8 @@ static bool reg_is_dead(const struct opcode *list, unsigned int offset, u8 reg)
 			return true;
 
 		if (has_delay_slot(list[i].c)) {
-			if (list[i].flags & LIGHTREC_NO_DS)
+			if (list[i].flags & LIGHTREC_NO_DS ||
+			    opcode_reads_register(list[i + 1].c, reg))
 				return false;
 
 			return opcode_writes_register(list[i + 1].c, reg);
