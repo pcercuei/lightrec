@@ -392,11 +392,34 @@ static void rec_alu_shiftv(struct lightrec_cstate *state, const struct block *bl
 	lightrec_free_reg(reg_cache, rd);
 }
 
+static void rec_movi(struct lightrec_cstate *state,
+		     const struct block *block, u16 offset)
+{
+	struct regcache *reg_cache = state->reg_cache;
+	union code c = block->opcode_list[offset].c;
+	jit_state_t *_jit = block->_jit;
+	u16 flags = REG_EXT;
+	u8 rt;
+
+	if (!(c.i.imm & 0x8000))
+		flags |= REG_ZEXT;
+
+	rt = lightrec_alloc_reg_out(reg_cache, _jit, c.i.rt, flags);
+
+	jit_movi(rt, (s32)(s16) c.i.imm);
+
+	lightrec_free_reg(reg_cache, rt);
+}
+
 static void rec_ADDIU(struct lightrec_cstate *state,
 		      const struct block *block, u16 offset)
 {
 	_jit_name(block->_jit, __func__);
-	rec_alu_imm(state, block, offset, jit_code_addi, false);
+
+	if (block->opcode_list[offset].c.i.rs)
+		rec_alu_imm(state, block, offset, jit_code_addi, false);
+	else
+		rec_movi(state, block, offset);
 }
 
 static void rec_ADDI(struct lightrec_cstate *state,
@@ -404,7 +427,7 @@ static void rec_ADDI(struct lightrec_cstate *state,
 {
 	/* TODO: Handle the exception? */
 	_jit_name(block->_jit, __func__);
-	rec_alu_imm(state, block, offset, jit_code_addi, false);
+	rec_ADDIU(state, block, offset);
 }
 
 static void rec_SLTIU(struct lightrec_cstate *state,
