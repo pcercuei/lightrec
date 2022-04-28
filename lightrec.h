@@ -58,6 +58,8 @@ enum psx_map {
 	PSX_MAP_MIRROR1,
 	PSX_MAP_MIRROR2,
 	PSX_MAP_MIRROR3,
+
+	PSX_MAP_UNKNOWN,
 };
 
 struct lightrec_mem_map_ops {

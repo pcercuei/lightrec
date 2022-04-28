@@ -156,6 +156,9 @@ void lightrec_free_block(struct lightrec_state *state, struct block *block);
 
 void remove_from_code_lut(struct blockcache *cache, struct block *block);
 
+enum psx_map
+lightrec_get_map_idx(struct lightrec_state *state, u32 kaddr);
+
 const struct lightrec_mem_map *
 lightrec_get_map(struct lightrec_state *state, void **host, u32 kaddr);
 

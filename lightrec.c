@@ -203,25 +203,34 @@ static void lightrec_invalidate_map(struct lightrec_state *state,
 	}
 }
 
+enum psx_map
+lightrec_get_map_idx(struct lightrec_state *state, u32 kaddr)
+{
+	const struct lightrec_mem_map *map;
+	unsigned int i;
+
+	for (i = 0; i < state->nb_maps; i++) {
+		map = &state->maps[i];
+
+		if (kaddr >= map->pc && kaddr < map->pc + map->length)
+			return (enum psx_map) i;
+	}
+
+	return PSX_MAP_UNKNOWN;
+}
+
 const struct lightrec_mem_map *
 lightrec_get_map(struct lightrec_state *state, void **host, u32 kaddr)
 {
 	const struct lightrec_mem_map *map;
-	unsigned int i;
+	enum psx_map idx;
 	u32 addr;
 
-	for (i = 0; i < state->nb_maps; i++) {
-		const struct lightrec_mem_map *mapi = &state->maps[i];
-
-		if (kaddr >= mapi->pc && kaddr < mapi->pc + mapi->length) {
-			map = mapi;
-			break;
-		}
-	}
-
-	if (i == state->nb_maps)
+	idx = lightrec_get_map_idx(state, kaddr);
+	if (idx == PSX_MAP_UNKNOWN)
 		return NULL;
 
+	map = &state->maps[idx];
 	addr = kaddr - map->pc;
 
 	while (map->mirror_of)
