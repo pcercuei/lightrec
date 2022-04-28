@@ -1324,6 +1324,10 @@ static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 				case PSX_MAP_SCRATCH_PAD:
 					pr_debug("Flaging opcode %u as scratchpad access\n", i);
 					list->flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_SCRATCH);
+
+					/* Consider that we're never going to run code from
+					 * the scratchpad. */
+					list->flags |= LIGHTREC_NO_INVALIDATE;
 					break;
 				default:
 					pr_debug("Flagging opcode %u as I/O access\n",
