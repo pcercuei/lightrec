@@ -1233,12 +1233,12 @@ static int lightrec_early_unload(struct lightrec_state *state, struct block *blo
 
 static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 {
-	const struct lightrec_mem_map *map;
 	struct opcode *prev2, *prev = NULL, *list = NULL;
+	enum psx_map psx_map;
 	u32 known = BIT(0);
 	u32 values[32] = { 0 };
 	unsigned int i;
-	u32 val;
+	u32 val, kunseg_val;
 
 	for (i = 0; i < block->nb_ops; i++) {
 		prev2 = prev;
@@ -1303,28 +1303,33 @@ static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 				}
 
 				val = values[list->i.rs] + (s16) list->i.imm;
-				map = lightrec_get_map(state, NULL, kunseg(val));
+				kunseg_val = kunseg(val);
+				psx_map = lightrec_get_map_idx(state, kunseg_val);
 
-				if (!map || map->ops ||
-				    map == &state->maps[PSX_MAP_PARALLEL_PORT]) {
+				switch (psx_map) {
+				case PSX_MAP_KERNEL_USER_RAM:
+					if (val == kunseg_val)
+						list->flags |= LIGHTREC_NO_MASK;
+					/* fall-through */
+				case PSX_MAP_MIRROR1:
+				case PSX_MAP_MIRROR2:
+				case PSX_MAP_MIRROR3:
+					pr_debug("Flaging opcode %u as RAM access\n", i);
+					list->flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_RAM);
+					break;
+				case PSX_MAP_BIOS:
+					pr_debug("Flaging opcode %u as BIOS access\n", i);
+					list->flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_BIOS);
+					break;
+				case PSX_MAP_SCRATCH_PAD:
+					pr_debug("Flaging opcode %u as scratchpad access\n", i);
+					list->flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_SCRATCH);
+					break;
+				default:
 					pr_debug("Flagging opcode %u as I/O access\n",
 						 i);
 					list->flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_HW);
 					break;
-				}
-
-				if (val - map->pc < map->length)
-					list->flags |= LIGHTREC_NO_MASK;
-
-				if (map == &state->maps[PSX_MAP_KERNEL_USER_RAM]) {
-					pr_debug("Flaging opcode %u as RAM access\n", i);
-					list->flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_RAM);
-				} else if (map == &state->maps[PSX_MAP_BIOS]) {
-					pr_debug("Flaging opcode %u as BIOS access\n", i);
-					list->flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_BIOS);
-				} else if (map == &state->maps[PSX_MAP_SCRATCH_PAD]) {
-					pr_debug("Flaging opcode %u as scratchpad access\n", i);
-					list->flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_SCRATCH);
 				}
 			}
 		default: /* fall-through */
