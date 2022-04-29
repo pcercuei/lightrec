@@ -834,7 +834,7 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 {
 	struct block *block;
 	jit_state_t *_jit;
-	jit_node_t *to_end, *to_c, *loop, *addr, *addr2, *addr3;
+	jit_node_t *to_end, *loop, *addr, *addr2, *addr3;
 	unsigned int i;
 	u32 offset;
 	jit_word_t code_size;
@@ -898,9 +898,12 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 
 	/* Convert next PC to KUNSEG and avoid mirrors */
 	jit_andi(JIT_R0, JIT_V0, 0x10000000 | (RAM_SIZE - 1));
-	to_c = jit_bgei(JIT_R0, RAM_SIZE);
+	jit_rshi_u(JIT_R1, JIT_R0, 28);
+	jit_andi(JIT_R2, JIT_V0, BIOS_SIZE - 1);
+	jit_addi(JIT_R2, JIT_R2, RAM_SIZE);
+	jit_movnr(JIT_R0, JIT_R2, JIT_R1);
 
-	/* Fast path: code is running from RAM, use the code LUT */
+	/* If possible, use the code LUT */
 	if (__WORDSIZE == 64)
 		jit_lshi(JIT_R0, JIT_R0, 1);
 	jit_addr(JIT_R0, JIT_R0, LIGHTREC_REG_STATE);
@@ -910,7 +913,6 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 	jit_patch_at(jit_bnei(JIT_R0, 0), loop);
 
 	/* Slow path: call C function get_next_block_func() */
-	jit_patch(to_c);
 
 	if (ENABLE_FIRST_PASS || OPT_DETECT_IMPOSSIBLE_BRANCHES) {
 		/* We may call the interpreter - update state->current_cycle */
