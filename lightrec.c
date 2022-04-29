@@ -836,7 +836,7 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 	jit_state_t *_jit;
 	jit_node_t *to_end, *to_c, *loop, *addr, *addr2, *addr3;
 	unsigned int i;
-	u32 offset, ram_len;
+	u32 offset;
 	jit_word_t code_size;
 
 	block = lightrec_malloc(state, MEM_FOR_IR, sizeof(*block));
@@ -897,9 +897,8 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 	to_end = jit_blei(LIGHTREC_REG_CYCLE, 0);
 
 	/* Convert next PC to KUNSEG and avoid mirrors */
-	ram_len = state->maps[PSX_MAP_KERNEL_USER_RAM].length;
-	jit_andi(JIT_R0, JIT_V0, 0x10000000 | (ram_len - 1));
-	to_c = jit_bgei(JIT_R0, ram_len);
+	jit_andi(JIT_R0, JIT_V0, 0x10000000 | (RAM_SIZE - 1));
+	to_c = jit_bgei(JIT_R0, RAM_SIZE);
 
 	/* Fast path: code is running from RAM, use the code LUT */
 	if (__WORDSIZE == 64)
