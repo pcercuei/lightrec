@@ -851,6 +851,32 @@ static void lightrec_remove_useless_lui(struct block *block, unsigned int offset
 	}
 }
 
+static void lightrec_modify_lui(struct block *block, unsigned int offset)
+{
+	union code c, *lui = &block->opcode_list[offset].c;
+	bool stop = false, stop_next = false;
+	unsigned int i;
+
+	for (i = offset + 1; !stop; i++) {
+		c = block->opcode_list[i].c;
+		stop = stop_next;
+
+		if ((opcode_is_store(c) && c.i.rt == lui->i.rt)
+		    || (!opcode_is_load(c) && opcode_reads_register(c, lui->i.rt)))
+			break;
+
+		if (opcode_writes_register(c, lui->i.rt)) {
+			pr_debug("Convert LUI at offset 0x%x to kuseg\n",
+				 i - 1 << 2);
+			lui->i.imm = kunseg(lui->i.imm << 16) >> 16;
+			break;
+		}
+
+		if (has_delay_slot(c))
+			stop_next = true;
+	}
+}
+
 static int lightrec_transform_ops(struct lightrec_state *state, struct block *block)
 {
 	struct opcode *list = block->opcode_list;
@@ -896,6 +922,7 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 			break;
 
 		case OP_LUI:
+			lightrec_modify_lui(block, i);
 			lightrec_remove_useless_lui(block, i, known, values);
 			break;
 
@@ -1243,7 +1270,7 @@ static int lightrec_early_unload(struct lightrec_state *state, struct block *blo
 
 static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 {
-	struct opcode *prev2, *prev = NULL, *list = NULL;
+	struct opcode *prev = NULL, *list = NULL;
 	enum psx_map psx_map;
 	u32 known = BIT(0);
 	u32 values[32] = { 0 };
@@ -1251,7 +1278,6 @@ static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 	u32 val, kunseg_val;
 
 	for (i = 0; i < block->nb_ops; i++) {
-		prev2 = prev;
 		prev = list;
 		list = &block->opcode_list[i];
 
@@ -1299,19 +1325,6 @@ static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 		case OP_LWR:
 		case OP_LWC2:
 			if (OPT_FLAG_IO && (known & BIT(list->i.rs))) {
-				if (prev && prev->i.op == OP_LUI &&
-				    !(prev2 && has_delay_slot(prev2->c)) &&
-				    prev->i.rt == list->i.rs &&
-				    list->i.rt == list->i.rs &&
-				    prev->i.imm & 0x8000) {
-					pr_debug("Convert LUI at offset 0x%x to kuseg\n",
-						 i - 1 << 2);
-
-					val = kunseg(prev->i.imm << 16);
-					prev->i.imm = val >> 16;
-					values[list->i.rs] = val;
-				}
-
 				val = values[list->i.rs] + (s16) list->i.imm;
 				kunseg_val = kunseg(val);
 				psx_map = lightrec_get_map_idx(state, kunseg_val);
