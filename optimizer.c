@@ -817,6 +817,40 @@ static void lightrec_optimize_sll_sra(struct opcode *list, unsigned int offset)
 	to_nop->opcode = 0;
 }
 
+static void lightrec_remove_useless_lui(struct block *block, unsigned int offset,
+					u32 known, u32 *values)
+{
+	struct opcode *list = block->opcode_list,
+		      *op = &block->opcode_list[offset];
+	int reader;
+
+	if (!(op->flags & LIGHTREC_SYNC) && (known & BIT(op->i.rt)) &&
+	    values[op->i.rt] == op->i.imm << 16) {
+		pr_debug("Converting duplicated LUI to NOP\n");
+		op->opcode = 0x0;
+		return;
+	}
+
+	if (op->i.imm != 0 || op->i.rt == 0)
+		return;
+
+	reader = find_next_reader(list, offset + 1, op->i.rt);
+	if (reader <= 0)
+		return;
+
+	if (opcode_writes_register(list[reader].c, op->i.rt) ||
+	    reg_is_dead(list, reader, op->i.rt)) {
+		pr_debug("Removing useless LUI 0x0\n");
+
+		if (list[reader].i.rs == op->i.rt)
+			list[reader].i.rs = 0;
+		if (list[reader].i.op == OP_SPECIAL &&
+		    list[reader].i.rt == op->i.rt)
+			list[reader].i.rt = 0;
+		op->opcode = 0x0;
+	}
+}
+
 static int lightrec_transform_ops(struct lightrec_state *state, struct block *block)
 {
 	struct opcode *list = block->opcode_list;
@@ -824,7 +858,6 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 	u32 known = BIT(0);
 	u32 values[32] = { 0 };
 	unsigned int i;
-	int reader;
 
 	for (i = 0; i < block->nb_ops; i++) {
 		prev = op;
@@ -863,30 +896,7 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 			break;
 
 		case OP_LUI:
-			if (!(op->flags & LIGHTREC_SYNC) &&
-			    (known & BIT(op->i.rt)) &&
-			    values[op->i.rt] == op->i.imm << 16) {
-				pr_debug("Converting duplicated LUI to NOP\n");
-				op->opcode = 0x0;
-			}
-
-			if (op->i.imm != 0 || op->i.rt == 0)
-				break;
-
-			reader = find_next_reader(list, i + 1, op->i.rt);
-			if (reader > 0 &&
-			    (opcode_writes_register(list[reader].c, op->i.rt) ||
-			     reg_is_dead(list, reader, op->i.rt))) {
-
-				pr_debug("Removing useless LUI 0x0\n");
-
-				if (list[reader].i.rs == op->i.rt)
-					list[reader].i.rs = 0;
-				if (list[reader].i.op == OP_SPECIAL &&
-				    list[reader].i.rt == op->i.rt)
-					list[reader].i.rt = 0;
-				op->opcode = 0x0;
-			}
+			lightrec_remove_useless_lui(block, i, known, values);
 			break;
 
 		/* Transform ORI/ADDI/ADDIU with imm #0 or ORR/ADD/ADDU/SUB/SUBU
