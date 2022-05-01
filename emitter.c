@@ -1110,7 +1110,9 @@ static void rec_store_memory(struct lightrec_cstate *cstate,
 			addr_reg = tmp2;
 		}
 
-		if (__WORDSIZE == 64 || addr_reg != rs || c.i.rs != 0) {
+		if (addr_reg == rs && c.i.rs == 0) {
+			addr_reg = LIGHTREC_REG_STATE;
+		} else {
 			jit_addr(tmp2, addr_reg, LIGHTREC_REG_STATE);
 			addr_reg = tmp2;
 		}
