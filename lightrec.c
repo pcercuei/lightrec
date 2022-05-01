@@ -16,6 +16,7 @@
 #include "recompiler.h"
 #include "regcache.h"
 #include "optimizer.h"
+#include "tlsf/tlsf.h"
 
 #include <errno.h>
 #include <inttypes.h>
@@ -695,13 +696,47 @@ static s32 c_function_wrapper(struct lightrec_state *state, s32 cycles_delta,
 	return state->target_cycle - state->current_cycle;
 }
 
+static void * lightrec_emit_code(struct lightrec_state *state,
+				 jit_state_t *_jit, unsigned int *size)
+{
+	bool has_code_buffer = ENABLE_CODE_BUFFER && state->tlsf;
+	jit_word_t code_size, new_code_size;
+	void *code;
+
+	jit_realize();
+
+	if (has_code_buffer) {
+		jit_get_code(&code_size);
+		code = tlsf_malloc(state->tlsf, (size_t) code_size);
+		if (!code)
+			return NULL;
+
+		jit_set_code(code, code_size);
+	}
+
+	code = jit_emit();
+
+	jit_get_code(&new_code_size);
+	lightrec_register(MEM_FOR_CODE, new_code_size);
+
+	if (has_code_buffer) {
+		tlsf_realloc(state->tlsf, code, new_code_size);
+
+		pr_debug("Creating code block at address 0x%lx, code size: %lu new: %lu\n",
+			 (uintptr_t) code, code_size, new_code_size);
+	}
+
+	*size = (unsigned int) new_code_size;
+
+	return code;
+}
+
 static struct block * generate_wrapper(struct lightrec_state *state)
 {
 	struct block *block;
 	jit_state_t *_jit;
 	unsigned int i;
 	int stack_ptr;
-	jit_word_t code_size;
 	jit_node_t *to_tramp, *to_fn_epilog;
 	jit_node_t *addr[C_WRAPPERS_COUNT - 1];
 
@@ -776,20 +811,19 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 	jit_epilog();
 
 	block->_jit = _jit;
-	block->function = jit_emit();
 	block->opcode_list = NULL;
 	block->flags = 0;
 	block->nb_ops = 0;
+
+	block->function = lightrec_emit_code(state, _jit,
+					     &block->code_size);
+	if (!block->function)
+		goto err_free_block;
 
 	state->wrappers_eps[C_WRAPPERS_COUNT - 1] = block->function;
 
 	for (i = 0; i < C_WRAPPERS_COUNT - 1; i++)
 		state->wrappers_eps[i] = jit_address(addr[i]);
-
-	jit_get_code(&code_size);
-	lightrec_register(MEM_FOR_CODE, code_size);
-
-	block->code_size = code_size;
 
 	if (ENABLE_DISASSEMBLER) {
 		pr_debug("Wrapper block:\n");
@@ -837,7 +871,6 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 	jit_node_t *to_end, *loop, *addr, *addr2, *addr3;
 	unsigned int i;
 	u32 offset;
-	jit_word_t code_size;
 
 	block = lightrec_malloc(state, MEM_FOR_IR, sizeof(*block));
 	if (!block)
@@ -956,15 +989,14 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 	jit_epilog();
 
 	block->_jit = _jit;
-	block->function = jit_emit();
 	block->opcode_list = NULL;
 	block->flags = 0;
 	block->nb_ops = 0;
 
-	jit_get_code(&code_size);
-	lightrec_register(MEM_FOR_CODE, code_size);
-
-	block->code_size = code_size;
+	block->function = lightrec_emit_code(state, _jit,
+					     &block->code_size);
+	if (!block->function)
+		goto err_free_block;
 
 	state->eob_wrapper_func = jit_address(addr2);
 	if (OPT_REPLACE_MEMSET)
@@ -1170,6 +1202,19 @@ static void lightrec_reap_jit(struct lightrec_state *state, void *data)
 	_jit_destroy_state(data);
 }
 
+static void lightrec_free_function(struct lightrec_state *state, void *fn)
+{
+	if (ENABLE_CODE_BUFFER && state->tlsf) {
+		pr_debug("Freeing code block at 0x%lx\n", (uintptr_t) fn);
+		tlsf_free(state->tlsf, fn);
+	}
+}
+
+static void lightrec_reap_function(struct lightrec_state *state, void *data)
+{
+	lightrec_free_function(state, data);
+}
+
 int lightrec_compile_block(struct lightrec_cstate *cstate,
 			   struct block *block)
 {
@@ -1181,7 +1226,7 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 	jit_state_t *_jit, *oldjit;
 	jit_node_t *start_of_block;
 	bool skip_next = false;
-	jit_word_t code_size;
+	void *old_fn;
 	unsigned int i, j;
 	u32 offset;
 
@@ -1194,6 +1239,7 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 		return -ENOMEM;
 
 	oldjit = block->_jit;
+	old_fn = block->function;
 	block->_jit = _jit;
 
 	lightrec_regcache_reset(cstate->reg_cache);
@@ -1271,7 +1317,12 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 	jit_ret();
 	jit_epilog();
 
-	block->function = jit_emit();
+	block->function = lightrec_emit_code(state, _jit,
+					     &block->code_size);
+	if (!block->function) {
+		pr_err("Unable to compile block!\n");
+	}
+
 	block->flags &= ~BLOCK_SHOULD_RECOMPILE;
 
 	/* Add compiled function to the LUT */
@@ -1333,11 +1384,6 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 	if (ENABLE_THREADED_COMPILER)
 		lightrec_reaper_continue(state->reaper);
 
-	jit_get_code(&code_size);
-	lightrec_register(MEM_FOR_CODE, code_size);
-
-	block->code_size = code_size;
-
 	if (ENABLE_DISASSEMBLER) {
 		pr_debug("Compiling block at PC: 0x%08x\n", block->pc);
 		jit_disassemble();
@@ -1360,11 +1406,15 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 		pr_debug("Block 0x%08x recompiled, reaping old jit context.\n",
 			 block->pc);
 
-		if (ENABLE_THREADED_COMPILER)
+		if (ENABLE_THREADED_COMPILER) {
 			lightrec_reaper_add(state->reaper,
 					    lightrec_reap_jit, oldjit);
-		else
+			lightrec_reaper_add(state->reaper,
+					    lightrec_reap_function, old_fn);
+		} else {
 			_jit_destroy_state(oldjit);
+			lightrec_free_function(state, old_fn);
+		}
 	}
 
 	return 0;
@@ -1445,6 +1495,7 @@ void lightrec_free_block(struct lightrec_state *state, struct block *block)
 		lightrec_free_opcode_list(state, block);
 	if (block->_jit)
 		_jit_destroy_state(block->_jit);
+	lightrec_free_function(state, block->function);
 	lightrec_unregister(MEM_FOR_CODE, block->code_size);
 	lightrec_free(state, MEM_FOR_IR, sizeof(*block), block);
 }
@@ -1480,11 +1531,21 @@ struct lightrec_state * lightrec_init(char *argv0,
 				      const struct lightrec_ops *ops)
 {
 	struct lightrec_state *state;
+	void *tlsf = NULL;
 
 	/* Sanity-check ops */
 	if (!ops || !ops->cop2_op || !ops->enable_ram) {
 		pr_err("Missing callbacks in lightrec_ops structure\n");
 		return NULL;
+	}
+
+	if (ENABLE_CODE_BUFFER && nb > PSX_MAP_CODE_BUFFER) {
+		tlsf = tlsf_create_with_pool(map[PSX_MAP_CODE_BUFFER].address,
+					     map[PSX_MAP_CODE_BUFFER].length);
+		if (!tlsf) {
+			pr_err("Unable to initialize code buffer\n");
+			return NULL;
+		}
 	}
 
 	init_jit(argv0);
@@ -1496,6 +1557,8 @@ struct lightrec_state * lightrec_init(char *argv0,
 
 	lightrec_register(MEM_FOR_LIGHTREC, sizeof(*state) +
 			  sizeof(*state->code_lut) * CODE_LUT_SIZE);
+
+	state->tlsf = tlsf;
 
 #if ENABLE_TINYMM
 	state->tinymm = tinymm_init(malloc, free, 4096);
@@ -1588,6 +1651,8 @@ err_free_state:
 	free(state);
 err_finish_jit:
 	finish_jit();
+	if (ENABLE_CODE_BUFFER && tlsf)
+		tlsf_destroy(tlsf);
 	return NULL;
 }
 
@@ -1608,6 +1673,8 @@ void lightrec_destroy(struct lightrec_state *state)
 	lightrec_free_block(state, state->dispatcher);
 	lightrec_free_block(state, state->c_wrapper_block);
 	finish_jit();
+	if (ENABLE_CODE_BUFFER && state->tlsf)
+		tlsf_destroy(state->tlsf);
 
 #if ENABLE_TINYMM
 	tinymm_shutdown(state->tinymm);

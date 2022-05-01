@@ -135,6 +135,7 @@ struct lightrec_state {
 	struct recompiler *rec;
 	struct lightrec_cstate *cstate;
 	struct reaper *reaper;
+	void *tlsf;
 	void (*eob_wrapper_func)(void);
 	void (*memset_func)(void);
 	void (*get_next_block)(void);
