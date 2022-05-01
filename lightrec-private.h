@@ -6,6 +6,7 @@
 #ifndef __LIGHTREC_PRIVATE_H__
 #define __LIGHTREC_PRIVATE_H__
 
+#include "lightning-wrapper.h"
 #include "lightrec-config.h"
 #include "disassembler.h"
 #include "lightrec.h"
@@ -144,6 +145,7 @@ struct lightrec_state {
 	unsigned int nb_maps;
 	const struct lightrec_mem_map *maps;
 	uintptr_t offset_ram, offset_bios, offset_scratch;
+	_Bool with_32bit_lut;
 	_Bool mirrors_mapped;
 	_Bool invalidate_from_dma_only;
 	void *code_lut[];
@@ -179,28 +181,43 @@ static inline u32 lut_offset(u32 pc)
 		return (pc & (RAM_SIZE - 1)) >> 2; // RAM
 }
 
+static inline _Bool lut_is_32bit(const struct lightrec_state *state)
+{
+	return __WORDSIZE == 32 ||
+		(ENABLE_CODE_BUFFER && state->with_32bit_lut);
+}
+
 static inline size_t lut_elm_size(const struct lightrec_state *state)
 {
-	return sizeof(void *);
+	return lut_is_32bit(state) ? 4 : sizeof(void *);
 }
 
 static inline void ** lut_address(struct lightrec_state *state, u32 offset)
 {
-	return &state->code_lut[offset];
+	if (lut_is_32bit(state))
+		return (void **) ((uintptr_t) state->code_lut + offset * 4);
+	else
+		return &state->code_lut[offset];
 }
 
 static inline void * lut_read(struct lightrec_state *state, u32 offset)
 {
 	void **lut_entry = lut_address(state, lut_offset(offset));
 
-	return *lut_entry;
+	if (lut_is_32bit(state))
+		return (void *)(uintptr_t) *(u32 *) lut_entry;
+	else
+		return *lut_entry;
 }
 
 static inline void lut_write(struct lightrec_state *state, u32 offset, void *ptr)
 {
 	void **lut_entry = lut_address(state, offset);
 
-	*lut_entry = ptr;
+	if (lut_is_32bit(state))
+		*(u32 *) lut_entry = (u32)(uintptr_t) ptr;
+	else
+		*lut_entry = ptr;
 }
 
 static inline u32 get_ds_pc(const struct block *block, u16 offset, s16 imm)

@@ -1051,13 +1051,14 @@ static void rec_store_memory(struct lightrec_cstate *cstate,
 			     uintptr_t addr_offset, u32 addr_mask,
 			     bool invalidate)
 {
+	const struct lightrec_state *state = cstate->state;
 	struct regcache *reg_cache = cstate->reg_cache;
 	struct opcode *op = &block->opcode_list[offset];
 	jit_state_t *_jit = block->_jit;
 	union code c = op->c;
 	u8 rs, rt, tmp, tmp2, tmp3, addr_reg, addr_reg2;
 	s16 imm = (s16)c.i.imm;
-	s32 simm = (s32)imm << (__WORDSIZE / 32 - 1);
+	s32 simm = (s32)imm << (1 - lut_is_32bit(state));
 	s32 lut_offt = offsetof(struct lightrec_state, code_lut);
 	bool no_mask = op->flags & LIGHTREC_NO_MASK;
 	bool add_imm = c.i.imm && invalidate && simm + lut_offt != (s16)(simm + lut_offt);
@@ -1105,7 +1106,7 @@ static void rec_store_memory(struct lightrec_cstate *cstate,
 			addr_reg = tmp2;
 		}
 
-		if (__WORDSIZE == 64) {
+		if (!lut_is_32bit(state)) {
 			jit_lshi(tmp2, addr_reg, 1);
 			addr_reg = tmp2;
 		}
@@ -1117,7 +1118,10 @@ static void rec_store_memory(struct lightrec_cstate *cstate,
 			addr_reg = tmp2;
 		}
 
-		jit_stxi(lut_offt, addr_reg, tmp3);
+		if (lut_is_32bit(state))
+			jit_stxi_i(lut_offt, addr_reg, tmp3);
+		else
+			jit_stxi(lut_offt, addr_reg, tmp3);
 
 		lightrec_free_reg(reg_cache, tmp3);
 	}
@@ -1244,12 +1248,15 @@ static void rec_store_direct(struct lightrec_cstate *cstate, const struct block 
 
 	/* Compute the offset to the code LUT */
 	jit_andi(tmp, tmp2, (RAM_SIZE - 1) & ~3);
-	if (__WORDSIZE == 64)
+	if (!lut_is_32bit(state))
 		jit_lshi(tmp, tmp, 1);
 	jit_addr(tmp, LIGHTREC_REG_STATE, tmp);
 
 	/* Write NULL to the code LUT to invalidate any block that's there */
-	jit_stxi(offsetof(struct lightrec_state, code_lut), tmp, tmp3);
+	if (lut_is_32bit(state))
+		jit_stxi_i(offsetof(struct lightrec_state, code_lut), tmp, tmp3);
+	else
+		jit_stxi(offsetof(struct lightrec_state, code_lut), tmp, tmp3);
 
 	if (state->offset_ram != state->offset_scratch) {
 		jit_movi(tmp, state->offset_ram);

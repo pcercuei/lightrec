@@ -937,10 +937,15 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 	jit_movnr(JIT_R0, JIT_R2, JIT_R1);
 
 	/* If possible, use the code LUT */
-	if (__WORDSIZE == 64)
+	if (!lut_is_32bit(state))
 		jit_lshi(JIT_R0, JIT_R0, 1);
 	jit_addr(JIT_R0, JIT_R0, LIGHTREC_REG_STATE);
-	jit_ldxi(JIT_R0, JIT_R0, offsetof(struct lightrec_state, code_lut));
+
+	offset = offsetof(struct lightrec_state, code_lut);
+	if (lut_is_32bit(state))
+		jit_ldxi_ui(JIT_R0, JIT_R0, offset);
+	else
+		jit_ldxi(JIT_R0, JIT_R0, offset);
 
 	/* If we get non-NULL, loop */
 	jit_patch_at(jit_bnei(JIT_R0, 0), loop);
@@ -1530,8 +1535,11 @@ struct lightrec_state * lightrec_init(char *argv0,
 				      size_t nb,
 				      const struct lightrec_ops *ops)
 {
+	const struct lightrec_mem_map *codebuf_map;
 	struct lightrec_state *state;
+	uintptr_t addr;
 	void *tlsf = NULL;
+	bool with_32bit_lut = false;
 	size_t lut_size;
 
 	/* Sanity-check ops */
@@ -1541,15 +1549,25 @@ struct lightrec_state * lightrec_init(char *argv0,
 	}
 
 	if (ENABLE_CODE_BUFFER && nb > PSX_MAP_CODE_BUFFER) {
-		tlsf = tlsf_create_with_pool(map[PSX_MAP_CODE_BUFFER].address,
-					     map[PSX_MAP_CODE_BUFFER].length);
+		codebuf_map = &map[PSX_MAP_CODE_BUFFER];
+
+		tlsf = tlsf_create_with_pool(codebuf_map->address,
+					     codebuf_map->length);
 		if (!tlsf) {
 			pr_err("Unable to initialize code buffer\n");
 			return NULL;
 		}
+
+		if (__WORDSIZE == 64) {
+			addr = (uintptr_t) codebuf_map->address + codebuf_map->length - 1;
+			with_32bit_lut = addr == (u32) addr;
+		}
 	}
 
-	lut_size = CODE_LUT_SIZE * sizeof(void *);
+	if (with_32bit_lut)
+		lut_size = CODE_LUT_SIZE * 4;
+	else
+		lut_size = CODE_LUT_SIZE * sizeof(void *);
 
 	init_jit(argv0);
 
@@ -1560,6 +1578,7 @@ struct lightrec_state * lightrec_init(char *argv0,
 	lightrec_register(MEM_FOR_LIGHTREC, sizeof(*state) + lut_size);
 
 	state->tlsf = tlsf;
+	state->with_32bit_lut = with_32bit_lut;
 
 #if ENABLE_TINYMM
 	state->tinymm = tinymm_init(malloc, free, 4096);
@@ -1627,6 +1646,9 @@ struct lightrec_state * lightrec_init(char *argv0,
 	} else {
 		pr_info("Memory map is sub-par. Emitted code will be slow.\n");
 	}
+
+	if (state->with_32bit_lut)
+		pr_info("Using 32-bit LUT\n");
 
 	return state;
 
