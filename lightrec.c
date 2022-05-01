@@ -199,8 +199,8 @@ static void lightrec_invalidate_map(struct lightrec_state *state,
 		const struct lightrec_mem_map *map, u32 addr, u32 len)
 {
 	if (map == &state->maps[PSX_MAP_KERNEL_USER_RAM]) {
-		memset(&state->code_lut[lut_offset(addr)], 0,
-		       ((len + 3) / 4) * sizeof(void *));
+		memset(lut_address(state, lut_offset(addr)), 0,
+		       ((len + 3) / 4) * lut_elm_size(state));
 	}
 }
 
@@ -625,7 +625,7 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 	void *func;
 
 	for (;;) {
-		func = state->code_lut[lut_offset(pc)];
+		func = lut_read(state, pc);
 		if (func && func != state->get_next_block)
 			break;
 
@@ -1143,7 +1143,7 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 		block->flags |= BLOCK_FULLY_TAGGED;
 
 	if (OPT_REPLACE_MEMSET && (block->flags & BLOCK_IS_MEMSET))
-		state->code_lut[lut_offset(pc)] = state->memset_func;
+		lut_write(state, lut_offset(pc), state->memset_func);
 
 	block->hash = lightrec_calculate_block_hash(block);
 
@@ -1326,7 +1326,7 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 	block->flags &= ~BLOCK_SHOULD_RECOMPILE;
 
 	/* Add compiled function to the LUT */
-	state->code_lut[lut_offset(block->pc)] = block->function;
+	lut_write(state, lut_offset(block->pc), block->function);
 
 	if (ENABLE_THREADED_COMPILER) {
 		/* Since we might try to reap the same block multiple times,
@@ -1363,7 +1363,7 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 		 * be compiled. We can override the LUT entry with our new
 		 * block's entry point. */
 		offset = lut_offset(block->pc) + target->offset;
-		state->code_lut[offset] = jit_address(target->label);
+		lut_write(state, offset, jit_address(target->label));
 
 		if (block2) {
 			pr_debug("Reap block 0x%08x as it's covered by block "
@@ -1532,6 +1532,7 @@ struct lightrec_state * lightrec_init(char *argv0,
 {
 	struct lightrec_state *state;
 	void *tlsf = NULL;
+	size_t lut_size;
 
 	/* Sanity-check ops */
 	if (!ops || !ops->cop2_op || !ops->enable_ram) {
@@ -1548,15 +1549,15 @@ struct lightrec_state * lightrec_init(char *argv0,
 		}
 	}
 
+	lut_size = CODE_LUT_SIZE * sizeof(void *);
+
 	init_jit(argv0);
 
-	state = calloc(1, sizeof(*state) +
-		       sizeof(*state->code_lut) * CODE_LUT_SIZE);
+	state = calloc(1, sizeof(*state) + lut_size);
 	if (!state)
 		goto err_finish_jit;
 
-	lightrec_register(MEM_FOR_LIGHTREC, sizeof(*state) +
-			  sizeof(*state->code_lut) * CODE_LUT_SIZE);
+	lightrec_register(MEM_FOR_LIGHTREC, sizeof(*state) + lut_size);
 
 	state->tlsf = tlsf;
 
@@ -1647,7 +1648,7 @@ err_free_tinymm:
 err_free_state:
 #endif
 	lightrec_unregister(MEM_FOR_LIGHTREC, sizeof(*state) +
-			    sizeof(*state->code_lut) * CODE_LUT_SIZE);
+			    lut_elm_size(state) * CODE_LUT_SIZE);
 	free(state);
 err_finish_jit:
 	finish_jit();
@@ -1680,7 +1681,7 @@ void lightrec_destroy(struct lightrec_state *state)
 	tinymm_shutdown(state->tinymm);
 #endif
 	lightrec_unregister(MEM_FOR_LIGHTREC, sizeof(*state) +
-			    sizeof(*state->code_lut) * CODE_LUT_SIZE);
+			    lut_elm_size(state) * CODE_LUT_SIZE);
 	free(state);
 }
 
@@ -1702,7 +1703,7 @@ void lightrec_invalidate(struct lightrec_state *state, u32 addr, u32 len)
 
 void lightrec_invalidate_all(struct lightrec_state *state)
 {
-	memset(state->code_lut, 0, sizeof(*state->code_lut) * CODE_LUT_SIZE);
+	memset(state->code_lut, 0, lut_elm_size(state) * CODE_LUT_SIZE);
 }
 
 void lightrec_set_invalidate_mode(struct lightrec_state *state, bool dma_only)

@@ -179,6 +179,30 @@ static inline u32 lut_offset(u32 pc)
 		return (pc & (RAM_SIZE - 1)) >> 2; // RAM
 }
 
+static inline size_t lut_elm_size(const struct lightrec_state *state)
+{
+	return sizeof(void *);
+}
+
+static inline void ** lut_address(struct lightrec_state *state, u32 offset)
+{
+	return &state->code_lut[offset];
+}
+
+static inline void * lut_read(struct lightrec_state *state, u32 offset)
+{
+	void **lut_entry = lut_address(state, lut_offset(offset));
+
+	return *lut_entry;
+}
+
+static inline void lut_write(struct lightrec_state *state, u32 offset, void *ptr)
+{
+	void **lut_entry = lut_address(state, offset);
+
+	*lut_entry = ptr;
+}
+
 static inline u32 get_ds_pc(const struct block *block, u16 offset, s16 imm)
 {
 	u16 flags = block->opcode_list[offset].flags;
