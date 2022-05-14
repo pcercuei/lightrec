@@ -1061,7 +1061,8 @@ static void rec_store_memory(struct lightrec_cstate *cstate,
 	s32 simm = (s32)imm << (1 - lut_is_32bit(state));
 	s32 lut_offt = offsetof(struct lightrec_state, code_lut);
 	bool no_mask = op->flags & LIGHTREC_NO_MASK;
-	bool add_imm = c.i.imm && invalidate && simm + lut_offt != (s16)(simm + lut_offt);
+	bool add_imm = c.i.imm && invalidate &&
+		((imm & 0x3) || simm + lut_offt != (s16)(simm + lut_offt));
 	bool need_tmp = !no_mask || addr_offset || add_imm;
 	bool need_tmp2 = addr_offset || invalidate;
 
