@@ -857,7 +857,7 @@ static void lightrec_modify_lui(struct block *block, unsigned int offset)
 	bool stop = false, stop_next = false;
 	unsigned int i;
 
-	for (i = offset + 1; !stop; i++) {
+	for (i = offset + 1; !stop && i < block->nb_ops; i++) {
 		c = block->opcode_list[i].c;
 		stop = stop_next;
 
