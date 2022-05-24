@@ -1031,7 +1031,7 @@ union code lightrec_read_opcode(struct lightrec_state *state, u32 pc)
 	lightrec_get_map(state, &host, kunseg(pc));
 
 	const u32 *code = (u32 *)host;
-	return (union code) *code;
+	return (union code) LE32TOH(*code);
 }
 
 unsigned int lightrec_cycles_of_opcode(union code code)
