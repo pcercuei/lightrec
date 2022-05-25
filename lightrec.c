@@ -722,7 +722,8 @@ static void * lightrec_emit_code(struct lightrec_state *state,
 	if (has_code_buffer) {
 		tlsf_realloc(state->tlsf, code, new_code_size);
 
-		pr_debug("Creating code block at address 0x%lx, code size: %lu new: %lu\n",
+		pr_debug("Creating code block at address 0x%" PRIxPTR ", "
+			 "code size: %" PRIuPTR " new: %" PRIuPTR "\n",
 			 (uintptr_t) code, code_size, new_code_size);
 	}
 
@@ -1210,7 +1211,7 @@ static void lightrec_reap_jit(struct lightrec_state *state, void *data)
 static void lightrec_free_function(struct lightrec_state *state, void *fn)
 {
 	if (ENABLE_CODE_BUFFER && state->tlsf) {
-		pr_debug("Freeing code block at 0x%lx\n", (uintptr_t) fn);
+		pr_debug("Freeing code block at 0x%" PRIxPTR "\n", (uintptr_t) fn);
 		tlsf_free(state->tlsf, fn);
 	}
 }
