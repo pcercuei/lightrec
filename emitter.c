@@ -1045,6 +1045,11 @@ static void rec_io(struct lightrec_cstate *state,
 	}
 }
 
+static u32 rec_ram_mask(struct lightrec_state *state)
+{
+	return (RAM_SIZE << (state->mirrors_mapped * 2)) - 1;
+}
+
 static void rec_store_memory(struct lightrec_cstate *cstate,
 			     const struct block *block,
 			     u16 offset, jit_code_t code,
@@ -1062,8 +1067,9 @@ static void rec_store_memory(struct lightrec_cstate *cstate,
 	s32 simm = (s32)imm << (1 - lut_is_32bit(state));
 	s32 lut_offt = offsetof(struct lightrec_state, code_lut);
 	bool no_mask = op->flags & LIGHTREC_NO_MASK;
-	bool add_imm = c.i.imm && invalidate &&
-		((imm & 0x3) || simm + lut_offt != (s16)(simm + lut_offt));
+	bool add_imm = c.i.imm &&
+		((!state->mirrors_mapped && !no_mask) || (invalidate &&
+		((imm & 0x3) || simm + lut_offt != (s16)(simm + lut_offt))));
 	bool need_tmp = !no_mask || addr_offset || add_imm;
 	bool need_tmp2 = addr_offset || invalidate;
 
@@ -1150,11 +1156,13 @@ static void rec_store_ram(struct lightrec_cstate *cstate,
 			  u16 offset, jit_code_t code,
 			  jit_code_t swap_code, bool invalidate)
 {
+	struct lightrec_state *state = cstate->state;
+
 	_jit_note(block->_jit, __FILE__, __LINE__);
 
 	return rec_store_memory(cstate, block, offset, code, swap_code,
-				cstate->state->offset_ram,
-				RAM_SIZE - 1, invalidate);
+				state->offset_ram, rec_ram_mask(state),
+				invalidate);
 }
 
 static void rec_store_scratch(struct lightrec_cstate *cstate,
@@ -1402,7 +1410,9 @@ static void rec_load_memory(struct lightrec_cstate *cstate,
 	struct opcode *op = &block->opcode_list[offset];
 	jit_state_t *_jit = block->_jit;
 	u8 rs, rt, addr_reg, flags = REG_EXT;
+	bool no_mask = op->flags & LIGHTREC_NO_MASK;
 	union code c = op->c;
+	s16 imm;
 
 	if (!c.i.rt)
 		return;
@@ -1413,11 +1423,18 @@ static void rec_load_memory(struct lightrec_cstate *cstate,
 	rs = lightrec_alloc_reg_in(reg_cache, _jit, c.i.rs, 0);
 	rt = lightrec_alloc_reg_out(reg_cache, _jit, c.i.rt, flags);
 
-	if (!(op->flags & LIGHTREC_NO_MASK)) {
-		jit_andi(rt, rs, addr_mask);
+	if (!cstate->state->mirrors_mapped && c.i.imm && !no_mask) {
+		jit_addi(rt, rs, (s16)c.i.imm);
 		addr_reg = rt;
+		imm = 0;
 	} else {
 		addr_reg = rs;
+		imm = (s16)c.i.imm;
+	}
+
+	if (!no_mask) {
+		jit_andi(rt, addr_reg, addr_mask);
+		addr_reg = rt;
 	}
 
 	if (addr_offset) {
@@ -1425,7 +1442,7 @@ static void rec_load_memory(struct lightrec_cstate *cstate,
 		addr_reg = rt;
 	}
 
-	jit_new_node_www(code, rt, addr_reg, (s16)c.i.imm);
+	jit_new_node_www(code, rt, addr_reg, imm);
 
 	if (is_big_endian() && swap_code) {
 		jit_new_node_ww(swap_code, rt, rt);
@@ -1447,7 +1464,7 @@ static void rec_load_ram(struct lightrec_cstate *cstate,
 	_jit_note(block->_jit, __FILE__, __LINE__);
 
 	rec_load_memory(cstate, block, offset, code, swap_code, is_unsigned,
-			cstate->state->offset_ram, RAM_SIZE - 1);
+			cstate->state->offset_ram, rec_ram_mask(cstate->state));
 }
 
 static void rec_load_bios(struct lightrec_cstate *cstate,
