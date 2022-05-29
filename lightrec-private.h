@@ -67,7 +67,6 @@ struct blockcache;
 struct recompiler;
 struct regcache;
 struct opcode;
-struct tinymm;
 struct reaper;
 
 struct block {
@@ -131,7 +130,6 @@ struct lightrec_state {
 	struct block *dispatcher, *c_wrapper_block;
 	void *c_wrappers[C_WRAPPERS_COUNT];
 	void *wrappers_eps[C_WRAPPERS_COUNT];
-	struct tinymm *tinymm;
 	struct blockcache *block_cache;
 	struct recompiler *rec;
 	struct lightrec_cstate *cstate;

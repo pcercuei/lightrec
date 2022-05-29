@@ -91,15 +91,6 @@ if (CMAKE_C_COMPILER_ID STREQUAL "Clang")
 	target_compile_options(${PROJECT_NAME} PRIVATE -Wno-initializer-overrides)
 endif()
 
-option(ENABLE_TINYMM "Enable optional libtinymm dependency" OFF)
-if (ENABLE_TINYMM)
-	find_library(TINYMM_LIBRARIES tinymm REQUIRED)
-	find_path(TINYMM_INCLUDE_DIR tinymm.h REQUIRED)
-
-	include_directories(${TINYMM_INCLUDE_DIR})
-	target_link_libraries(${PROJECT_NAME} PRIVATE ${TINYMM_LIBRARIES})
-endif (ENABLE_TINYMM)
-
 if (ENABLE_THREADED_COMPILER)
 	find_library(PTHREAD_LIBRARIES pthread REQUIRED)
 	find_path(PTHREAD_INCLUDE_DIR pthread.h REQUIRED)
