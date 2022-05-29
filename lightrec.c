@@ -705,6 +705,9 @@ static void * lightrec_emit_code(struct lightrec_state *state,
 
 	jit_realize();
 
+	if (!ENABLE_DISASSEMBLER)
+		jit_set_data(NULL, 0, JIT_DISABLE_DATA | JIT_DISABLE_NOTE);
+
 	if (has_code_buffer) {
 		jit_get_code(&code_size);
 		code = tlsf_malloc(state->tlsf, (size_t) code_size);
