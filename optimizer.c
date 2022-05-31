@@ -922,7 +922,8 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 			break;
 
 		case OP_LUI:
-			lightrec_modify_lui(block, i);
+			if (!prev || !has_delay_slot(prev->c))
+				lightrec_modify_lui(block, i);
 			lightrec_remove_useless_lui(block, i, known, values);
 			break;
 
