@@ -325,7 +325,8 @@ static void lightrec_rw_helper(struct lightrec_state *state,
 	case OP_LW:
 		if (op.i.rt)
 			state->regs.gpr[op.i.rt] = ret;
-	default: /* fall-through */
+		fallthrough;
+	default:
 		break;
 	}
 }
@@ -399,7 +400,8 @@ static u32 lightrec_mfc2(struct lightrec_state *state, u8 reg)
 			clamp_s32(gteir3 >> 7, 0, 0x1f) << 10;
 	case 15:
 		reg = 14;
-	default: /* fall-through */
+		fallthrough;
+	default:
 		return state->regs.cp2d[reg];
 	}
 }
@@ -500,7 +502,8 @@ static void lightrec_mtc2(struct lightrec_state *state, u8 reg, u32 data)
 		return;
 	case 30:
 		state->regs.cp2d[31] = count_leading_bits((s32) data);
-	default: /* fall-through */
+		fallthrough;
+	default:
 		state->regs.cp2d[reg] = data;
 		break;
 	}
@@ -520,7 +523,8 @@ static void lightrec_ctc2(struct lightrec_state *state, u8 reg, u32 data)
 		break;
 	case 31:
 		data = (data & 0x7ffff000) | !!(data & 0x7f87e000) << 31;
-	default: /* fall-through */
+		fallthrough;
+	default:
 		break;
 	}
 
@@ -1186,7 +1190,8 @@ static bool lightrec_block_is_fully_tagged(const struct block *block)
 		case OP_SWC2:
 			if (!LIGHTREC_FLAGS_GET_IO_MODE(op->flags))
 				return false;
-		default: /* fall-through */
+			fallthrough;
+		default:
 			continue;
 		}
 	}

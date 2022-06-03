@@ -43,6 +43,8 @@
 #define SET_DEFAULT_ELM(table, value) [0] = NULL
 #endif
 
+#define fallthrough do {} while (0) /* fall-through */
+
 /* Flags for (struct block *)->flags */
 #define BLOCK_NEVER_COMPILE	BIT(0)
 #define BLOCK_SHOULD_RECOMPILE	BIT(1)

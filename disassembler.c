@@ -215,7 +215,7 @@ static int print_op_special(union code c, char *buf, size_t len,
 	case OP_SPECIAL_JR:
 		*flags_ptr = opcode_branch_flags;
 		*nb_flags = ARRAY_SIZE(opcode_branch_flags);
-		/* fall-through */
+		fallthrough;
 	case OP_SPECIAL_MTHI:
 	case OP_SPECIAL_MTLO:
 		return snprintf(buf, len, "%s%s",
