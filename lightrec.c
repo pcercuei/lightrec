@@ -1703,17 +1703,23 @@ void lightrec_destroy(struct lightrec_state *state)
 void lightrec_invalidate(struct lightrec_state *state, u32 addr, u32 len)
 {
 	u32 kaddr = kunseg(addr & ~0x3);
-	const struct lightrec_mem_map *map = lightrec_get_map(state, NULL, kaddr);
+	enum psx_map idx = lightrec_get_map_idx(state, kaddr);
 
-	if (map) {
-		if (map != &state->maps[PSX_MAP_KERNEL_USER_RAM])
-			return;
-
+	switch (idx) {
+	case PSX_MAP_MIRROR1:
+	case PSX_MAP_MIRROR2:
+	case PSX_MAP_MIRROR3:
 		/* Handle mirrors */
-		kaddr &= (state->maps[PSX_MAP_KERNEL_USER_RAM].length - 1);
-
-		lightrec_invalidate_map(state, map, kaddr, len);
+		kaddr &= RAM_SIZE - 1;
+		fallthrough;
+	case PSX_MAP_KERNEL_USER_RAM:
+		break;
+	default:
+		return;
 	}
+
+	memset(lut_address(state, lut_offset(kaddr)), 0,
+	       ((len + 3) / 4) * lut_elm_size(state));
 }
 
 void lightrec_invalidate_all(struct lightrec_state *state)
