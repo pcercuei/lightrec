@@ -38,6 +38,8 @@ struct recompiler {
 	bool stop;
 	struct slist_elm slist;
 
+	pthread_mutex_t alloc_mutex;
+
 	unsigned int nb_recs;
 	struct recompiler_thd thds[];
 };
@@ -177,10 +179,16 @@ struct recompiler *lightrec_recompiler_init(struct lightrec_state *state)
 		goto err_cnd_destroy;
 	}
 
+	ret = pthread_mutex_init(&rec->alloc_mutex, NULL);
+	if (ret) {
+		pr_err("Cannot init alloc mutex variable: %d\n", ret);
+		goto err_cnd2_destroy;
+	}
+
 	ret = pthread_mutex_init(&rec->mutex, NULL);
 	if (ret) {
 		pr_err("Cannot init mutex variable: %d\n", ret);
-		goto err_cnd2_destroy;
+		goto err_alloc_mtx_destroy;
 	}
 
 	for (i = 0; i < nb_recs; i++) {
@@ -199,6 +207,8 @@ struct recompiler *lightrec_recompiler_init(struct lightrec_state *state)
 
 err_mtx_destroy:
 	pthread_mutex_destroy(&rec->mutex);
+err_alloc_mtx_destroy:
+	pthread_mutex_destroy(&rec->alloc_mutex);
 err_cnd2_destroy:
 	pthread_cond_destroy(&rec->cond2);
 err_cnd_destroy:
@@ -230,6 +240,7 @@ void lightrec_free_recompiler(struct recompiler *rec)
 		lightrec_free_cstate(rec->thds[i].cstate);
 
 	pthread_mutex_destroy(&rec->mutex);
+	pthread_mutex_destroy(&rec->alloc_mutex);
 	pthread_cond_destroy(&rec->cond);
 	pthread_cond_destroy(&rec->cond2);
 	lightrec_free(rec->state, MEM_FOR_LIGHTREC, sizeof(*rec), rec);
@@ -401,4 +412,14 @@ void * lightrec_recompiler_run_first_pass(struct lightrec_state *state,
 	}
 
 	return NULL;
+}
+
+void lightrec_code_alloc_lock(struct lightrec_state *state)
+{
+	pthread_mutex_lock(&state->rec->alloc_mutex);
+}
+
+void lightrec_code_alloc_unlock(struct lightrec_state *state)
+{
+	pthread_mutex_unlock(&state->rec->alloc_mutex);
 }

@@ -707,6 +707,47 @@ static s32 c_function_wrapper(struct lightrec_state *state, s32 cycles_delta,
 	return state->target_cycle - state->current_cycle;
 }
 
+static void * lightrec_alloc_code(struct lightrec_state *state, size_t size)
+{
+	void *code;
+
+	if (ENABLE_THREADED_COMPILER)
+		lightrec_code_alloc_lock(state);
+
+	code = tlsf_malloc(state->tlsf, size);
+
+	if (ENABLE_THREADED_COMPILER)
+		lightrec_code_alloc_unlock(state);
+
+	return code;
+}
+
+static void lightrec_realloc_code(struct lightrec_state *state,
+				  void *ptr, size_t size)
+{
+	/* NOTE: 'size' MUST be smaller than the size specified during
+	 * the allocation. */
+
+	if (ENABLE_THREADED_COMPILER)
+		lightrec_code_alloc_lock(state);
+
+	tlsf_realloc(state->tlsf, ptr, size);
+
+	if (ENABLE_THREADED_COMPILER)
+		lightrec_code_alloc_unlock(state);
+}
+
+static void lightrec_free_code(struct lightrec_state *state, void *ptr)
+{
+	if (ENABLE_THREADED_COMPILER)
+		lightrec_code_alloc_lock(state);
+
+	tlsf_free(state->tlsf, ptr);
+
+	if (ENABLE_THREADED_COMPILER)
+		lightrec_code_alloc_unlock(state);
+}
+
 static void * lightrec_emit_code(struct lightrec_state *state,
 				 jit_state_t *_jit, unsigned int *size)
 {
@@ -721,7 +762,7 @@ static void * lightrec_emit_code(struct lightrec_state *state,
 
 	if (has_code_buffer) {
 		jit_get_code(&code_size);
-		code = tlsf_malloc(state->tlsf, (size_t) code_size);
+		code = lightrec_alloc_code(state, (size_t) code_size);
 		if (!code)
 			return NULL;
 
@@ -734,7 +775,7 @@ static void * lightrec_emit_code(struct lightrec_state *state,
 	lightrec_register(MEM_FOR_CODE, new_code_size);
 
 	if (has_code_buffer) {
-		tlsf_realloc(state->tlsf, code, new_code_size);
+		lightrec_realloc_code(state, code, (size_t) new_code_size);
 
 		pr_debug("Creating code block at address 0x%" PRIxPTR ", "
 			 "code size: %" PRIuPTR " new: %" PRIuPTR "\n",
@@ -1227,7 +1268,7 @@ static void lightrec_free_function(struct lightrec_state *state, void *fn)
 {
 	if (ENABLE_CODE_BUFFER && state->tlsf) {
 		pr_debug("Freeing code block at 0x%" PRIxPTR "\n", (uintptr_t) fn);
-		tlsf_free(state->tlsf, fn);
+		lightrec_free_code(state, fn);
 	}
 }
 

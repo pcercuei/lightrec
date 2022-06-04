@@ -105,10 +105,6 @@ if (ENABLE_CODE_BUFFER)
 	target_include_directories(${PROJECT_NAME} PRIVATE tlsf)
 endif (ENABLE_CODE_BUFFER)
 
-if (ENABLE_CODE_BUFFER AND ENABLE_THREADED_COMPILER)
-	message(SEND_ERROR "External code buffer cannot be used along with the threaded compiler")
-endif (ENABLE_CODE_BUFFER AND ENABLE_THREADED_COMPILER)
-
 find_library(LIBLIGHTNING lightning REQUIRED)
 find_path(LIBLIGHTNING_INCLUDE_DIR lightning.h REQUIRED)
 
