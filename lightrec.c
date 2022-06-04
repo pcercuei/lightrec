@@ -624,6 +624,7 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 	struct block *block;
 	bool should_recompile;
 	void *func;
+	int err;
 
 	for (;;) {
 		func = lut_read(state, pc);
@@ -648,10 +649,15 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 
 			lightrec_unregister(MEM_FOR_CODE, block->code_size);
 
-			if (ENABLE_THREADED_COMPILER)
+			if (ENABLE_THREADED_COMPILER) {
 				lightrec_recompiler_add(state->rec, block);
-			else
-				lightrec_compile_block(state->cstate, block);
+			} else {
+				err = lightrec_compile_block(state->cstate, block);
+				if (err) {
+					state->exit_flags = LIGHTREC_EXIT_NOMEM;
+					return NULL;
+				}
+			}
 		}
 
 		if (ENABLE_THREADED_COMPILER && likely(!should_recompile))
@@ -673,7 +679,11 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 				pc = lightrec_emulate_block(state, block, pc);
 
 			/* Then compile it using the profiled data */
-			lightrec_compile_block(state->cstate, block);
+			err = lightrec_compile_block(state->cstate, block);
+			if (err) {
+				state->exit_flags = LIGHTREC_EXIT_NOMEM;
+				return NULL;
+			}
 		} else {
 			lightrec_recompiler_add(state->rec, block);
 		}
