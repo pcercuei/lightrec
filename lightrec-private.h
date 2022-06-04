@@ -79,6 +79,7 @@ struct block {
 	struct block *next;
 	u32 pc;
 	u32 hash;
+	u32 precompile_date;
 	unsigned int code_size;
 	u16 nb_ops;
 	u8 flags;
