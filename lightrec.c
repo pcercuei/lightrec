@@ -1557,8 +1557,10 @@ void lightrec_free_block(struct lightrec_state *state, struct block *block)
 		lightrec_free_opcode_list(state, block);
 	if (block->_jit)
 		_jit_destroy_state(block->_jit);
-	lightrec_free_function(state, block->function);
-	lightrec_unregister(MEM_FOR_CODE, block->code_size);
+	if (block->function) {
+		lightrec_free_function(state, block->function);
+		lightrec_unregister(MEM_FOR_CODE, block->code_size);
+	}
 	lightrec_free(state, MEM_FOR_IR, sizeof(*block), block);
 }
 
