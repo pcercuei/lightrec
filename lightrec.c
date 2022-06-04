@@ -749,6 +749,7 @@ static void lightrec_free_code(struct lightrec_state *state, void *ptr)
 }
 
 static void * lightrec_emit_code(struct lightrec_state *state,
+				 const struct block *block,
 				 jit_state_t *_jit, unsigned int *size)
 {
 	bool has_code_buffer = ENABLE_CODE_BUFFER && state->tlsf;
@@ -763,8 +764,27 @@ static void * lightrec_emit_code(struct lightrec_state *state,
 	if (has_code_buffer) {
 		jit_get_code(&code_size);
 		code = lightrec_alloc_code(state, (size_t) code_size);
-		if (!code)
-			return NULL;
+
+		if (!code) {
+			if (ENABLE_THREADED_COMPILER) {
+				/* If we're using the threaded compiler, return
+				 * an allocation error here. The threaded
+				 * compiler will then empty its job queue and
+				 * request a code flush using the reaper. */
+				return NULL;
+			}
+
+			/* Remove outdated blocks, and try again */
+			lightrec_remove_outdated_blocks(state->block_cache, block);
+
+			pr_debug("Re-try to alloc %zu bytes...\n", code_size);
+
+			code = lightrec_alloc_code(state, code_size);
+			if (!code) {
+				pr_err("Could not alloc even after removing old blocks!\n");
+				return NULL;
+			}
+		}
 
 		jit_set_code(code, code_size);
 	}
@@ -871,7 +891,7 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 	block->flags = 0;
 	block->nb_ops = 0;
 
-	block->function = lightrec_emit_code(state, _jit,
+	block->function = lightrec_emit_code(state, block, _jit,
 					     &block->code_size);
 	if (!block->function)
 		goto err_free_block;
@@ -1054,7 +1074,7 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 	block->flags = 0;
 	block->nb_ops = 0;
 
-	block->function = lightrec_emit_code(state, _jit,
+	block->function = lightrec_emit_code(state, block, _jit,
 					     &block->code_size);
 	if (!block->function)
 		goto err_free_block;
@@ -1289,7 +1309,7 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 	jit_state_t *_jit, *oldjit;
 	jit_node_t *start_of_block;
 	bool skip_next = false;
-	void *old_fn;
+	void *old_fn, *new_fn;
 	unsigned int i, j;
 	u32 offset;
 
@@ -1380,12 +1400,16 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 	jit_ret();
 	jit_epilog();
 
-	block->function = lightrec_emit_code(state, _jit,
-					     &block->code_size);
-	if (!block->function) {
-		pr_err("Unable to compile block!\n");
+	new_fn = lightrec_emit_code(state, block, _jit, &block->code_size);
+	if (!new_fn) {
+		if (!ENABLE_THREADED_COMPILER)
+			pr_err("Unable to compile block!\n");
+		block->_jit = oldjit;
+		_jit_destroy_state(_jit);
+		return -ENOMEM;
 	}
 
+	block->function = new_fn;
 	block->flags &= ~BLOCK_SHOULD_RECOMPILE;
 
 	/* Add compiled function to the LUT */

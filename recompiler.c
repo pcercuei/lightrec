@@ -3,10 +3,12 @@
  * Copyright (C) 2019-2021 Paul Cercueil <paul@crapouillou.net>
  */
 
+#include "blockcache.h"
 #include "debug.h"
 #include "interpreter.h"
 #include "lightrec-private.h"
 #include "memmanager.h"
+#include "reaper.h"
 #include "slist.h"
 
 #include <errno.h>
@@ -35,7 +37,7 @@ struct recompiler {
 	pthread_cond_t cond;
 	pthread_cond_t cond2;
 	pthread_mutex_t mutex;
-	bool stop;
+	bool stop, must_flush;
 	struct slist_elm slist;
 
 	pthread_mutex_t alloc_mutex;
@@ -115,6 +117,20 @@ static void lightrec_cancel_list(struct recompiler *rec)
 	pthread_cond_broadcast(&rec->cond2);
 }
 
+static void lightrec_flush_code_buffer(struct lightrec_state *state, void *d)
+{
+	struct recompiler *rec = d;
+
+	pthread_mutex_lock(&rec->mutex);
+
+	if (rec->must_flush) {
+		lightrec_remove_outdated_blocks(state->block_cache, NULL);
+		rec->must_flush = false;
+	}
+
+	pthread_mutex_unlock(&rec->mutex);
+}
+
 static void lightrec_compile_list(struct recompiler *rec,
 				  struct recompiler_thd *thd)
 {
@@ -132,6 +148,21 @@ static void lightrec_compile_list(struct recompiler *rec,
 
 		if (likely(!(block->flags & BLOCK_IS_DEAD))) {
 			ret = lightrec_compile_block(thd->cstate, block);
+			if (ret == -ENOMEM) {
+				/* Code buffer is full. Request the reaper to
+				 * flush it. */
+
+				pthread_mutex_lock(&rec->mutex);
+				if (!rec->must_flush) {
+					lightrec_reaper_add(rec->state->reaper,
+							    lightrec_flush_code_buffer,
+							    rec);
+					lightrec_cancel_list(rec);
+					rec->must_flush = true;
+				}
+				return;
+			}
+
 			if (ret) {
 				pr_err("Unable to compile block at PC 0x%x: %d\n",
 				       block->pc, ret);
@@ -202,6 +233,7 @@ struct recompiler *lightrec_recompiler_init(struct lightrec_state *state)
 
 	rec->state = state;
 	rec->stop = false;
+	rec->must_flush = false;
 	rec->nb_recs = nb_recs;
 	slist_init(&rec->slist);
 
@@ -292,6 +324,12 @@ int lightrec_recompiler_add(struct recompiler *rec, struct block *block)
 	int ret = 0;
 
 	pthread_mutex_lock(&rec->mutex);
+
+	/* If the recompiler must flush the code cache, we can't add the new
+	 * job. It will be re-added next time the block's address is jumped to
+	 * again. */
+	if (rec->must_flush)
+		goto out_unlock;
 
 	/* If the block is marked as dead, don't compile it, it will be removed
 	 * as soon as it's safe. */
