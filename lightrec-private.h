@@ -207,7 +207,7 @@ static inline void ** lut_address(struct lightrec_state *state, u32 offset)
 
 static inline void * lut_read(struct lightrec_state *state, u32 offset)
 {
-	void **lut_entry = lut_address(state, lut_offset(offset));
+	void **lut_entry = lut_address(state, offset);
 
 	if (lut_is_32bit(state))
 		return (void *)(uintptr_t) *(u32 *) lut_entry;

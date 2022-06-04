@@ -627,7 +627,7 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 	int err;
 
 	for (;;) {
-		func = lut_read(state, pc);
+		func = lut_read(state, lut_offset(pc));
 		if (func && func != state->get_next_block)
 			break;
 
