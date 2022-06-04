@@ -77,6 +77,44 @@ static struct slist_elm * lightrec_get_first_elm(struct slist_elm *head)
 	return NULL;
 }
 
+static bool lightrec_cancel_block_rec(struct recompiler *rec,
+				      struct block_rec *block_rec)
+{
+	if (block_rec->compiling) {
+		/* Block is being recompiled - wait for
+		 * completion */
+		pthread_cond_wait(&rec->cond2, &rec->mutex);
+
+		/* We can't guarantee the signal was for us.
+		 * Since block_rec may have been removed while
+		 * we were waiting on the condition, we cannot
+		 * check block_rec->compiling again. The best
+		 * thing is just to restart the function. */
+		return false;
+	}
+
+	/* Block is not yet being processed - remove it from the list */
+	slist_remove(&rec->slist, &block_rec->slist);
+	lightrec_free(rec->state, MEM_FOR_LIGHTREC,
+		      sizeof(*block_rec), block_rec);
+
+	return true;
+}
+
+static void lightrec_cancel_list(struct recompiler *rec)
+{
+	struct block_rec *block_rec;
+	struct slist_elm *next;
+
+	while (!!(next = lightrec_get_first_elm(&rec->slist))) {
+		block_rec = container_of(next, struct block_rec, slist);
+
+		lightrec_cancel_block_rec(rec, block_rec);
+	}
+
+	pthread_cond_broadcast(&rec->cond2);
+}
+
 static void lightrec_compile_list(struct recompiler *rec,
 				  struct recompiler_thd *thd)
 {
@@ -231,6 +269,7 @@ void lightrec_free_recompiler(struct recompiler *rec)
 	/* Stop the thread */
 	pthread_mutex_lock(&rec->mutex);
 	pthread_cond_broadcast(&rec->cond);
+	lightrec_cancel_list(rec);
 	pthread_mutex_unlock(&rec->mutex);
 
 	for (i = 0; i < rec->nb_recs; i++)
@@ -323,28 +362,11 @@ void lightrec_recompiler_remove(struct recompiler *rec, struct block *block)
 		for (elm = slist_first(&rec->slist); elm; elm = elm->next) {
 			block_rec = container_of(elm, struct block_rec, slist);
 
-			if (block_rec->block != block)
-				continue;
+			if (block_rec->block == block) {
+				if (lightrec_cancel_block_rec(rec, block_rec))
+					goto out_unlock;
 
-			if (block_rec->compiling) {
-				/* Block is being recompiled - wait for
-				 * completion */
-				pthread_cond_wait(&rec->cond2, &rec->mutex);
-
-				/* We can't guarantee the signal was for us.
-				 * Since block_rec may have been removed while
-				 * we were waiting on the condition, we cannot
-				 * check block_rec->compiling again. The best
-				 * thing is just to restart the function. */
 				break;
-			} else {
-				/* Block is not yet being processed - remove it
-				 * from the list */
-				slist_remove(&rec->slist, elm);
-				lightrec_free(rec->state, MEM_FOR_LIGHTREC,
-					      sizeof(*block_rec), block_rec);
-
-				goto out_unlock;
 			}
 		}
 
