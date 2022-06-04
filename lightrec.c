@@ -1619,7 +1619,7 @@ struct lightrec_state * lightrec_init(char *argv0,
 				      size_t nb,
 				      const struct lightrec_ops *ops)
 {
-	const struct lightrec_mem_map *codebuf_map;
+	const struct lightrec_mem_map *codebuf_map = &map[PSX_MAP_CODE_BUFFER];
 	struct lightrec_state *state;
 	uintptr_t addr;
 	void *tlsf = NULL;
@@ -1632,9 +1632,8 @@ struct lightrec_state * lightrec_init(char *argv0,
 		return NULL;
 	}
 
-	if (ENABLE_CODE_BUFFER && nb > PSX_MAP_CODE_BUFFER) {
-		codebuf_map = &map[PSX_MAP_CODE_BUFFER];
-
+	if (ENABLE_CODE_BUFFER && nb > PSX_MAP_CODE_BUFFER
+	    && codebuf_map->address) {
 		tlsf = tlsf_create_with_pool(codebuf_map->address,
 					     codebuf_map->length);
 		if (!tlsf) {
