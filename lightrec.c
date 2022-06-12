@@ -1767,6 +1767,10 @@ void lightrec_destroy(struct lightrec_state *state)
 	state->current_cycle = ~state->current_cycle;
 	lightrec_print_info(state);
 
+	lightrec_free_block_cache(state->block_cache);
+	lightrec_free_block(state, state->dispatcher);
+	lightrec_free_block(state, state->c_wrapper_block);
+
 	if (ENABLE_THREADED_COMPILER) {
 		lightrec_free_recompiler(state->rec);
 		lightrec_reaper_destroy(state->reaper);
@@ -1774,9 +1778,6 @@ void lightrec_destroy(struct lightrec_state *state)
 		lightrec_free_cstate(state->cstate);
 	}
 
-	lightrec_free_block_cache(state->block_cache);
-	lightrec_free_block(state, state->dispatcher);
-	lightrec_free_block(state, state->c_wrapper_block);
 	finish_jit();
 	if (ENABLE_CODE_BUFFER && state->tlsf)
 		tlsf_destroy(state->tlsf);
