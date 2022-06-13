@@ -69,6 +69,9 @@ static u64 opcode_read_mask(union code op)
 		case OP_SPECIAL_MFLO:
 			return BIT(REG_LO);
 		case OP_SPECIAL_SLL:
+			if (!op.r.imm)
+				return 0;
+			fallthrough;
 		case OP_SPECIAL_SRL:
 		case OP_SPECIAL_SRA:
 			return BIT(op.r.rt);
@@ -144,6 +147,10 @@ static u64 opcode_write_mask(union code op)
 			return BIT(REG_HI);
 		case OP_SPECIAL_MTLO:
 			return BIT(REG_LO);
+		case OP_SPECIAL_SLL:
+			if (!op.r.imm)
+				return 0;
+			fallthrough;
 		default:
 			return BIT(op.r.rd);
 		}
