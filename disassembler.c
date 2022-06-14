@@ -128,7 +128,7 @@ static const char *opcode_multdiv_flags[] = {
 	"No div check",
 };
 
-static int print_flags(char *buf, size_t len, u16 flags,
+static int print_flags(char *buf, size_t len, u32 flags,
 		       const char **array, size_t array_size,
 		       bool is_io)
 {

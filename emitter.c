@@ -769,7 +769,7 @@ static void rec_alu_mult(struct lightrec_cstate *state,
 {
 	struct regcache *reg_cache = state->reg_cache;
 	union code c = block->opcode_list[offset].c;
-	u16 flags = block->opcode_list[offset].flags;
+	u32 flags = block->opcode_list[offset].flags;
 	u8 reg_lo = get_mult_div_lo(c);
 	u8 reg_hi = get_mult_div_hi(c);
 	jit_state_t *_jit = block->_jit;
@@ -831,7 +831,7 @@ static void rec_alu_div(struct lightrec_cstate *state,
 {
 	struct regcache *reg_cache = state->reg_cache;
 	union code c = block->opcode_list[offset].c;
-	u16 flags = block->opcode_list[offset].flags;
+	u32 flags = block->opcode_list[offset].flags;
 	bool no_check = flags & LIGHTREC_NO_DIV_CHECK;
 	u8 reg_lo = get_mult_div_lo(c);
 	u8 reg_hi = get_mult_div_hi(c);
@@ -1023,7 +1023,7 @@ static void rec_io(struct lightrec_cstate *state,
 	struct regcache *reg_cache = state->reg_cache;
 	jit_state_t *_jit = block->_jit;
 	union code c = block->opcode_list[offset].c;
-	u16 flags = block->opcode_list[offset].flags;
+	u32 flags = block->opcode_list[offset].flags;
 	bool is_tagged = LIGHTREC_FLAGS_GET_IO_MODE(flags);
 	u32 lut_entry;
 
@@ -1330,7 +1330,7 @@ static void rec_store(struct lightrec_cstate *state,
 		      const struct block *block, u16 offset,
 		      jit_code_t code, jit_code_t swap_code)
 {
-	u16 flags = block->opcode_list[offset].flags;
+	u32 flags = block->opcode_list[offset].flags;
 	bool no_invalidate = (flags & LIGHTREC_NO_INVALIDATE) ||
 		state->state->invalidate_from_dma_only;
 
@@ -1600,7 +1600,7 @@ static void rec_load(struct lightrec_cstate *state, const struct block *block,
 		     u16 offset, jit_code_t code, jit_code_t swap_code,
 		     bool is_unsigned)
 {
-	u16 flags = block->opcode_list[offset].flags;
+	u32 flags = block->opcode_list[offset].flags;
 
 	switch (LIGHTREC_FLAGS_GET_IO_MODE(flags)) {
 	case LIGHTREC_IO_RAM:

@@ -241,7 +241,7 @@ lightrec_get_map(struct lightrec_state *state, void **host, u32 kaddr)
 }
 
 u32 lightrec_rw(struct lightrec_state *state, union code op,
-		u32 addr, u32 data, u16 *flags, struct block *block)
+		u32 addr, u32 data, u32 *flags, struct block *block)
 {
 	const struct lightrec_mem_map *map;
 	const struct lightrec_mem_map_ops *ops;
@@ -309,7 +309,7 @@ u32 lightrec_rw(struct lightrec_state *state, union code op,
 }
 
 static void lightrec_rw_helper(struct lightrec_state *state,
-			       union code op, u16 *flags,
+			       union code op, u32 *flags,
 			       struct block *block)
 {
 	u32 ret = lightrec_rw(state, op, state->regs.gpr[op.i.rs],

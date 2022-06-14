@@ -209,7 +209,7 @@ struct opcode {
 		struct opcode_i i;
 		struct opcode_j j;
 	};
-	u16 flags;
+	u32 flags;
 };
 
 void lightrec_print_disassembly(const struct block *block, const u32 *code);

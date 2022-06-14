@@ -998,7 +998,7 @@ static int lightrec_switch_delay_slots(struct lightrec_state *state, struct bloc
 	struct opcode *list, *next = &block->opcode_list[0];
 	unsigned int i;
 	union code op, next_op;
-	u8 flags;
+	u32 flags;
 
 	for (i = 0; i < block->nb_ops - 1; i++) {
 		list = next;
