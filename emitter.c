@@ -172,6 +172,14 @@ static void lightrec_do_early_unload(struct lightrec_cstate *state,
 		case LIGHTREC_REG_UNLOAD:
 			lightrec_clean_reg_if_loaded(reg_cache, _jit, reg, true);
 			break;
+
+		case LIGHTREC_REG_DISCARD:
+			lightrec_discard_reg_if_loaded(reg_cache, reg);
+			break;
+
+		case LIGHTREC_REG_CLEAN:
+			lightrec_clean_reg_if_loaded(reg_cache, _jit, reg, false);
+			break;
 		default:
 			break;
 		};

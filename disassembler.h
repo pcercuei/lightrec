@@ -67,6 +67,8 @@
 
 #define LIGHTREC_REG_NOOP	0x0
 #define LIGHTREC_REG_UNLOAD	0x1
+#define LIGHTREC_REG_DISCARD	0x2
+#define LIGHTREC_REG_CLEAN	0x3
 
 struct block;
 

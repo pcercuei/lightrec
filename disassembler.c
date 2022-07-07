@@ -141,7 +141,7 @@ static size_t do_snprintf(char *buf, size_t len, bool *first,
 }
 
 static const char * const reg_op_token[3] = {
-	"-",
+	"-", "*", "~",
 };
 
 static int print_flags(char *buf, size_t len, const struct opcode *op,
