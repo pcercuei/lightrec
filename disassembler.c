@@ -128,6 +128,21 @@ static const char *opcode_multdiv_flags[] = {
 	"No div check",
 };
 
+static size_t do_snprintf(char *buf, size_t len, bool *first,
+			  const char *arg1, const char *arg2)
+{
+	size_t bytes;
+
+	if (*first)
+		bytes = snprintf(buf, len, "(%s%s", arg1, arg2);
+	else
+		bytes = snprintf(buf, len, ", %s%s", arg1, arg2);
+
+	*first = false;
+
+	return bytes;
+}
+
 static int print_flags(char *buf, size_t len, u32 flags,
 		       const char **array, size_t array_size,
 		       bool is_io)
@@ -146,12 +161,7 @@ static int print_flags(char *buf, size_t len, u32 flags,
 		else
 			flag_name = array[i - ARRAY_SIZE(opcode_flags)];
 
-		if (first)
-			bytes = snprintf(buf, len, "(%s", flag_name);
-		else
-			bytes = snprintf(buf, len, ", %s", flag_name);
-
-		first = false;
+		bytes = do_snprintf(buf, len, &first, "", flag_name);
 		buf += bytes;
 		len -= bytes;
 		count += bytes;
@@ -162,12 +172,7 @@ static int print_flags(char *buf, size_t len, u32 flags,
 		if (io_mode > 0) {
 			io_mode_name = opcode_io_modes[io_mode - 1];
 
-			if (first)
-				bytes = snprintf(buf, len, "(%s", io_mode_name);
-			else
-				bytes = snprintf(buf, len, ", %s", io_mode_name);
-
-			first = false;
+			bytes = do_snprintf(buf, len, &first, "", io_mode_name);
 			buf += bytes;
 			len -= bytes;
 			count += bytes;
