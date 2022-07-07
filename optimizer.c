@@ -1236,14 +1236,24 @@ bool should_emulate(const struct opcode *list)
 		(list->flags & LIGHTREC_EMULATE_BRANCH);
 }
 
+static bool op_writes_rd(union code c)
+{
+	switch (c.i.op) {
+	case OP_SPECIAL:
+	case OP_META_MOV:
+		return true;
+	default:
+		return false;
+	}
+}
+
 static void lightrec_add_unload(struct opcode *op, u8 reg)
 {
-	if (op->i.op == OP_SPECIAL && reg == op->r.rd)
+	if (op_writes_rd(op->c) && reg == op->r.rd)
 		op->flags |= LIGHTREC_UNLOAD_RD;
-
-	if (op->i.rs == reg)
+	else if (op->i.rs == reg)
 		op->flags |= LIGHTREC_UNLOAD_RS;
-	if (op->i.rt == reg)
+	else if (op->i.rt == reg)
 		op->flags |= LIGHTREC_UNLOAD_RT;
 }
 
