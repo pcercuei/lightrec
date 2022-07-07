@@ -1264,41 +1264,129 @@ static void lightrec_add_unload(struct opcode *op, u8 reg)
 	lightrec_add_reg_op(op, reg, LIGHTREC_REG_UNLOAD);
 }
 
+static void lightrec_add_discard(struct opcode *op, u8 reg)
+{
+	lightrec_add_reg_op(op, reg, LIGHTREC_REG_DISCARD);
+}
+
+static void lightrec_add_clean(struct opcode *op, u8 reg)
+{
+	lightrec_add_reg_op(op, reg, LIGHTREC_REG_CLEAN);
+}
+
+static void
+lightrec_early_unload_sync(struct opcode *list, s16 *last_r, s16 *last_w)
+{
+	unsigned int reg;
+	s16 offset;
+
+	for (reg = 0; reg < 34; reg++) {
+		offset = s16_max(last_w[reg], last_r[reg]);
+
+		if (offset >= 0)
+			lightrec_add_unload(&list[offset], reg);
+	}
+
+	memset(last_r, 0xff, sizeof(*last_r) * 34);
+	memset(last_w, 0xff, sizeof(*last_w) * 34);
+}
+
 static int lightrec_early_unload(struct lightrec_state *state, struct block *block)
 {
-	unsigned int i, offset;
+	u16 i, offset;
 	struct opcode *op;
+	s16 last_r[34], last_w[34], last_sync = 0, next_sync = 0;
+	u64 mask_r, mask_w, dirty = 0, loaded = 0;
 	u8 reg;
 
-	for (reg = 1; reg < 34; reg++) {
-		int last_r_id = -1, last_w_id = -1;
+	memset(last_r, 0xff, sizeof(last_r));
+	memset(last_w, 0xff, sizeof(last_w));
 
-		for (i = 0; i < block->nb_ops; i++) {
-			union code c = block->opcode_list[i].c;
+	/*
+	 * Clean if:
+	 * - the register is dirty, and is read again after a branch opcode
+	 *
+	 * Unload if:
+	 * - the register is dirty or loaded, and is not read again
+	 * - the register is dirty or loaded, and is written again after a branch opcode
+	 * - the next opcode has the SYNC flag set
+	 *
+	 * Discard if:
+	 * - the register is dirty or loaded, and is written again
+	 */
 
-			if (opcode_reads_register(c, reg))
-				last_r_id = i;
-			if (opcode_writes_register(c, reg))
-				last_w_id = i;
+	for (i = 0; i < block->nb_ops; i++) {
+		op = &block->opcode_list[i];
+
+		if (op_flag_sync(op->flags) || should_emulate(op)) {
+			/* The next opcode has the SYNC flag set, or is a branch
+			 * that should be emulated: unload all registers. */
+			lightrec_early_unload_sync(block->opcode_list, last_r, last_w);
+			dirty = 0;
+			loaded = 0;
 		}
 
-		if (last_w_id > last_r_id)
-			offset = (unsigned int)last_w_id;
-		else if (last_r_id >= 0)
-			offset = (unsigned int)last_r_id;
-		else
-			continue;
+		if (next_sync == i) {
+			last_sync = i;
+			pr_debug("Last sync: 0x%x\n", last_sync << 2);
+		}
 
-		op = &block->opcode_list[offset];
+		if (has_delay_slot(op->c)) {
+			next_sync = i + 1 + !op_flag_no_ds(op->flags);
+			pr_debug("Next sync: 0x%x\n", next_sync << 2);
+		}
 
-		if (op_flag_no_ds(op->flags) && has_delay_slot(op->c))
-			offset++;
+		mask_r = opcode_read_mask(op->c);
+		mask_w = opcode_write_mask(op->c);
 
-		if (offset == block->nb_ops)
-			continue;
+		for (reg = 0; reg < 34; reg++) {
+			if (mask_r & BIT(reg)) {
+				if (dirty & BIT(reg) && last_w[reg] < last_sync) {
+					/* The register is dirty, and is read
+					 * again after a branch: clean it */
 
-		lightrec_add_unload(&block->opcode_list[offset], reg);
+					lightrec_add_clean(&block->opcode_list[last_w[reg]], reg);
+					dirty &= ~BIT(reg);
+					loaded |= BIT(reg);
+				}
+
+				last_r[reg] = i;
+			}
+
+			if (mask_w & BIT(reg)) {
+				if ((dirty & BIT(reg) && last_w[reg] < last_sync) ||
+				    (loaded & BIT(reg) && last_r[reg] < last_sync)) {
+					/* The register is dirty or loaded, and
+					 * is written again after a branch:
+					 * unload it */
+
+					offset = s16_max(last_w[reg], last_r[reg]);
+					lightrec_add_unload(&block->opcode_list[offset], reg);
+					dirty &= ~BIT(reg);
+					loaded &= ~BIT(reg);
+				} else if (!(mask_r & BIT(reg)) &&
+					   ((dirty & BIT(reg) && last_w[reg] > last_sync) ||
+					   (loaded & BIT(reg) && last_r[reg] > last_sync))) {
+					/* The register is dirty or loaded, and
+					 * is written again: discard it */
+
+					offset = s16_max(last_w[reg], last_r[reg]);
+					lightrec_add_discard(&block->opcode_list[offset], reg);
+					dirty &= ~BIT(reg);
+					loaded &= ~BIT(reg);
+				}
+
+				last_w[reg] = i;
+			}
+
+		}
+
+		dirty |= mask_w;
+		loaded |= mask_r;
 	}
+
+	/* Unload all registers that are dirty or loaded at the end of block. */
+	lightrec_early_unload_sync(block->opcode_list, last_r, last_w);
 
 	return 0;
 }

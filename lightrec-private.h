@@ -278,4 +278,9 @@ static inline u8 get_mult_div_hi(union code c)
 	return (OPT_FLAG_MULT_DIV && c.r.imm) ? c.r.imm : REG_HI;
 }
 
+static inline s16 s16_max(s16 a, s16 b)
+{
+	return a > b ? a : b;
+}
+
 #endif /* __LIGHTREC_PRIVATE_H__ */
