@@ -149,6 +149,35 @@ static void rec_JAL(struct lightrec_cstate *state, const struct block *block, u1
 				   31, get_branch_pc(block, offset, 2), true);
 }
 
+static void lightrec_do_early_unload(struct lightrec_cstate *state,
+				     const struct block *block, u16 offset)
+{
+	struct regcache *reg_cache = state->reg_cache;
+	const struct opcode *op = &block->opcode_list[offset];
+	jit_state_t *_jit = block->_jit;
+	unsigned int i;
+	u8 reg;
+	struct {
+		u8 reg, op;
+	} reg_ops[3] = {
+		{ op->r.rd, LIGHTREC_FLAGS_GET_RD(op->flags), },
+		{ op->i.rt, LIGHTREC_FLAGS_GET_RT(op->flags), },
+		{ op->i.rs, LIGHTREC_FLAGS_GET_RS(op->flags), },
+	};
+
+	for (i = 0; i < ARRAY_SIZE(reg_ops); i++) {
+		reg = reg_ops[i].reg;
+
+		switch (reg_ops[i].op) {
+		case LIGHTREC_REG_UNLOAD:
+			lightrec_clean_reg_if_loaded(reg_cache, _jit, reg, true);
+			break;
+		default:
+			break;
+		};
+	}
+}
+
 static void rec_b(struct lightrec_cstate *state, const struct block *block, u16 offset,
 		  jit_code_t code, u32 link, bool unconditional, bool bz)
 {
@@ -176,6 +205,10 @@ static void rec_b(struct lightrec_cstate *state, const struct block *block, u16 
 		rs = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rs, REG_EXT);
 		rt = bz ? 0 : lightrec_alloc_reg_in(reg_cache,
 						    _jit, op->i.rt, REG_EXT);
+
+		/* Unload dead registers before evaluating the branch */
+		if (OPT_EARLY_UNLOAD)
+			lightrec_do_early_unload(state, block, offset);
 	}
 
 	if (cycles)
@@ -2379,6 +2412,7 @@ void lightrec_rec_opcode(struct lightrec_cstate *state,
 	const struct opcode *op = &block->opcode_list[offset];
 	jit_state_t *_jit = block->_jit;
 	lightrec_rec_func_t f;
+	u16 unload_offset;
 
 	if (op_flag_sync(op->flags)) {
 		if (state->cycles)
@@ -2403,16 +2437,10 @@ void lightrec_rec_opcode(struct lightrec_cstate *state,
 			(*f)(state, block, offset);
 	}
 
-	if (unlikely(op->flags & LIGHTREC_UNLOAD_RD)) {
-		lightrec_clean_reg_if_loaded(reg_cache, _jit, op->r.rd, true);
-		pr_debug("Cleaning RD reg %s\n", lightrec_reg_name(op->r.rd));
-	}
-	if (unlikely(op->flags & LIGHTREC_UNLOAD_RS)) {
-		lightrec_clean_reg_if_loaded(reg_cache, _jit, op->i.rs, true);
-		pr_debug("Cleaning RS reg %s\n", lightrec_reg_name(op->i.rt));
-	}
-	if (unlikely(op->flags & LIGHTREC_UNLOAD_RT)) {
-		lightrec_clean_reg_if_loaded(reg_cache, _jit, op->i.rt, true);
-		pr_debug("Cleaning RT reg %s\n", lightrec_reg_name(op->i.rt));
+	if (OPT_EARLY_UNLOAD) {
+		unload_offset = offset +
+			(has_delay_slot(op->c) && !(op->flags & LIGHTREC_NO_DS));
+
+		lightrec_do_early_unload(state, block, unload_offset);
 	}
 }

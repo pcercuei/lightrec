@@ -97,9 +97,6 @@ static const char *cp2_opcodes[] = {
 
 static const char *opcode_flags[] = {
 	"switched branch/DS",
-	"unload Rs",
-	"unload Rt",
-	"unload Rd",
 	"sync point",
 };
 
@@ -143,7 +140,11 @@ static size_t do_snprintf(char *buf, size_t len, bool *first,
 	return bytes;
 }
 
-static int print_flags(char *buf, size_t len, u32 flags,
+static const char * const reg_op_token[3] = {
+	"-",
+};
+
+static int print_flags(char *buf, size_t len, const struct opcode *op,
 		       const char **array, size_t array_size,
 		       bool is_io)
 {
@@ -151,6 +152,8 @@ static int print_flags(char *buf, size_t len, u32 flags,
 	unsigned int i, io_mode;
 	size_t count = 0, bytes;
 	bool first = true;
+	u32 flags = op->flags;
+	unsigned int reg_op;
 
 	for (i = 0; i < array_size + ARRAY_SIZE(opcode_flags); i++) {
 		if (!(flags & BIT(i)))
@@ -173,6 +176,38 @@ static int print_flags(char *buf, size_t len, u32 flags,
 			io_mode_name = opcode_io_modes[io_mode - 1];
 
 			bytes = do_snprintf(buf, len, &first, "", io_mode_name);
+			buf += bytes;
+			len -= bytes;
+			count += bytes;
+		}
+	}
+
+	if (OPT_EARLY_UNLOAD) {
+		reg_op = LIGHTREC_FLAGS_GET_RS(flags);
+		if (reg_op) {
+			bytes = do_snprintf(buf, len, &first,
+					    reg_op_token[reg_op - 1],
+					    lightrec_reg_name(op->i.rs));
+			buf += bytes;
+			len -= bytes;
+			count += bytes;
+		}
+
+		reg_op = LIGHTREC_FLAGS_GET_RT(flags);
+		if (reg_op) {
+			bytes = do_snprintf(buf, len, &first,
+					    reg_op_token[reg_op - 1],
+					    lightrec_reg_name(op->i.rt));
+			buf += bytes;
+			len -= bytes;
+			count += bytes;
+		}
+
+		reg_op = LIGHTREC_FLAGS_GET_RD(flags);
+		if (reg_op) {
+			bytes = do_snprintf(buf, len, &first,
+					    reg_op_token[reg_op - 1],
+					    lightrec_reg_name(op->r.rd));
 			buf += bytes;
 			len -= bytes;
 			count += bytes;
@@ -422,8 +457,7 @@ void lightrec_print_disassembly(const struct block *block, const u32 *code_ptr)
 			count2 = 0;
 		}
 
-		print_flags(buf3, sizeof(buf3), op->flags, flags_ptr, nb_flags,
-			    is_io);
+		print_flags(buf3, sizeof(buf3), op, flags_ptr, nb_flags, is_io);
 
 		printf("0x%08x (0x%x)\t%s%*c%s%*c%s\n", pc, i << 2,
 		       buf, 30 - (int)count, ' ', buf2, 30 - (int)count2, ' ', buf3);

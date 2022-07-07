@@ -1245,14 +1245,23 @@ static bool op_writes_rd(union code c)
 	}
 }
 
-static void lightrec_add_unload(struct opcode *op, u8 reg)
+static void lightrec_add_reg_op(struct opcode *op, u8 reg, u32 reg_op)
 {
 	if (op_writes_rd(op->c) && reg == op->r.rd)
-		op->flags |= LIGHTREC_UNLOAD_RD;
+		op->flags |= LIGHTREC_REG_RD(reg_op);
 	else if (op->i.rs == reg)
-		op->flags |= LIGHTREC_UNLOAD_RS;
+		op->flags |= LIGHTREC_REG_RS(reg_op);
 	else if (op->i.rt == reg)
-		op->flags |= LIGHTREC_UNLOAD_RT;
+		op->flags |= LIGHTREC_REG_RT(reg_op);
+	else
+		pr_debug("Cannot add unload/clean/discard flag: "
+			 "opcode does not touch register %s!\n",
+			 lightrec_reg_name(reg));
+}
+
+static void lightrec_add_unload(struct opcode *op, u8 reg)
+{
+	lightrec_add_reg_op(op, reg, LIGHTREC_REG_UNLOAD);
 }
 
 static int lightrec_early_unload(struct lightrec_state *state, struct block *block)
