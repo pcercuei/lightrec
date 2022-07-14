@@ -198,8 +198,8 @@ static void rec_b(struct lightrec_cstate *state, const struct block *block, u16 
 			lightrec_free_reg(reg_cache, link_reg);
 		}
 
-		/* Store back remaining registers */
-		lightrec_storeback_regs(reg_cache, _jit);
+		/* Clean remaining registers */
+		lightrec_clean_regs(reg_cache, _jit);
 
 		target_offset = offset + 1 + (s16)op->i.imm
 			- !!op_flag_no_ds(op->flags);
