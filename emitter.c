@@ -159,7 +159,7 @@ static void rec_b(struct lightrec_cstate *state, const struct block *block, u16 
 	const struct opcode *op = &block->opcode_list[offset],
 			    *next = &block->opcode_list[offset + 1];
 	jit_node_t *addr;
-	u8 link_reg;
+	u8 link_reg, rs, rt;
 	u32 target_offset, cycles = state->cycles;
 	bool is_forward = (s16)op->i.imm >= -1;
 	u32 next_pc;
@@ -171,14 +171,16 @@ static void rec_b(struct lightrec_cstate *state, const struct block *block, u16 
 
 	state->cycles = 0;
 
+	if (!unconditional) {
+		rs = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rs, REG_EXT);
+		rt = bz ? 0 : lightrec_alloc_reg_in(reg_cache,
+						    _jit, op->i.rt, REG_EXT);
+	}
+
 	if (cycles)
 		jit_subi(LIGHTREC_REG_CYCLE, LIGHTREC_REG_CYCLE, cycles);
 
 	if (!unconditional) {
-		u8 rs = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rs, REG_EXT),
-		   rt = bz ? 0 : lightrec_alloc_reg_in(reg_cache,
-						       _jit, op->i.rt, REG_EXT);
-
 		/* Generate the branch opcode */
 		addr = jit_new_node_pww(code, NULL, rs, rt);
 
