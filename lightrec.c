@@ -331,17 +331,16 @@ static void lightrec_rw_helper(struct lightrec_state *state,
 	}
 }
 
-static void lightrec_rw_cb(struct lightrec_state *state)
+static void lightrec_rw_cb(struct lightrec_state *state, u32 arg)
 {
-	lightrec_rw_helper(state, (union code)state->c_wrapper_arg, NULL, NULL);
+	lightrec_rw_helper(state, (union code) arg, NULL, NULL);
 }
 
-static void lightrec_rw_generic_cb(struct lightrec_state *state)
+static void lightrec_rw_generic_cb(struct lightrec_state *state, u32 arg)
 {
 	struct block *block;
 	struct opcode *op;
 	bool was_tagged;
-	u32 arg = state->c_wrapper_arg;
 	u16 offset = (u16)arg;
 
 	block = lightrec_find_block_from_lut(state->block_cache,
@@ -550,9 +549,9 @@ void lightrec_mtc(struct lightrec_state *state, union code op, u32 data)
 		lightrec_mtc2(state, op.r.rd, data);
 }
 
-static void lightrec_mtc_cb(struct lightrec_state *state)
+static void lightrec_mtc_cb(struct lightrec_state *state, u32 arg)
 {
-	union code op = (union code) state->c_wrapper_arg;
+	union code op = (union code) arg;
 
 	lightrec_mtc(state, op, state->regs.gpr[op.r.rt]);
 }
@@ -581,9 +580,9 @@ void lightrec_cp(struct lightrec_state *state, union code op)
 	(*state->ops.cop2_op)(state, op.opcode);
 }
 
-static void lightrec_cp_cb(struct lightrec_state *state)
+static void lightrec_cp_cb(struct lightrec_state *state, u32 arg)
 {
-	lightrec_cp(state, (union code) state->c_wrapper_arg);
+	lightrec_cp(state, (union code) arg);
 }
 
 static void lightrec_syscall_cb(struct lightrec_state *state)
@@ -707,11 +706,11 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 }
 
 static s32 c_function_wrapper(struct lightrec_state *state, s32 cycles_delta,
-			      void (*f)(struct lightrec_state *))
+			      void (*f)(struct lightrec_state *, u32), u32 arg)
 {
 	state->current_cycle = state->target_cycle - cycles_delta;
 
-	(*f)(state);
+	(*f)(state, arg);
 
 	return state->target_cycle - state->current_cycle;
 }
@@ -857,6 +856,8 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 	for (i = 0; i < NUM_TEMPS; i++)
 		jit_stxi(stack_ptr + i * sizeof(uintptr_t), JIT_FP, JIT_R(i));
 
+	jit_getarg(JIT_R1, jit_arg());
+
 	/* Jump to the trampoline */
 	to_tramp = jit_jmpi();
 
@@ -889,6 +890,7 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 	jit_pushargr(LIGHTREC_REG_STATE);
 	jit_pushargr(LIGHTREC_REG_CYCLE);
 	jit_pushargr(JIT_R0);
+	jit_pushargr(JIT_R1);
 	jit_finishi(c_function_wrapper);
 	jit_retval_i(LIGHTREC_REG_CYCLE);
 
