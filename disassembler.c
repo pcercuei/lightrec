@@ -349,6 +349,13 @@ static int print_op(union code c, u32 pc, char *buf, size_t len,
 				std_opcodes[c.i.op],
 				(pc & 0xf0000000) | (c.j.imm << 2));
 	case OP_BEQ:
+		if (c.i.rs == c.i.rt) {
+			*flags_ptr = opcode_branch_flags;
+			*nb_flags = ARRAY_SIZE(opcode_branch_flags);
+			return snprintf(buf, len, "b       0x%x",
+					pc + 4 + ((s16)c.i.imm << 2));
+		}
+		fallthrough;
 	case OP_BNE:
 	case OP_BLEZ:
 	case OP_BGTZ:
