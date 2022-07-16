@@ -1228,6 +1228,7 @@ static void rec_store_direct_no_invalidate(struct lightrec_cstate *cstate,
 
 	jit_note(__FILE__, __LINE__);
 	rs = lightrec_alloc_reg_in(reg_cache, _jit, c.i.rs, 0);
+	rt = lightrec_alloc_reg_in(reg_cache, _jit, c.i.rt, 0);
 	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
 
 	if (state->offset_ram || state->offset_scratch)
@@ -1266,8 +1267,6 @@ static void rec_store_direct_no_invalidate(struct lightrec_cstate *cstate,
 		jit_addr(tmp, tmp, tmp2);
 		lightrec_free_reg(reg_cache, tmp2);
 	}
-
-	rt = lightrec_alloc_reg_in(reg_cache, _jit, c.i.rt, 0);
 
 	if (is_big_endian() && swap_code && c.i.rt) {
 		tmp2 = lightrec_alloc_reg_temp(reg_cache, _jit);
