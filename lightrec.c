@@ -595,7 +595,7 @@ static void lightrec_break_cb(struct lightrec_state *state)
 	lightrec_set_exit_flags(state, LIGHTREC_EXIT_BREAK);
 }
 
-struct block * lightrec_get_block(struct lightrec_state *state, u32 pc)
+static struct block * lightrec_get_block(struct lightrec_state *state, u32 pc)
 {
 	struct block *block = lightrec_find_block(state->block_cache, pc);
 

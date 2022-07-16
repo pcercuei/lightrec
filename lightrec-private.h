@@ -261,7 +261,6 @@ void lightrec_free_cstate(struct lightrec_cstate *cstate);
 
 union code lightrec_read_opcode(struct lightrec_state *state, u32 pc);
 
-struct block * lightrec_get_block(struct lightrec_state *state, u32 pc);
 int lightrec_compile_block(struct lightrec_cstate *cstate, struct block *block);
 void lightrec_free_opcode_list(struct lightrec_state *state, struct block *block);
 
