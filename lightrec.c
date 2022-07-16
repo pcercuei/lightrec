@@ -1360,11 +1360,10 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 				 i << 2);
 
 			lightrec_emit_eob(cstate, block, i, false);
-			skip_next = !(elm->flags & LIGHTREC_NO_DS);
+			skip_next = !op_flag_no_ds(elm->flags);
 		} else {
 			lightrec_rec_opcode(cstate, block, i);
-			skip_next = has_delay_slot(elm->c) &&
-				!(elm->flags & LIGHTREC_NO_DS);
+			skip_next = !op_flag_no_ds(elm->flags) && has_delay_slot(elm->c);
 #if _WIN32
 			/* FIXME: GNU Lightning on Windows seems to use our
 			 * mapped registers as temporaries. Until the actual bug

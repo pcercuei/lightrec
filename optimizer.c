@@ -221,7 +221,7 @@ static int find_prev_writer(const struct opcode *list, unsigned int offset, u8 r
 	union code c;
 	unsigned int i;
 
-	if (list[offset].flags & LIGHTREC_SYNC)
+	if (op_flag_sync(list[offset].flags))
 		return -1;
 
 	for (i = offset; i > 0; i--) {
@@ -234,7 +234,7 @@ static int find_prev_writer(const struct opcode *list, unsigned int offset, u8 r
 			return i - 1;
 		}
 
-		if ((list[i - 1].flags & LIGHTREC_SYNC) ||
+		if (op_flag_sync(list[i - 1].flags) ||
 		    has_delay_slot(c) ||
 		    opcode_reads_register(c, reg))
 			break;
@@ -248,7 +248,7 @@ static int find_next_reader(const struct opcode *list, unsigned int offset, u8 r
 	unsigned int i;
 	union code c;
 
-	if (list[offset].flags & LIGHTREC_SYNC)
+	if (op_flag_sync(list[offset].flags))
 		return -1;
 
 	for (i = offset; ; i++) {
@@ -261,7 +261,7 @@ static int find_next_reader(const struct opcode *list, unsigned int offset, u8 r
 			return i;
 		}
 
-		if ((list[i].flags & LIGHTREC_SYNC) ||
+		if (op_flag_sync(list[i].flags) ||
 		    has_delay_slot(c) || opcode_writes_register(c, reg))
 			break;
 	}
@@ -273,7 +273,7 @@ static bool reg_is_dead(const struct opcode *list, unsigned int offset, u8 reg)
 {
 	unsigned int i;
 
-	if (list[offset].flags & LIGHTREC_SYNC)
+	if (op_flag_sync(list[offset].flags))
 		return false;
 
 	for (i = offset + 1; ; i++) {
@@ -284,7 +284,7 @@ static bool reg_is_dead(const struct opcode *list, unsigned int offset, u8 reg)
 			return true;
 
 		if (has_delay_slot(list[i].c)) {
-			if (list[i].flags & LIGHTREC_NO_DS ||
+			if (op_flag_no_ds(list[i].flags) ||
 			    opcode_reads_register(list[i + 1].c, reg))
 				return false;
 
@@ -477,7 +477,7 @@ static u32 lightrec_propagate_consts(const struct opcode *op,
 	known |= BIT(0);
 	v[0] = 0;
 
-	if (op->flags & LIGHTREC_SYNC)
+	if (op_flag_sync(op->flags))
 		return BIT(0);
 
 	switch (c.i.op) {
@@ -831,7 +831,7 @@ static void lightrec_remove_useless_lui(struct block *block, unsigned int offset
 		      *op = &block->opcode_list[offset];
 	int reader;
 
-	if (!(op->flags & LIGHTREC_SYNC) && (known & BIT(op->i.rt)) &&
+	if (!op_flag_sync(op->flags) && (known & BIT(op->i.rt)) &&
 	    values[op->i.rt] == op->i.imm << 16) {
 		pr_debug("Converting duplicated LUI to NOP\n");
 		op->opcode = 0x0;
@@ -1006,17 +1006,16 @@ static int lightrec_switch_delay_slots(struct lightrec_state *state, struct bloc
 		next_op = next->c;
 		op = list->c;
 
-		if (!has_delay_slot(op) ||
-		    list->flags & (LIGHTREC_NO_DS | LIGHTREC_EMULATE_BRANCH) ||
+		if (!has_delay_slot(op) || op_flag_no_ds(list->flags) ||
+		    op_flag_emulate_branch(list->flags) ||
 		    op.opcode == 0 || next_op.opcode == 0)
 			continue;
 
 		if (i && has_delay_slot(block->opcode_list[i - 1].c) &&
-		    !(block->opcode_list[i - 1].flags & LIGHTREC_NO_DS))
+		    !op_flag_no_ds(block->opcode_list[i - 1].flags))
 			continue;
 
-		if ((list->flags & LIGHTREC_SYNC) ||
-		    (next->flags & LIGHTREC_SYNC))
+		if (op_flag_sync(list->flags) || op_flag_sync(next->flags))
 			continue;
 
 		switch (list->i.op) {
@@ -1232,8 +1231,7 @@ bool has_delay_slot(union code op)
 
 bool should_emulate(const struct opcode *list)
 {
-	return has_delay_slot(list->c) &&
-		(list->flags & LIGHTREC_EMULATE_BRANCH);
+	return op_flag_emulate_branch(list->flags) && has_delay_slot(list->c);
 }
 
 static bool op_writes_rd(union code c)
@@ -1284,7 +1282,7 @@ static int lightrec_early_unload(struct lightrec_state *state, struct block *blo
 
 		op = &block->opcode_list[offset];
 
-		if (has_delay_slot(op->c) && (op->flags & LIGHTREC_NO_DS))
+		if (op_flag_no_ds(op->flags) && has_delay_slot(op->c))
 			offset++;
 
 		if (offset == block->nb_ops)
@@ -1417,7 +1415,7 @@ static u8 get_mfhi_mflo_reg(const struct block *block, u16 offset,
 		mask |= opcode_read_mask(op->c);
 		mask |= opcode_write_mask(op->c);
 
-		if (op->flags & LIGHTREC_SYNC)
+		if (op_flag_sync(op->flags))
 			sync = true;
 
 		switch (op->i.op) {
@@ -1427,11 +1425,10 @@ static u8 get_mfhi_mflo_reg(const struct block *block, u16 offset,
 		case OP_BGTZ:
 		case OP_REGIMM:
 			/* TODO: handle backwards branches too */
-			if (!last &&
-			    (op->flags & LIGHTREC_LOCAL_BRANCH) &&
+			if (!last && op_flag_local_branch(op->flags) &&
 			    (s16)op->c.i.imm >= 0) {
 				branch_offset = i + 1 + (s16)op->c.i.imm
-					- !!(OPT_SWITCH_DELAY_SLOTS && (op->flags & LIGHTREC_NO_DS));
+					- !!op_flag_no_ds(op->flags);
 
 				reg = get_mfhi_mflo_reg(block, branch_offset, NULL,
 							mask, sync, mflo, false);
@@ -1463,8 +1460,7 @@ static u8 get_mfhi_mflo_reg(const struct block *block, u16 offset,
 				if (op->r.rs != 31)
 					return reg;
 
-				if (!sync &&
-				    !(op->flags & LIGHTREC_NO_DS) &&
+				if (!sync && !op_flag_no_ds(op->flags) &&
 				    (next->i.op == OP_SPECIAL) &&
 				    ((!mflo && next->r.op == OP_SPECIAL_MFHI) ||
 				    (mflo && next->r.op == OP_SPECIAL_MFLO)))
@@ -1537,10 +1533,9 @@ static void lightrec_replace_lo_hi(struct block *block, u16 offset,
 		case OP_BGTZ:
 		case OP_REGIMM:
 			/* TODO: handle backwards branches too */
-			if ((op->flags & LIGHTREC_LOCAL_BRANCH) &&
-			    (s16)op->c.i.imm >= 0) {
+			if (op_flag_local_branch(op->flags) && (s16)op->c.i.imm >= 0) {
 				branch_offset = i + 1 + (s16)op->c.i.imm
-					- !!(OPT_SWITCH_DELAY_SLOTS && (op->flags & LIGHTREC_NO_DS));
+					- !!op_flag_no_ds(op->flags);
 
 				lightrec_replace_lo_hi(block, branch_offset, last, lo);
 				lightrec_replace_lo_hi(block, i + 1, branch_offset, lo);
@@ -1612,7 +1607,7 @@ static int lightrec_flag_mults_divs(struct lightrec_state *state, struct block *
 
 		/* Don't support opcodes in delay slots */
 		if ((i && has_delay_slot(block->opcode_list[i - 1].c)) ||
-		    (list->flags & LIGHTREC_NO_DS)) {
+		    op_flag_no_ds(list->flags)) {
 			continue;
 		}
 
