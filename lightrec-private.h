@@ -238,7 +238,7 @@ static inline u32 get_ds_pc(const struct block *block, u16 offset, s16 imm)
 {
 	u16 flags = block->opcode_list[offset].flags;
 
-	offset += !!(OPT_SWITCH_DELAY_SLOTS && (flags & LIGHTREC_NO_DS));
+	offset += op_flag_no_ds(flags);
 
 	return block->pc + (offset + imm << 2);
 }
@@ -247,7 +247,7 @@ static inline u32 get_branch_pc(const struct block *block, u16 offset, s16 imm)
 {
 	u16 flags = block->opcode_list[offset].flags;
 
-	offset -= !!(OPT_SWITCH_DELAY_SLOTS && (flags & LIGHTREC_NO_DS));
+	offset -= op_flag_no_ds(flags);
 
 	return block->pc + (offset + imm << 2);
 }
