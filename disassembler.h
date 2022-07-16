@@ -8,6 +8,7 @@
 
 #include "debug.h"
 #include "lightrec.h"
+#include "lightrec-config.h"
 
 #ifndef __packed
 #define __packed __attribute__((packed))
@@ -213,5 +214,57 @@ struct opcode {
 };
 
 void lightrec_print_disassembly(const struct block *block, const u32 *code);
+
+static inline _Bool op_flag_no_ds(u32 flags)
+{
+	return OPT_SWITCH_DELAY_SLOTS && (flags & LIGHTREC_NO_DS);
+}
+
+static inline _Bool op_flag_sync(u32 flags)
+{
+	return OPT_LOCAL_BRANCHES && (flags & LIGHTREC_SYNC);
+}
+
+static inline _Bool op_flag_smc(u32 flags)
+{
+	return OPT_FLAG_STORES && (flags & LIGHTREC_SMC);
+}
+
+static inline _Bool op_flag_no_invalidate(u32 flags)
+{
+	return (OPT_FLAG_IO || OPT_FLAG_STORES) &&
+		(flags & LIGHTREC_NO_INVALIDATE);
+}
+
+static inline _Bool op_flag_no_mask(u32 flags)
+{
+	return OPT_FLAG_IO && (flags & LIGHTREC_NO_MASK);
+}
+
+static inline _Bool op_flag_emulate_branch(u32 flags)
+{
+	return OPT_DETECT_IMPOSSIBLE_BRANCHES &&
+		(flags & LIGHTREC_EMULATE_BRANCH);
+}
+
+static inline _Bool op_flag_local_branch(u32 flags)
+{
+	return OPT_LOCAL_BRANCHES && (flags & LIGHTREC_LOCAL_BRANCH);
+}
+
+static inline _Bool op_flag_no_lo(u32 flags)
+{
+	return OPT_FLAG_MULT_DIV && (flags & LIGHTREC_NO_LO);
+}
+
+static inline _Bool op_flag_no_hi(u32 flags)
+{
+	return OPT_FLAG_MULT_DIV && (flags & LIGHTREC_NO_HI);
+}
+
+static inline _Bool op_flag_no_div_check(u32 flags)
+{
+	return OPT_FLAG_MULT_DIV && (flags & LIGHTREC_NO_DIV_CHECK);
+}
 
 #endif /* __DISASSEMBLER_H__ */
