@@ -1403,11 +1403,7 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 			pr_err("Unable to find branch target\n");
 	}
 
-	jit_ldxi(JIT_R0, LIGHTREC_REG_STATE,
-		 offsetof(struct lightrec_state, eob_wrapper_func));
-
-	jit_jmpr(JIT_R0);
-
+	jit_patch_abs(jit_jmpi(), state->eob_wrapper_func);
 	jit_ret();
 	jit_epilog();
 
