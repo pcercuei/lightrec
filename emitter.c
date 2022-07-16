@@ -2441,7 +2441,7 @@ void lightrec_rec_opcode(struct lightrec_cstate *state,
 
 	if (OPT_EARLY_UNLOAD) {
 		unload_offset = offset +
-			(has_delay_slot(op->c) && !(op->flags & LIGHTREC_NO_DS));
+			(has_delay_slot(op->c) && !op_flag_no_ds(op->flags));
 
 		lightrec_do_early_unload(state, block, unload_offset);
 	}
