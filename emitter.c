@@ -39,6 +39,7 @@ static void lightrec_emit_end_of_block(struct lightrec_cstate *state,
 	const struct opcode *op = &block->opcode_list[offset],
 			    *next = &block->opcode_list[offset + 1];
 	u32 cycles = state->cycles + lightrec_cycles_of_opcode(op->c);
+	u16 offset_after_eob;
 
 	jit_note(__FILE__, __LINE__);
 
@@ -75,7 +76,10 @@ static void lightrec_emit_end_of_block(struct lightrec_cstate *state,
 		pr_debug("EOB: %u cycles\n", cycles);
 	}
 
-	if (offset - !!op_flag_no_ds(op->flags) < block->nb_ops - 1)
+	offset_after_eob = offset + 1 +
+		(has_delay_slot(op->c) && !op_flag_no_ds(op->flags));
+
+	if (offset_after_eob < block->nb_ops)
 		state->branches[state->nb_branches++] = jit_b();
 }
 
