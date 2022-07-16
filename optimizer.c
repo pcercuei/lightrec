@@ -102,6 +102,9 @@ static u64 opcode_read_mask(union code op)
 	case OP_LUI:
 		return 0;
 	case OP_BEQ:
+		if (op.i.rs == op.i.rt)
+			return 0;
+		fallthrough;
 	case OP_BNE:
 	case OP_LWL:
 	case OP_LWR:
