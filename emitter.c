@@ -35,10 +35,10 @@ static void lightrec_emit_end_of_block(struct lightrec_cstate *state,
 				       u32 link, bool update_cycles)
 {
 	struct regcache *reg_cache = state->reg_cache;
-	u32 cycles = state->cycles;
 	jit_state_t *_jit = block->_jit;
 	const struct opcode *op = &block->opcode_list[offset],
 			    *next = &block->opcode_list[offset + 1];
+	u32 cycles = state->cycles + lightrec_cycles_of_opcode(op->c);
 
 	jit_note(__FILE__, __LINE__);
 
@@ -87,8 +87,8 @@ void lightrec_emit_eob(struct lightrec_cstate *state, const struct block *block,
 	union code c = block->opcode_list[offset].c;
 	u32 cycles = state->cycles;
 
-	if (!after_op)
-		cycles -= lightrec_cycles_of_opcode(c);
+	if (after_op)
+		cycles += lightrec_cycles_of_opcode(c);
 
 	lightrec_storeback_regs(reg_cache, _jit);
 
@@ -160,8 +160,9 @@ static void rec_b(struct lightrec_cstate *state, const struct block *block, u16 
 			    *next = &block->opcode_list[offset + 1];
 	jit_node_t *addr;
 	u8 link_reg, rs, rt;
-	u32 target_offset, cycles = state->cycles;
 	bool is_forward = (s16)op->i.imm >= -1;
+	int op_cycles = lightrec_cycles_of_opcode(op->c);
+	u32 target_offset, cycles = state->cycles + op_cycles;
 	u32 next_pc;
 
 	jit_note(__FILE__, __LINE__);
@@ -169,7 +170,7 @@ static void rec_b(struct lightrec_cstate *state, const struct block *block, u16 
 	if (!op_flag_no_ds(op->flags))
 		cycles += lightrec_cycles_of_opcode(next->c);
 
-	state->cycles = 0;
+	state->cycles = -op_cycles;
 
 	if (!unconditional) {
 		rs = lightrec_alloc_reg_in(reg_cache, _jit, op->i.rs, REG_EXT);
@@ -2380,7 +2381,8 @@ void lightrec_rec_opcode(struct lightrec_cstate *state,
 	lightrec_rec_func_t f;
 
 	if (op_flag_sync(op->flags)) {
-		jit_subi(LIGHTREC_REG_CYCLE, LIGHTREC_REG_CYCLE, state->cycles);
+		if (state->cycles)
+			jit_subi(LIGHTREC_REG_CYCLE, LIGHTREC_REG_CYCLE, state->cycles);
 		state->cycles = 0;
 
 		lightrec_storeback_regs(reg_cache, _jit);

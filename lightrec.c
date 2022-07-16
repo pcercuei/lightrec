@@ -1353,8 +1353,6 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 			continue;
 		}
 
-		cstate->cycles += lightrec_cycles_of_opcode(elm->c);
-
 		if (should_emulate(elm)) {
 			pr_debug("Branch at offset 0x%x will be emulated\n",
 				 i << 2);
@@ -1372,6 +1370,8 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 			lightrec_regcache_mark_live(cstate->reg_cache, _jit);
 #endif
 		}
+
+		cstate->cycles += lightrec_cycles_of_opcode(elm->c);
 	}
 
 	for (i = 0; i < cstate->nb_branches; i++)
