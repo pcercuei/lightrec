@@ -65,8 +65,8 @@ static void lightrec_emit_end_of_block(struct lightrec_cstate *state,
 			lightrec_rec_opcode(state, block, offset + 1);
 	}
 
-	/* Store back remaining registers */
-	lightrec_storeback_regs(reg_cache, _jit);
+	/* Clean the remaining registers */
+	lightrec_clean_regs(reg_cache, _jit);
 
 	jit_movr(JIT_V0, reg_new_pc);
 
@@ -90,7 +90,7 @@ void lightrec_emit_eob(struct lightrec_cstate *state, const struct block *block,
 	if (after_op)
 		cycles += lightrec_cycles_of_opcode(c);
 
-	lightrec_storeback_regs(reg_cache, _jit);
+	lightrec_clean_regs(reg_cache, _jit);
 
 	jit_movi(JIT_V0, block->pc + (offset << 2));
 	jit_subi(LIGHTREC_REG_CYCLE, LIGHTREC_REG_CYCLE, cycles);
