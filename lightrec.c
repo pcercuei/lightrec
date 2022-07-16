@@ -361,6 +361,7 @@ static void lightrec_rw_generic_cb(struct lightrec_state *state, u32 arg)
 			 "for recompilation\n", block->pc);
 
 		block->flags |= BLOCK_SHOULD_RECOMPILE;
+		lut_write(state, lut_offset(block->pc), NULL);
 	}
 }
 
