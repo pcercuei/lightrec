@@ -1422,6 +1422,7 @@ static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 						 "requiring invalidation\n",
 						 list->opcode);
 					list->flags |= LIGHTREC_NO_INVALIDATE;
+					list->flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_DIRECT);
 				}
 
 				/* Detect writes whose destination address is inside the
@@ -1452,6 +1453,8 @@ static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 				val = values[list->i.rs] + (s16) list->i.imm;
 				kunseg_val = kunseg(val);
 				psx_map = lightrec_get_map_idx(state, kunseg_val);
+
+				list->flags &= ~LIGHTREC_IO_MASK;
 
 				switch (psx_map) {
 				case PSX_MAP_KERNEL_USER_RAM:
