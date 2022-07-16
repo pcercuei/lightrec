@@ -1339,7 +1339,6 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 
 	lightrec_regcache_reset(cstate->reg_cache);
 	cstate->cycles = 0;
-	cstate->nb_branches = 0;
 	cstate->nb_local_branches = 0;
 	cstate->nb_targets = 0;
 
@@ -1377,9 +1376,6 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 		cstate->cycles += lightrec_cycles_of_opcode(elm->c);
 	}
 
-	for (i = 0; i < cstate->nb_branches; i++)
-		jit_patch(cstate->branches[i]);
-
 	for (i = 0; i < cstate->nb_local_branches; i++) {
 		struct lightrec_branch *branch = &cstate->local_branches[i];
 
@@ -1403,7 +1399,6 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 			pr_err("Unable to find branch target\n");
 	}
 
-	jit_patch_abs(jit_jmpi(), state->eob_wrapper_func);
 	jit_ret();
 	jit_epilog();
 

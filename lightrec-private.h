@@ -119,10 +119,8 @@ enum c_wrappers {
 struct lightrec_cstate {
 	struct lightrec_state *state;
 
-	struct jit_node *branches[512];
 	struct lightrec_branch local_branches[512];
 	struct lightrec_branch_target targets[512];
-	unsigned int nb_branches;
 	unsigned int nb_local_branches;
 	unsigned int nb_targets;
 	unsigned int cycles;

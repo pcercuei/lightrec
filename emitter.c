@@ -39,7 +39,6 @@ static void lightrec_emit_end_of_block(struct lightrec_cstate *state,
 	const struct opcode *op = &block->opcode_list[offset],
 			    *next = &block->opcode_list[offset + 1];
 	u32 cycles = state->cycles + lightrec_cycles_of_opcode(op->c);
-	u16 offset_after_eob;
 
 	jit_note(__FILE__, __LINE__);
 
@@ -76,11 +75,7 @@ static void lightrec_emit_end_of_block(struct lightrec_cstate *state,
 		pr_debug("EOB: %u cycles\n", cycles);
 	}
 
-	offset_after_eob = offset + 1 +
-		(has_delay_slot(op->c) && !op_flag_no_ds(op->flags));
-
-	if (offset_after_eob < block->nb_ops)
-		state->branches[state->nb_branches++] = jit_b();
+	jit_patch_abs(jit_jmpi(), state->state->eob_wrapper_func);
 }
 
 void lightrec_emit_eob(struct lightrec_cstate *state, const struct block *block,
@@ -99,7 +94,7 @@ void lightrec_emit_eob(struct lightrec_cstate *state, const struct block *block,
 	jit_movi(JIT_V0, block->pc + (offset << 2));
 	jit_subi(LIGHTREC_REG_CYCLE, LIGHTREC_REG_CYCLE, cycles);
 
-	state->branches[state->nb_branches++] = jit_b();
+	jit_patch_abs(jit_jmpi(), state->state->eob_wrapper_func);
 }
 
 static u8 get_jr_jalr_reg(struct lightrec_cstate *state, const struct block *block, u16 offset)
