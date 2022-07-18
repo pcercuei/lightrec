@@ -186,7 +186,7 @@ static void lightrec_do_early_unload(struct lightrec_cstate *state,
 }
 
 static void rec_b(struct lightrec_cstate *state, const struct block *block, u16 offset,
-		  jit_code_t code, u32 link, bool unconditional, bool bz)
+		  jit_code_t code, jit_code_t code2, u32 link, bool unconditional, bool bz)
 {
 	struct regcache *reg_cache = state->reg_cache;
 	struct native_register *regs_backup;
@@ -199,6 +199,7 @@ static void rec_b(struct lightrec_cstate *state, const struct block *block, u16 
 	bool is_forward = (s16)op->i.imm >= -1;
 	int op_cycles = lightrec_cycles_of_opcode(op->c);
 	u32 target_offset, cycles = state->cycles + op_cycles;
+	bool no_indirection = false;
 	u32 next_pc;
 
 	jit_note(__FILE__, __LINE__);
@@ -216,6 +217,14 @@ static void rec_b(struct lightrec_cstate *state, const struct block *block, u16 
 		/* Unload dead registers before evaluating the branch */
 		if (OPT_EARLY_UNLOAD)
 			lightrec_do_early_unload(state, block, offset);
+
+		if (op_flag_local_branch(op->flags) &&
+		    (op_flag_no_ds(op->flags) || !next->opcode) &&
+		    is_forward && !lightrec_has_dirty_regs(reg_cache))
+			no_indirection = true;
+
+		if (no_indirection)
+			pr_debug("Using no indirection for branch at offset 0x%hx\n", offset << 2);
 	}
 
 	if (cycles)
@@ -223,7 +232,8 @@ static void rec_b(struct lightrec_cstate *state, const struct block *block, u16 
 
 	if (!unconditional) {
 		/* Generate the branch opcode */
-		addr = jit_new_node_pww(code, NULL, rs, rt);
+		if (!no_indirection)
+			addr = jit_new_node_pww(code, NULL, rs, rt);
 
 		lightrec_free_regs(reg_cache);
 		regs_backup = lightrec_regcache_enter_branch(reg_cache);
@@ -252,7 +262,10 @@ static void rec_b(struct lightrec_cstate *state, const struct block *block, u16 
 			state->nb_local_branches++];
 
 		branch->target = target_offset;
-		if (is_forward)
+
+		if (no_indirection)
+			branch->branch = jit_new_node_pww(code2, NULL, rs, rt);
+		else if (is_forward)
 			branch->branch = jit_b();
 		else
 			branch->branch = jit_bgti(LIGHTREC_REG_CYCLE, 0);
@@ -265,7 +278,9 @@ static void rec_b(struct lightrec_cstate *state, const struct block *block, u16 
 	}
 
 	if (!unconditional) {
-		jit_patch(addr);
+		if (!no_indirection)
+			jit_patch(addr);
+
 		lightrec_regcache_leave_branch(reg_cache, regs_backup);
 
 		if (bz && link) {
@@ -289,9 +304,9 @@ static void rec_BNE(struct lightrec_cstate *state,
 	_jit_name(block->_jit, __func__);
 
 	if (c.i.rt == 0)
-		rec_b(state, block, offset, jit_code_beqi, 0, false, true);
+		rec_b(state, block, offset, jit_code_beqi, jit_code_bnei, 0, false, true);
 	else
-		rec_b(state, block, offset, jit_code_beqr, 0, false, false);
+		rec_b(state, block, offset, jit_code_beqr, jit_code_bner, 0, false, false);
 }
 
 static void rec_BEQ(struct lightrec_cstate *state,
@@ -302,9 +317,9 @@ static void rec_BEQ(struct lightrec_cstate *state,
 	_jit_name(block->_jit, __func__);
 
 	if (c.i.rt == 0)
-		rec_b(state, block, offset, jit_code_bnei, 0, c.i.rs == 0, true);
+		rec_b(state, block, offset, jit_code_bnei, jit_code_beqi, 0, c.i.rs == 0, true);
 	else
-		rec_b(state, block, offset, jit_code_bner, 0, c.i.rs == c.i.rt, false);
+		rec_b(state, block, offset, jit_code_bner, jit_code_beqr, 0, c.i.rs == c.i.rt, false);
 }
 
 static void rec_BLEZ(struct lightrec_cstate *state,
@@ -313,28 +328,28 @@ static void rec_BLEZ(struct lightrec_cstate *state,
 	union code c = block->opcode_list[offset].c;
 
 	_jit_name(block->_jit, __func__);
-	rec_b(state, block, offset, jit_code_bgti, 0, c.i.rs == 0, true);
+	rec_b(state, block, offset, jit_code_bgti, jit_code_blei, 0, c.i.rs == 0, true);
 }
 
 static void rec_BGTZ(struct lightrec_cstate *state,
 		     const struct block *block, u16 offset)
 {
 	_jit_name(block->_jit, __func__);
-	rec_b(state, block, offset, jit_code_blei, 0, false, true);
+	rec_b(state, block, offset, jit_code_blei, jit_code_bgti, 0, false, true);
 }
 
 static void rec_regimm_BLTZ(struct lightrec_cstate *state,
 			    const struct block *block, u16 offset)
 {
 	_jit_name(block->_jit, __func__);
-	rec_b(state, block, offset, jit_code_bgei, 0, false, true);
+	rec_b(state, block, offset, jit_code_bgei, jit_code_blti, 0, false, true);
 }
 
 static void rec_regimm_BLTZAL(struct lightrec_cstate *state,
 			      const struct block *block, u16 offset)
 {
 	_jit_name(block->_jit, __func__);
-	rec_b(state, block, offset, jit_code_bgei,
+	rec_b(state, block, offset, jit_code_bgei, jit_code_blti,
 	      get_branch_pc(block, offset, 2), false, true);
 }
 
@@ -344,7 +359,7 @@ static void rec_regimm_BGEZ(struct lightrec_cstate *state,
 	union code c = block->opcode_list[offset].c;
 
 	_jit_name(block->_jit, __func__);
-	rec_b(state, block, offset, jit_code_blti, 0, !c.i.rs, true);
+	rec_b(state, block, offset, jit_code_blti, jit_code_bgei, 0, !c.i.rs, true);
 }
 
 static void rec_regimm_BGEZAL(struct lightrec_cstate *state,
@@ -352,7 +367,7 @@ static void rec_regimm_BGEZAL(struct lightrec_cstate *state,
 {
 	const struct opcode *op = &block->opcode_list[offset];
 	_jit_name(block->_jit, __func__);
-	rec_b(state, block, offset, jit_code_blti,
+	rec_b(state, block, offset, jit_code_blti, jit_code_bgei,
 	      get_branch_pc(block, offset, 2),
 	      !op->i.rs, true);
 }
