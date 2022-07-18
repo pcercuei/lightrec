@@ -466,6 +466,17 @@ void lightrec_clean_regs(struct regcache *cache, jit_state_t *_jit)
 	clean_regs(cache, _jit, true);
 }
 
+bool lightrec_has_dirty_regs(struct regcache *cache)
+{
+	unsigned int i;
+
+	for (i = 0; i < NUM_REGS + NUM_TEMPS; i++)
+		if (cache->lightrec_regs[i].dirty)
+			return true;
+
+	return false;
+}
+
 void lightrec_clean_reg(struct regcache *cache, jit_state_t *_jit, u8 jit_reg)
 {
 	struct native_register *reg;
