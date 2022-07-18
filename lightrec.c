@@ -706,16 +706,6 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 	return func;
 }
 
-static s32 c_function_wrapper(struct lightrec_state *state, s32 cycles_delta,
-			      void (*f)(struct lightrec_state *, u32), u32 arg)
-{
-	state->current_cycle = state->target_cycle - cycles_delta;
-
-	(*f)(state, arg);
-
-	return state->target_cycle - state->current_cycle;
-}
-
 static void * lightrec_alloc_code(struct lightrec_state *state, size_t size)
 {
 	void *code;
@@ -887,13 +877,25 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 	/* Restore LIGHTREC_REG_STATE to its correct value */
 	jit_movi(LIGHTREC_REG_STATE, (uintptr_t) state);
 
+	jit_ldxi_i(JIT_R2, LIGHTREC_REG_STATE,
+		   offsetof(struct lightrec_state, target_cycle));
+
 	jit_prepare();
 	jit_pushargr(LIGHTREC_REG_STATE);
-	jit_pushargr(LIGHTREC_REG_CYCLE);
-	jit_pushargr(JIT_R0);
 	jit_pushargr(JIT_R1);
-	jit_finishi(c_function_wrapper);
-	jit_retval_i(LIGHTREC_REG_CYCLE);
+
+	/* state->current_cycle = state->target_cycle - delta; */
+	jit_subr(LIGHTREC_REG_CYCLE, JIT_R2, LIGHTREC_REG_CYCLE);
+	jit_stxi_i(offsetof(struct lightrec_state, current_cycle),
+		   LIGHTREC_REG_STATE, LIGHTREC_REG_CYCLE);
+
+	/* Call the wrapper function */
+	jit_finishr(JIT_R0);
+
+	/* delta = state->target_cycle - state->current_cycle */;
+	jit_ldxi_i(JIT_R2, LIGHTREC_REG_STATE,
+		   offsetof(struct lightrec_state, target_cycle));
+	jit_subr(LIGHTREC_REG_CYCLE, JIT_R2, LIGHTREC_REG_CYCLE);
 
 	jit_patch_at(jit_jmpi(), to_fn_epilog);
 	jit_epilog();
