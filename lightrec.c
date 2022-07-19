@@ -877,8 +877,8 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 	/* Restore LIGHTREC_REG_STATE to its correct value */
 	jit_movi(LIGHTREC_REG_STATE, (uintptr_t) state);
 
-	jit_ldxi_i(JIT_R2, LIGHTREC_REG_STATE,
-		   offsetof(struct lightrec_state, target_cycle));
+	jit_ldxi_ui(JIT_R2, LIGHTREC_REG_STATE,
+		    offsetof(struct lightrec_state, target_cycle));
 
 	jit_prepare();
 	jit_pushargr(LIGHTREC_REG_STATE);
@@ -893,8 +893,10 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 	jit_finishr(JIT_R0);
 
 	/* delta = state->target_cycle - state->current_cycle */;
-	jit_ldxi_i(JIT_R2, LIGHTREC_REG_STATE,
-		   offsetof(struct lightrec_state, target_cycle));
+	jit_ldxi_ui(LIGHTREC_REG_CYCLE, LIGHTREC_REG_STATE,
+		    offsetof(struct lightrec_state, current_cycle));
+	jit_ldxi_ui(JIT_R2, LIGHTREC_REG_STATE,
+		    offsetof(struct lightrec_state, target_cycle));
 	jit_subr(LIGHTREC_REG_CYCLE, JIT_R2, LIGHTREC_REG_CYCLE);
 
 	jit_patch_at(jit_jmpi(), to_fn_epilog);
