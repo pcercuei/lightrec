@@ -1050,7 +1050,7 @@ static int lightrec_switch_delay_slots(struct lightrec_state *state, struct bloc
 		    !op_flag_no_ds(block->opcode_list[i - 1].flags))
 			continue;
 
-		if (op_flag_sync(list->flags) || op_flag_sync(next->flags))
+		if (op_flag_sync(next->flags))
 			continue;
 
 		switch (list->i.op) {
@@ -1111,10 +1111,10 @@ static int lightrec_switch_delay_slots(struct lightrec_state *state, struct bloc
 			 "at offsets 0x%x / 0x%x\n",
 			 i << 2, (i + 1) << 2);
 
-		flags = next->flags;
+		flags = next->flags | (list->flags & LIGHTREC_SYNC);
 		list->c = next_op;
 		next->c = op;
-		next->flags = list->flags | LIGHTREC_NO_DS;
+		next->flags = (list->flags | LIGHTREC_NO_DS) & ~LIGHTREC_SYNC;
 		list->flags = flags | LIGHTREC_NO_DS;
 	}
 
