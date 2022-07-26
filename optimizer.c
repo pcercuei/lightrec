@@ -119,11 +119,31 @@ static u64 opcode_read_mask(union code op)
 	}
 }
 
-static u64 opcode_write_mask(union code op)
+static u64 mult_div_write_mask(union code op)
 {
 	u64 flags;
 
+	if (!OPT_FLAG_MULT_DIV)
+		return BIT(REG_LO) | BIT(REG_HI);
+
+	if (op.r.rd)
+		flags = BIT(op.r.rd);
+	else
+		flags = BIT(REG_LO);
+	if (op.r.imm)
+		flags |= BIT(op.r.imm);
+	else
+		flags |= BIT(REG_HI);
+
+	return flags;
+}
+
+static u64 opcode_write_mask(union code op)
+{
 	switch (op.i.op) {
+	case OP_META_MULT2:
+	case OP_META_MULTU2:
+		return mult_div_write_mask(op);
 	case OP_SPECIAL:
 		switch (op.r.op) {
 		case OP_SPECIAL_JR:
@@ -134,18 +154,7 @@ static u64 opcode_write_mask(union code op)
 		case OP_SPECIAL_MULTU:
 		case OP_SPECIAL_DIV:
 		case OP_SPECIAL_DIVU:
-			if (!OPT_FLAG_MULT_DIV)
-				return BIT(REG_LO) | BIT(REG_HI);
-
-			if (op.r.rd)
-				flags = BIT(op.r.rd);
-			else
-				flags = BIT(REG_LO);
-			if (op.r.imm)
-				flags |= BIT(op.r.imm);
-			else
-				flags |= BIT(REG_HI);
-			return flags;
+			return mult_div_write_mask(op);
 		case OP_SPECIAL_MTHI:
 			return BIT(REG_HI);
 		case OP_SPECIAL_MTLO:
@@ -475,6 +484,7 @@ static u32 lightrec_propagate_consts(const struct opcode *op,
 				     u32 known, u32 *v)
 {
 	union code c = prev->c;
+	u8 reg;
 
 	/* Register $zero is always, well, zero */
 	known |= BIT(0);
@@ -601,8 +611,52 @@ static u32 lightrec_propagate_consts(const struct opcode *op,
 				known &= ~BIT(c.r.rd);
 			}
 			break;
+		case OP_SPECIAL_MULT:
+		case OP_SPECIAL_MULTU:
+		case OP_SPECIAL_DIV:
+		case OP_SPECIAL_DIVU:
+			if (OPT_FLAG_MULT_DIV && c.r.rd)
+				known &= ~BIT(c.r.rd);
+			else
+				known &= ~BIT(REG_LO);
+			if (OPT_FLAG_MULT_DIV && c.r.imm)
+				known &= ~BIT(c.r.imm);
+			else
+				known &= ~BIT(REG_HI);
+			break;
 		default:
 			break;
+		}
+		break;
+	case OP_META_MULT2:
+	case OP_META_MULTU2:
+		if (known & BIT(c.r.rs)) {
+			reg = OPT_FLAG_MULT_DIV && c.r.rd ? c.r.rd : REG_LO;
+			known |= BIT(reg);
+
+			if (c.r.op < 32)
+				v[reg] = v[c.r.rs] << c.r.op;
+			else
+				v[reg] = 0;
+
+			reg = OPT_FLAG_MULT_DIV && c.r.imm ? c.r.imm : REG_HI;
+			known |= BIT(reg);
+
+			if (c.r.op >= 32)
+				v[reg] = v[c.r.rs] << (c.r.op - 32);
+			else if (c.i.op == OP_META_MULT2)
+				v[reg] = (s32) v[c.r.rs] >> (32 - c.r.op);
+			else
+				v[reg] = v[c.r.rs] >> (32 - c.r.op);
+		} else {
+			if (OPT_FLAG_MULT_DIV && c.r.rd)
+				known &= ~BIT(c.r.rd);
+			else
+				known &= ~BIT(REG_LO);
+			if (OPT_FLAG_MULT_DIV && c.r.imm)
+				known &= ~BIT(c.r.imm);
+			else
+				known &= ~BIT(REG_HI);
 		}
 		break;
 	case OP_REGIMM:
@@ -1601,6 +1655,9 @@ static u8 get_mfhi_mflo_reg(const struct block *block, u16 offset,
 			}
 
 			return mflo ? REG_LO : REG_HI;
+		case OP_META_MULT2:
+		case OP_META_MULTU2:
+			return 0;
 		case OP_SPECIAL:
 			switch (op->r.op) {
 			case OP_SPECIAL_MULT:
@@ -1746,20 +1803,26 @@ static int lightrec_flag_mults_divs(struct lightrec_state *state, struct block *
 		if (prev)
 			known = lightrec_propagate_consts(list, prev, known, values);
 
-		if (list->i.op != OP_SPECIAL)
-			continue;
-
-		switch (list->r.op) {
-		case OP_SPECIAL_DIV:
-		case OP_SPECIAL_DIVU:
-			/* If we are dividing by a non-zero constant, don't
-			 * emit the div-by-zero check. */
-			if (lightrec_always_skip_div_check() ||
-			    (known & BIT(list->c.r.rt) && values[list->c.r.rt]))
-				list->flags |= LIGHTREC_NO_DIV_CHECK;
+		switch (list->i.op) {
+		case OP_SPECIAL:
+			switch (list->r.op) {
+			case OP_SPECIAL_DIV:
+			case OP_SPECIAL_DIVU:
+				/* If we are dividing by a non-zero constant, don't
+				 * emit the div-by-zero check. */
+				if (lightrec_always_skip_div_check() ||
+				    ((known & BIT(list->c.r.rt)) && values[list->c.r.rt]))
+					list->flags |= LIGHTREC_NO_DIV_CHECK;
+				fallthrough;
+			case OP_SPECIAL_MULT:
+			case OP_SPECIAL_MULTU:
+				break;
+			default:
+				continue;
+			}
 			fallthrough;
-		case OP_SPECIAL_MULT:
-		case OP_SPECIAL_MULTU:
+		case OP_META_MULT2:
+		case OP_META_MULTU2:
 			break;
 		default:
 			continue;
