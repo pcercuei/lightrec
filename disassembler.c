@@ -120,6 +120,10 @@ static const char * const cp2_opcodes[] = {
 	[OP_CP2_NCCT]		= "ncct    ",
 };
 
+static const char * const mult2_opcodes[] = {
+	"mult2   ", "multu2  ",
+};
+
 static const char * const opcode_flags[] = {
 	"switched branch/DS",
 	"sync point",
@@ -451,6 +455,15 @@ static int print_op(union code c, u32 pc, char *buf, size_t len,
 		return snprintf(buf, len, "exts    %s,%s",
 				lightrec_reg_name(c.i.rt),
 				lightrec_reg_name(c.i.rs));
+	case OP_META_MULT2:
+	case OP_META_MULTU2:
+		*flags_ptr = opcode_multdiv_flags;
+		*nb_flags = ARRAY_SIZE(opcode_multdiv_flags);
+		return snprintf(buf, len, "%s%s,%s,%s,%u",
+				mult2_opcodes[c.i.op == OP_META_MULTU2],
+				lightrec_reg_name(get_mult_div_hi(c)),
+				lightrec_reg_name(get_mult_div_lo(c)),
+				lightrec_reg_name(c.r.rs), c.r.op);
 	default:
 		return snprintf(buf, len, "unknown (0x%08x)", c.opcode);
 	}

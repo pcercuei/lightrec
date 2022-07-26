@@ -110,6 +110,9 @@ enum standard_opcodes {
 
 	OP_META_EXTC		= 0x17,
 	OP_META_EXTS		= 0x18,
+
+	OP_META_MULT2		= 0x19,
+	OP_META_MULTU2		= 0x1a,
 };
 
 enum special_opcodes {
