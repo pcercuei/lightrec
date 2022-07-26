@@ -49,6 +49,14 @@
 #define container_of(ptr, type, member) \
 	((type *)((void *)(ptr) - offsetof(type, member)))
 
+#ifdef _WIN32
+#	define popcount32(x)	__popcnt(x)
+#	define ffs32(x)		(31 - __lzcnt(x))
+#else
+#	define popcount32(x)	__builtin_popcount(x)
+#	define ffs32(x)		(__builtin_ffs(x) - 1)
+#endif
+
 /* Flags for (struct block *)->flags */
 #define BLOCK_NEVER_COMPILE	BIT(0)
 #define BLOCK_SHOULD_RECOMPILE	BIT(1)

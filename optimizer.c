@@ -974,6 +974,11 @@ static int lightrec_transform_branches(struct lightrec_state *state,
 	return 0;
 }
 
+static inline bool is_power_of_two(u32 value)
+{
+	return popcount32(value) == 1;
+}
+
 static int lightrec_transform_ops(struct lightrec_state *state, struct block *block)
 {
 	struct opcode *list = block->opcode_list;
@@ -981,6 +986,7 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 	u32 known = BIT(0);
 	u32 values[32] = { 0 };
 	unsigned int i;
+	u8 tmp;
 
 	for (i = 0; i < block->nb_ops; i++) {
 		prev = op;
@@ -1054,6 +1060,28 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 					op->i.op = OP_META_MOV;
 					op->r.rs = op->r.rt;
 				}
+				break;
+			case OP_SPECIAL_MULT:
+			case OP_SPECIAL_MULTU:
+				if ((known & BIT(op->r.rs)) &&
+				    is_power_of_two(values[op->r.rs])) {
+					tmp = op->c.i.rs;
+					op->c.i.rs = op->c.i.rt;
+					op->c.i.rt = tmp;
+				} else if (!(known & BIT(op->r.rt)) ||
+					   !is_power_of_two(values[op->r.rt])) {
+					break;
+				}
+
+				pr_debug("Multiply by power-of-two: %u\n",
+					 values[op->r.rt]);
+
+				if (op->r.op == OP_SPECIAL_MULT)
+					op->i.op = OP_META_MULT2;
+				else
+					op->i.op = OP_META_MULTU2;
+
+				op->r.op = ffs32(values[op->r.rt]);
 				break;
 			case OP_SPECIAL_OR:
 			case OP_SPECIAL_ADD:
