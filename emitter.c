@@ -2322,6 +2322,59 @@ static void rec_meta_EXTC_EXTS(struct lightrec_cstate *state,
 	lightrec_free_reg(reg_cache, rt);
 }
 
+static void rec_meta_MULT2(struct lightrec_cstate *state,
+			   const struct block *block,
+			   u16 offset)
+{
+	struct regcache *reg_cache = state->reg_cache;
+	union code c = block->opcode_list[offset].c;
+	jit_state_t *_jit = block->_jit;
+	u8 reg_lo = get_mult_div_lo(c);
+	u8 reg_hi = get_mult_div_hi(c);
+	u32 flags = block->opcode_list[offset].flags;
+	bool is_signed = c.i.op == OP_META_MULT2;
+	u8 rs, lo, hi, rflags = 0, hiflags = 0;
+
+	if (!op_flag_no_hi(flags) && c.r.op < 32) {
+		rflags = is_signed ? REG_EXT : REG_ZEXT;
+		hiflags = is_signed ? REG_EXT : (REG_EXT | REG_ZEXT);
+	}
+
+	_jit_name(block->_jit, __func__);
+	jit_note(__FILE__, __LINE__);
+
+	rs = lightrec_alloc_reg_in(reg_cache, _jit, c.i.rs, rflags);
+
+	if (!op_flag_no_lo(flags)) {
+		lo = lightrec_alloc_reg_out(reg_cache, _jit, reg_lo, 0);
+
+		if (c.r.op < 32)
+			jit_lshi(lo, rs, c.r.op);
+		else
+			jit_movi(lo, 0);
+
+		lightrec_free_reg(reg_cache, lo);
+	}
+
+	if (!op_flag_no_hi(flags)) {
+		hi = lightrec_alloc_reg_out(reg_cache, _jit, reg_hi, hiflags);
+
+		if (c.r.op >= 32)
+			jit_lshi(hi, rs, c.r.op - 32);
+		else if (is_signed)
+			jit_rshi(hi, rs, 32 - c.r.op);
+		else
+			jit_rshi_u(hi, rs, 32 - c.r.op);
+
+		lightrec_free_reg(reg_cache, hi);
+	}
+
+	lightrec_free_reg(reg_cache, rs);
+
+	_jit_name(block->_jit, __func__);
+	jit_note(__FILE__, __LINE__);
+}
+
 static const lightrec_rec_func_t rec_standard[64] = {
 	SET_DEFAULT_ELM(rec_standard, unknown_opcode),
 	[OP_SPECIAL]		= rec_SPECIAL,
@@ -2360,6 +2413,8 @@ static const lightrec_rec_func_t rec_standard[64] = {
 	[OP_META_MOV]		= rec_meta_MOV,
 	[OP_META_EXTC]		= rec_meta_EXTC_EXTS,
 	[OP_META_EXTS]		= rec_meta_EXTC_EXTS,
+	[OP_META_MULT2]		= rec_meta_MULT2,
+	[OP_META_MULTU2]	= rec_meta_MULT2,
 };
 
 static const lightrec_rec_func_t rec_special[64] = {
