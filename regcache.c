@@ -13,6 +13,7 @@
 
 enum reg_priority {
 	REG_IS_TEMP,
+	REG_IS_TEMP_VALUE,
 	REG_IS_ZERO,
 	REG_IS_LOADED,
 	REG_IS_DIRTY,
@@ -24,6 +25,7 @@ struct native_register {
 	bool used, output, extend, extended,
 	     zero_extend, zero_extended, locked;
 	s8 emulated_register;
+	intptr_t value;
 	enum reg_priority prio;
 };
 
@@ -277,6 +279,33 @@ u8 lightrec_alloc_reg_temp(struct regcache *cache, jit_state_t *_jit)
 	nreg->prio = REG_IS_TEMP;
 	nreg->used = true;
 	return jit_reg;
+}
+
+s8 lightrec_get_reg_with_value(struct regcache *cache, intptr_t value)
+{
+	struct native_register *nreg;
+	unsigned int i;
+
+	for (i = 0; i < ARRAY_SIZE(cache->lightrec_regs); i++) {
+		nreg = &cache->lightrec_regs[i];
+
+		if (nreg->prio == REG_IS_TEMP_VALUE && nreg->value == value) {
+			nreg->used = true;
+			return lightrec_reg_to_lightning(cache, nreg);
+		}
+	}
+
+	return -1;
+}
+
+void lightrec_temp_set_value(struct regcache *cache, u8 jit_reg, intptr_t value)
+{
+	struct native_register *nreg;
+
+	nreg = lightning_reg_to_lightrec(cache, jit_reg);
+
+	nreg->prio = REG_IS_TEMP_VALUE;
+	nreg->value = value;
 }
 
 u8 lightrec_alloc_reg_out(struct regcache *cache, jit_state_t *_jit,
