@@ -1049,11 +1049,18 @@ static void call_to_c_wrapper(struct lightrec_cstate *state, const struct block 
 {
 	struct regcache *reg_cache = state->reg_cache;
 	jit_state_t *_jit = block->_jit;
-	u8 tmp;
+	s8 tmp;
 
-	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
-	jit_ldxi(tmp, LIGHTREC_REG_STATE,
-		 offsetof(struct lightrec_state, wrappers_eps[wrapper]));
+	tmp = lightrec_get_reg_with_value(reg_cache,
+					  (intptr_t) state->state->wrappers_eps[wrapper]);
+	if (tmp < 0) {
+		tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
+		jit_ldxi(tmp, LIGHTREC_REG_STATE,
+			 offsetof(struct lightrec_state, wrappers_eps[wrapper]));
+
+		lightrec_temp_set_value(reg_cache, tmp,
+					(intptr_t) state->state->wrappers_eps[wrapper]);
+	}
 
 #ifdef __mips__
 	/* On MIPS, register t9 is always used as the target register for JALR.
