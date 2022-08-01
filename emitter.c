@@ -1055,6 +1055,14 @@ static void call_to_c_wrapper(struct lightrec_cstate *state, const struct block 
 	jit_ldxi(tmp, LIGHTREC_REG_STATE,
 		 offsetof(struct lightrec_state, wrappers_eps[wrapper]));
 
+#ifdef __mips__
+	/* On MIPS, register t9 is always used as the target register for JALR.
+	 * Therefore if it does not contain the target address we must
+	 * invalidate it. */
+	if (tmp != _T9)
+		lightrec_unload_reg(reg_cache, _jit, _T9);
+#endif
+
 	if (with_arg) {
 		jit_prepare();
 		jit_pushargi(arg);
