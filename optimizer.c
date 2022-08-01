@@ -1449,6 +1449,7 @@ static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 	u32 values[32] = { 0 };
 	unsigned int i;
 	u32 val, kunseg_val;
+	bool no_mask;
 
 	for (i = 0; i < block->nb_ops; i++) {
 		prev = list;
@@ -1505,10 +1506,11 @@ static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 				psx_map = lightrec_get_map_idx(state, kunseg_val);
 
 				list->flags &= ~LIGHTREC_IO_MASK;
+				no_mask = val == kunseg_val;
 
 				switch (psx_map) {
 				case PSX_MAP_KERNEL_USER_RAM:
-					if (val == kunseg_val)
+					if (no_mask)
 						list->flags |= LIGHTREC_NO_MASK;
 					fallthrough;
 				case PSX_MAP_MIRROR1:
@@ -1516,14 +1518,20 @@ static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 				case PSX_MAP_MIRROR3:
 					pr_debug("Flaging opcode %u as RAM access\n", i);
 					list->flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_RAM);
+					if (no_mask && state->mirrors_mapped)
+						list->flags |= LIGHTREC_NO_MASK;
 					break;
 				case PSX_MAP_BIOS:
 					pr_debug("Flaging opcode %u as BIOS access\n", i);
 					list->flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_BIOS);
+					if (no_mask)
+						list->flags |= LIGHTREC_NO_MASK;
 					break;
 				case PSX_MAP_SCRATCH_PAD:
 					pr_debug("Flaging opcode %u as scratchpad access\n", i);
 					list->flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_SCRATCH);
+					if (no_mask)
+						list->flags |= LIGHTREC_NO_MASK;
 
 					/* Consider that we're never going to run code from
 					 * the scratchpad. */
