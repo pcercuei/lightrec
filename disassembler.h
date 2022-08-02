@@ -160,6 +160,28 @@ enum cp0_opcodes {
 
 enum cp2_opcodes {
 	OP_CP2_BASIC		= 0x00,
+	OP_CP2_RTPS		= 0x01,
+	OP_CP2_NCLIP		= 0x06,
+	OP_CP2_OP		= 0x0c,
+	OP_CP2_DPCS		= 0x10,
+	OP_CP2_INTPL		= 0x11,
+	OP_CP2_MVMVA		= 0x12,
+	OP_CP2_NCDS		= 0x13,
+	OP_CP2_CDP		= 0x14,
+	OP_CP2_NCDT		= 0x16,
+	OP_CP2_NCCS		= 0x1b,
+	OP_CP2_CC		= 0x1c,
+	OP_CP2_NCS		= 0x1e,
+	OP_CP2_NCT		= 0x20,
+	OP_CP2_SQR		= 0x28,
+	OP_CP2_DCPL		= 0x29,
+	OP_CP2_DPCT		= 0x2a,
+	OP_CP2_AVSZ3		= 0x2d,
+	OP_CP2_AVSZ4		= 0x2e,
+	OP_CP2_RTPT		= 0x30,
+	OP_CP2_GPF		= 0x3d,
+	OP_CP2_GPL		= 0x3e,
+	OP_CP2_NCCT		= 0x3f,
 };
 
 enum cp2_basic_opcodes {

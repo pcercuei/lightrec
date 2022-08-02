@@ -88,11 +88,36 @@ static const char *cp0_opcodes[] = {
 	[OP_CP0_RFE]		= "rfe",
 };
 
-static const char *cp2_opcodes[] = {
+static const char *cp2_basic_opcodes[] = {
 	[OP_CP2_BASIC_MFC2]	= "mfc2    ",
 	[OP_CP2_BASIC_CFC2]	= "cfc2    ",
 	[OP_CP2_BASIC_MTC2]	= "mtc2    ",
 	[OP_CP2_BASIC_CTC2]	= "ctc2    ",
+};
+
+static const char *cp2_opcodes[] = {
+	[OP_CP2_RTPS]		= "rtps    ",
+	[OP_CP2_NCLIP]		= "nclip   ",
+	[OP_CP2_OP]		= "op      ",
+	[OP_CP2_DPCS]		= "dpcs    ",
+	[OP_CP2_INTPL]		= "intpl   ",
+	[OP_CP2_MVMVA]		= "mvmva   ",
+	[OP_CP2_NCDS]		= "ncds    ",
+	[OP_CP2_CDP]		= "cdp     ",
+	[OP_CP2_NCDT]		= "ncdt    ",
+	[OP_CP2_NCCS]		= "nccs    ",
+	[OP_CP2_CC]		= "cc      ",
+	[OP_CP2_NCS]		= "ncs     ",
+	[OP_CP2_NCT]		= "nct     ",
+	[OP_CP2_SQR]		= "sqr     ",
+	[OP_CP2_DCPL]		= "dcpl    ",
+	[OP_CP2_DPCT]		= "dpct    ",
+	[OP_CP2_AVSZ3]		= "avsz3   ",
+	[OP_CP2_AVSZ4]		= "avsz4   ",
+	[OP_CP2_RTPT]		= "rtpt    ",
+	[OP_CP2_GPF]		= "gpf     ",
+	[OP_CP2_GPL]		= "gpl     ",
+	[OP_CP2_NCCT]		= "ncct    ",
 };
 
 static const char *opcode_flags[] = {
@@ -294,17 +319,14 @@ static int print_op_special(union code c, char *buf, size_t len,
 static int print_op_cp(union code c, char *buf, size_t len, unsigned int cp)
 {
 	if (cp == 2) {
-		switch (c.i.rs) {
-		case OP_CP0_MFC0:
-		case OP_CP0_CFC0:
-		case OP_CP0_MTC0:
-		case OP_CP0_CTC0:
+		switch (c.r.op) {
+		case OP_CP2_BASIC:
 			return snprintf(buf, len, "%s%s,%u",
-					cp2_opcodes[c.i.rs],
+					cp2_basic_opcodes[c.i.rs],
 					lightrec_reg_name(c.i.rt),
 					c.r.rd);
 		default:
-			return snprintf(buf, len, "cp2     (0x%08x)", c.opcode);
+			return snprintf(buf, len, "%s", cp2_opcodes[c.r.op]);
 		}
 	} else {
 		switch (c.i.rs) {
