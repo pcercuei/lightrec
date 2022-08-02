@@ -29,6 +29,24 @@ static void unknown_opcode(struct lightrec_cstate *state, const struct block *bl
 		block->pc + (offset << 2));
 }
 
+static void
+lightrec_jump_to_eob(struct lightrec_cstate *state, jit_state_t *_jit)
+{
+#ifdef __powerpc__
+	/*
+	 * Workaround on PowerPC, as Lightning does not seem to emit correct
+	 * code when an absolute jump is generated.
+	 *
+	 * TODO: Fix it in Lightning.
+	 */
+	jit_ldxi(JIT_R0, LIGHTREC_REG_STATE,
+		 offsetof(struct lightrec_state, eob_wrapper_func));
+	jit_jmpr(JIT_R0);
+#else
+	jit_patch_abs(jit_jmpi(), state->state->eob_wrapper_func);
+#endif
+}
+
 static void lightrec_emit_end_of_block(struct lightrec_cstate *state,
 				       const struct block *block, u16 offset,
 				       s8 reg_new_pc, u32 imm, u8 ra_reg,
@@ -75,7 +93,7 @@ static void lightrec_emit_end_of_block(struct lightrec_cstate *state,
 		pr_debug("EOB: %u cycles\n", cycles);
 	}
 
-	jit_patch_abs(jit_jmpi(), state->state->eob_wrapper_func);
+	lightrec_jump_to_eob(state, _jit);
 }
 
 void lightrec_emit_eob(struct lightrec_cstate *state, const struct block *block,
@@ -94,7 +112,7 @@ void lightrec_emit_eob(struct lightrec_cstate *state, const struct block *block,
 	jit_movi(JIT_V0, block->pc + (offset << 2));
 	jit_subi(LIGHTREC_REG_CYCLE, LIGHTREC_REG_CYCLE, cycles);
 
-	jit_patch_abs(jit_jmpi(), state->state->eob_wrapper_func);
+	lightrec_jump_to_eob(state, _jit);
 }
 
 static u8 get_jr_jalr_reg(struct lightrec_cstate *state, const struct block *block, u16 offset)
