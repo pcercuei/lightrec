@@ -1735,14 +1735,22 @@ static void rec_LWC2(struct lightrec_cstate *state, const struct block *block, u
 }
 
 static void rec_break_syscall(struct lightrec_cstate *state,
-			      const struct block *block, u16 offset, bool is_break)
+			      const struct block *block, u16 offset,
+			      u32 exit_code)
 {
+	struct regcache *reg_cache = state->reg_cache;
+	jit_state_t *_jit = block->_jit;
+	u8 tmp;
+
 	_jit_note(block->_jit, __FILE__, __LINE__);
 
-	if (is_break)
-		call_to_c_wrapper(state, block, 0, false, C_WRAPPER_BREAK);
-	else
-		call_to_c_wrapper(state, block, 0, false, C_WRAPPER_SYSCALL);
+	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
+
+	jit_movi(tmp, exit_code);
+	jit_stxi_i(offsetof(struct lightrec_state, exit_flags),
+		   LIGHTREC_REG_STATE, tmp);
+
+	lightrec_free_reg(reg_cache, tmp);
 
 	/* TODO: the return address should be "pc - 4" if we're a delay slot */
 	lightrec_emit_end_of_block(state, block, offset, -1,
@@ -1754,14 +1762,14 @@ static void rec_special_SYSCALL(struct lightrec_cstate *state,
 				const struct block *block, u16 offset)
 {
 	_jit_name(block->_jit, __func__);
-	rec_break_syscall(state, block, offset, false);
+	rec_break_syscall(state, block, offset, LIGHTREC_EXIT_SYSCALL);
 }
 
 static void rec_special_BREAK(struct lightrec_cstate *state,
 			      const struct block *block, u16 offset)
 {
 	_jit_name(block->_jit, __func__);
-	rec_break_syscall(state, block, offset, true);
+	rec_break_syscall(state, block, offset, LIGHTREC_EXIT_BREAK);
 }
 
 static void rec_mtc(struct lightrec_cstate *state, const struct block *block, u16 offset)
