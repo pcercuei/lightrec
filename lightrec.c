@@ -586,16 +586,6 @@ static void lightrec_cp_cb(struct lightrec_state *state, u32 arg)
 	lightrec_cp(state, (union code) arg);
 }
 
-static void lightrec_syscall_cb(struct lightrec_state *state)
-{
-	lightrec_set_exit_flags(state, LIGHTREC_EXIT_SYSCALL);
-}
-
-static void lightrec_break_cb(struct lightrec_state *state)
-{
-	lightrec_set_exit_flags(state, LIGHTREC_EXIT_BREAK);
-}
-
 static struct block * lightrec_get_block(struct lightrec_state *state, u32 pc)
 {
 	struct block *block = lightrec_find_block(state->block_cache, pc);
@@ -1704,8 +1694,6 @@ struct lightrec_state * lightrec_init(char *argv0,
 	state->c_wrappers[C_WRAPPER_RW_GENERIC] = lightrec_rw_generic_cb;
 	state->c_wrappers[C_WRAPPER_MTC] = lightrec_mtc_cb;
 	state->c_wrappers[C_WRAPPER_CP] = lightrec_cp_cb;
-	state->c_wrappers[C_WRAPPER_SYSCALL] = lightrec_syscall_cb;
-	state->c_wrappers[C_WRAPPER_BREAK] = lightrec_break_cb;
 
 	map = &state->maps[PSX_MAP_BIOS];
 	state->offset_bios = (uintptr_t)map->address - map->pc;
