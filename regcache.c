@@ -81,7 +81,11 @@ static inline u8 lightrec_reg_to_lightning(const struct regcache *cache,
 		const struct native_register *nreg)
 {
 	u8 offset = lightrec_reg_number(cache, nreg);
-	return offset < NUM_REGS ? JIT_V(offset) : JIT_R(offset - NUM_REGS);
+
+	if (offset < NUM_REGS)
+		return JIT_V(FIRST_REG + offset);
+	else
+		return JIT_R(FIRST_TEMP + offset - NUM_REGS);
 }
 
 static inline struct native_register * lightning_reg_to_lightrec(
@@ -90,14 +94,14 @@ static inline struct native_register * lightning_reg_to_lightrec(
 	if ((JIT_V0 > JIT_R0 && reg >= JIT_V0) ||
 			(JIT_V0 < JIT_R0 && reg < JIT_R0)) {
 		if (JIT_V1 > JIT_V0)
-			return &cache->lightrec_regs[reg - JIT_V0];
+			return &cache->lightrec_regs[reg - JIT_V(FIRST_REG)];
 		else
-			return &cache->lightrec_regs[JIT_V0 - reg];
+			return &cache->lightrec_regs[JIT_V(FIRST_REG) - reg];
 	} else {
 		if (JIT_R1 > JIT_R0)
-			return &cache->lightrec_regs[NUM_REGS + reg - JIT_R0];
+			return &cache->lightrec_regs[NUM_REGS + reg - JIT_R(FIRST_TEMP)];
 		else
-			return &cache->lightrec_regs[NUM_REGS + JIT_R0 - reg];
+			return &cache->lightrec_regs[NUM_REGS + JIT_R(FIRST_TEMP) - reg];
 	}
 }
 
@@ -489,11 +493,13 @@ static void clean_regs(struct regcache *cache, jit_state_t *_jit, bool clean)
 {
 	unsigned int i;
 
-	for (i = 0; i < NUM_REGS; i++)
-		clean_reg(_jit, &cache->lightrec_regs[i], JIT_V(i), clean);
+	for (i = 0; i < NUM_REGS; i++) {
+		clean_reg(_jit, &cache->lightrec_regs[i],
+			  JIT_V(FIRST_REG + i), clean);
+	}
 	for (i = 0; i < NUM_TEMPS; i++) {
 		clean_reg(_jit, &cache->lightrec_regs[i + NUM_REGS],
-				JIT_R(i), clean);
+				JIT_R(FIRST_TEMP + i), clean);
 	}
 }
 
@@ -610,7 +616,7 @@ void lightrec_regcache_mark_live(struct regcache *cache, jit_state_t *_jit)
 		nreg = &cache->lightrec_regs[i];
 
 		if (nreg->used || nreg->prio > REG_IS_TEMP)
-			jit_live(JIT_V(i));
+			jit_live(JIT_V(FIRST_REG + i));
 	}
 #endif
 
@@ -618,6 +624,6 @@ void lightrec_regcache_mark_live(struct regcache *cache, jit_state_t *_jit)
 		nreg = &cache->lightrec_regs[NUM_REGS + i];
 
 		if (nreg->used || nreg->prio > REG_IS_TEMP)
-			jit_live(JIT_R(i));
+			jit_live(JIT_R(FIRST_TEMP + i));
 	}
 }

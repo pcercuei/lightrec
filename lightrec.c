@@ -835,7 +835,7 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 
 	/* Save all temporaries on stack */
 	for (i = 0; i < NUM_TEMPS; i++)
-		jit_stxi(stack_ptr + i * sizeof(uintptr_t), JIT_FP, JIT_R(i));
+		jit_stxi(stack_ptr + i * sizeof(uintptr_t), JIT_FP, JIT_R(i + FIRST_TEMP));
 
 	jit_getarg(JIT_R1, jit_arg());
 
@@ -847,7 +847,7 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 
 	/* Restore temporaries from stack */
 	for (i = 0; i < NUM_TEMPS; i++)
-		jit_ldxi(JIT_R(i), JIT_FP, stack_ptr + i * sizeof(uintptr_t));
+		jit_ldxi(JIT_R(i + FIRST_TEMP), JIT_FP, stack_ptr + i * sizeof(uintptr_t));
 
 	jit_ret();
 	jit_epilog();
@@ -973,7 +973,7 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 
 	/* Force all callee-saved registers to be pushed on the stack */
 	for (i = 0; i < NUM_REGS; i++)
-		jit_movr(JIT_V(i), JIT_V(i));
+		jit_movr(JIT_V(i + FIRST_REG), JIT_V(i + FIRST_REG));
 
 	/* Pass lightrec_state structure to blocks, using the last callee-saved
 	 * register that Lightning provides */

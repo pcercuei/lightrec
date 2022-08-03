@@ -13,6 +13,9 @@
 #define LIGHTREC_REG_STATE (JIT_V(JIT_V_NUM - 1))
 #define LIGHTREC_REG_CYCLE (JIT_V(JIT_V_NUM - 2))
 
+#define FIRST_REG 0
+#define FIRST_TEMP 0
+
 /* Flags for lightrec_alloc_reg_in / lightrec_alloc_reg_out. */
 #define REG_EXT		BIT(0) /* register is sign-extended */
 #define REG_ZEXT	BIT(1) /* register is zero-extended */
