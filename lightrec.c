@@ -861,33 +861,33 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 	jit_patch(to_tramp);
 
 	/* Retrieve the wrapper function */
-	jit_ldxi(JIT_R0, LIGHTREC_REG_STATE,
+	jit_ldxi(JIT_R2, LIGHTREC_REG_STATE,
 		 offsetof(struct lightrec_state, c_wrappers));
 
 	/* Restore LIGHTREC_REG_STATE to its correct value */
 	jit_movi(LIGHTREC_REG_STATE, (uintptr_t) state);
 
-	jit_ldxi_ui(JIT_R2, LIGHTREC_REG_STATE,
-		    offsetof(struct lightrec_state, target_cycle));
-
 	jit_prepare();
 	jit_pushargr(LIGHTREC_REG_STATE);
 	jit_pushargr(JIT_R1);
 
+	jit_ldxi_ui(JIT_R1, LIGHTREC_REG_STATE,
+		    offsetof(struct lightrec_state, target_cycle));
+
 	/* state->current_cycle = state->target_cycle - delta; */
-	jit_subr(LIGHTREC_REG_CYCLE, JIT_R2, LIGHTREC_REG_CYCLE);
+	jit_subr(LIGHTREC_REG_CYCLE, JIT_R1, LIGHTREC_REG_CYCLE);
 	jit_stxi_i(offsetof(struct lightrec_state, current_cycle),
 		   LIGHTREC_REG_STATE, LIGHTREC_REG_CYCLE);
 
 	/* Call the wrapper function */
-	jit_finishr(JIT_R0);
+	jit_finishr(JIT_R2);
 
 	/* delta = state->target_cycle - state->current_cycle */;
 	jit_ldxi_ui(LIGHTREC_REG_CYCLE, LIGHTREC_REG_STATE,
 		    offsetof(struct lightrec_state, current_cycle));
-	jit_ldxi_ui(JIT_R2, LIGHTREC_REG_STATE,
+	jit_ldxi_ui(JIT_R1, LIGHTREC_REG_STATE,
 		    offsetof(struct lightrec_state, target_cycle));
-	jit_subr(LIGHTREC_REG_CYCLE, JIT_R2, LIGHTREC_REG_CYCLE);
+	jit_subr(LIGHTREC_REG_CYCLE, JIT_R1, LIGHTREC_REG_CYCLE);
 
 	jit_patch_at(jit_jmpi(), to_fn_epilog);
 	jit_epilog();
@@ -968,7 +968,7 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 	jit_prolog();
 	jit_frame(256);
 
-	jit_getarg(JIT_R0, jit_arg());
+	jit_getarg(JIT_V1, jit_arg());
 	jit_getarg_i(LIGHTREC_REG_CYCLE, jit_arg());
 
 	/* Force all callee-saved registers to be pushed on the stack */
@@ -982,7 +982,7 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 	loop = jit_label();
 
 	/* Call the block's code */
-	jit_jmpr(JIT_R0);
+	jit_jmpr(JIT_V1);
 
 	if (OPT_REPLACE_MEMSET) {
 		/* Blocks will jump here when they need to call
@@ -996,8 +996,8 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 		jit_ldxi_ui(JIT_V0, LIGHTREC_REG_STATE,
 			    offsetof(struct lightrec_state, regs.gpr[31]));
 
-		jit_retval(JIT_R0);
-		jit_subr(LIGHTREC_REG_CYCLE, LIGHTREC_REG_CYCLE, JIT_R0);
+		jit_retval(JIT_V1);
+		jit_subr(LIGHTREC_REG_CYCLE, LIGHTREC_REG_CYCLE, JIT_V1);
 	}
 
 	/* The block will jump here, with the number of cycles remaining in
@@ -1012,25 +1012,25 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 	to_end = jit_blei(LIGHTREC_REG_CYCLE, 0);
 
 	/* Convert next PC to KUNSEG and avoid mirrors */
-	jit_andi(JIT_R0, JIT_V0, 0x10000000 | (RAM_SIZE - 1));
-	jit_rshi_u(JIT_R1, JIT_R0, 28);
+	jit_andi(JIT_V1, JIT_V0, 0x10000000 | (RAM_SIZE - 1));
+	jit_rshi_u(JIT_R1, JIT_V1, 28);
 	jit_andi(JIT_R2, JIT_V0, BIOS_SIZE - 1);
 	jit_addi(JIT_R2, JIT_R2, RAM_SIZE);
-	jit_movnr(JIT_R0, JIT_R2, JIT_R1);
+	jit_movnr(JIT_V1, JIT_R2, JIT_R1);
 
 	/* If possible, use the code LUT */
 	if (!lut_is_32bit(state))
-		jit_lshi(JIT_R0, JIT_R0, 1);
-	jit_addr(JIT_R0, JIT_R0, LIGHTREC_REG_STATE);
+		jit_lshi(JIT_V1, JIT_V1, 1);
+	jit_addr(JIT_V1, JIT_V1, LIGHTREC_REG_STATE);
 
 	offset = offsetof(struct lightrec_state, code_lut);
 	if (lut_is_32bit(state))
-		jit_ldxi_ui(JIT_R0, JIT_R0, offset);
+		jit_ldxi_ui(JIT_V1, JIT_V1, offset);
 	else
-		jit_ldxi(JIT_R0, JIT_R0, offset);
+		jit_ldxi(JIT_V1, JIT_V1, offset);
 
 	/* If we get non-NULL, loop */
-	jit_patch_at(jit_bnei(JIT_R0, 0), loop);
+	jit_patch_at(jit_bnei(JIT_V1, 0), loop);
 
 	/* Slow path: call C function get_next_block_func() */
 
@@ -1038,9 +1038,9 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 		/* We may call the interpreter - update state->current_cycle */
 		jit_ldxi_i(JIT_R2, LIGHTREC_REG_STATE,
 			   offsetof(struct lightrec_state, target_cycle));
-		jit_subr(JIT_R1, JIT_R2, LIGHTREC_REG_CYCLE);
+		jit_subr(JIT_V1, JIT_R2, LIGHTREC_REG_CYCLE);
 		jit_stxi_i(offsetof(struct lightrec_state, current_cycle),
-			   LIGHTREC_REG_STATE, JIT_R1);
+			   LIGHTREC_REG_STATE, JIT_V1);
 	}
 
 	/* The code LUT will be set to this address when the block at the target
@@ -1053,7 +1053,7 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 	jit_pushargr(LIGHTREC_REG_STATE);
 	jit_pushargr(JIT_V0);
 	jit_finishi(&get_next_block_func);
-	jit_retval(JIT_R0);
+	jit_retval(JIT_V1);
 
 	if (ENABLE_FIRST_PASS || OPT_DETECT_IMPOSSIBLE_BRANCHES) {
 		/* The interpreter may have updated state->current_cycle and
@@ -1066,7 +1066,7 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 	}
 
 	/* If we get non-NULL, loop */
-	jit_patch_at(jit_bnei(JIT_R0, 0), loop);
+	jit_patch_at(jit_bnei(JIT_V1, 0), loop);
 
 	/* When exiting, the recompiled code will jump to that address */
 	jit_note(__FILE__, __LINE__);

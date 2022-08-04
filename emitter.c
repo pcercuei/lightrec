@@ -39,9 +39,9 @@ lightrec_jump_to_eob(struct lightrec_cstate *state, jit_state_t *_jit)
 	 *
 	 * TODO: Fix it in Lightning.
 	 */
-	jit_ldxi(JIT_R0, LIGHTREC_REG_STATE,
+	jit_ldxi(JIT_R1, LIGHTREC_REG_STATE,
 		 offsetof(struct lightrec_state, eob_wrapper_func));
-	jit_jmpr(JIT_R0);
+	jit_jmpr(JIT_R1);
 #else
 	jit_patch_abs(jit_jmpi(), state->state->eob_wrapper_func);
 #endif
