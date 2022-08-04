@@ -8,13 +8,13 @@
 
 #include "lightrec-private.h"
 
-#define NUM_REGS (JIT_V_NUM - 2)
-#define NUM_TEMPS (JIT_R_NUM)
+#define NUM_REGS (JIT_V_NUM - 1)
+#define NUM_TEMPS (JIT_R_NUM - 1)
 #define LIGHTREC_REG_STATE (JIT_V(JIT_V_NUM - 1))
-#define LIGHTREC_REG_CYCLE (JIT_V(JIT_V_NUM - 2))
+#define LIGHTREC_REG_CYCLE JIT_R0
 
 #define FIRST_REG 0
-#define FIRST_TEMP 0
+#define FIRST_TEMP 1
 
 /* Flags for lightrec_alloc_reg_in / lightrec_alloc_reg_out. */
 #define REG_EXT		BIT(0) /* register is sign-extended */
