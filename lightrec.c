@@ -802,8 +802,8 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 	jit_state_t *_jit;
 	unsigned int i;
 	int stack_ptr;
-	jit_node_t *to_tramp, *to_fn_epilog;
 	jit_node_t *addr[C_WRAPPERS_COUNT - 1];
+	jit_node_t *to_end[C_WRAPPERS_COUNT - 1];
 
 	block = lightrec_malloc(state, MEM_FOR_IR, sizeof(*block));
 	if (!block)
@@ -820,13 +820,19 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 	jit_prolog();
 	jit_tramp(256);
 
-	/* Add entry points; separate them by opcodes that increment
-	 * LIGHTREC_REG_STATE (since we cannot touch other registers).
-	 * The difference will then tell us which C function to call. */
+	/* Add entry points */
 	for (i = C_WRAPPERS_COUNT - 1; i > 0; i--) {
-		jit_addi(LIGHTREC_REG_STATE, LIGHTREC_REG_STATE, __WORDSIZE / 8);
+		jit_ldxi(JIT_R1, LIGHTREC_REG_STATE,
+			 offsetof(struct lightrec_state, c_wrappers[i]));
+		to_end[i - 1] = jit_b();
 		addr[i - 1] = jit_indirect();
 	}
+
+	jit_ldxi(JIT_R1, LIGHTREC_REG_STATE,
+		 offsetof(struct lightrec_state, c_wrappers[0]));
+
+	for (i = 0; i < C_WRAPPERS_COUNT - 1; i++)
+		jit_patch(to_end[i]);
 
 	jit_epilog();
 	jit_prolog();
@@ -834,53 +840,29 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 	stack_ptr = jit_allocai(sizeof(uintptr_t) * NUM_TEMPS);
 
 	/* Save all temporaries on stack */
-	for (i = 0; i < NUM_TEMPS; i++)
-		jit_stxi(stack_ptr + i * sizeof(uintptr_t), JIT_FP, JIT_R(i + FIRST_TEMP));
+	for (i = 0; i < NUM_TEMPS; i++) {
+		if (i + FIRST_TEMP != 1) {
+			jit_stxi(stack_ptr + i * sizeof(uintptr_t),
+				 JIT_FP, JIT_R(i + FIRST_TEMP));
+		}
+	}
 
-	jit_getarg(JIT_R1, jit_arg());
-
-	/* Jump to the trampoline */
-	to_tramp = jit_jmpi();
-
-	/* The trampoline will jump back here */
-	to_fn_epilog = jit_label();
-
-	/* Restore temporaries from stack */
-	for (i = 0; i < NUM_TEMPS; i++)
-		jit_ldxi(JIT_R(i + FIRST_TEMP), JIT_FP, stack_ptr + i * sizeof(uintptr_t));
-
-	jit_ret();
-	jit_epilog();
-
-	/* Trampoline entry point.
-	 * The sole purpose of the trampoline is to cheese Lightning not to
-	 * save/restore the callee-saved register LIGHTREC_REG_CYCLE, since we
-	 * do want to return to the caller with this register modified. */
-	jit_prolog();
-	jit_tramp(256);
-	jit_patch(to_tramp);
-
-	/* Retrieve the wrapper function */
-	jit_ldxi(JIT_R2, LIGHTREC_REG_STATE,
-		 offsetof(struct lightrec_state, c_wrappers));
-
-	/* Restore LIGHTREC_REG_STATE to its correct value */
-	jit_movi(LIGHTREC_REG_STATE, (uintptr_t) state);
+	jit_getarg(JIT_R2, jit_arg());
 
 	jit_prepare();
 	jit_pushargr(LIGHTREC_REG_STATE);
-	jit_pushargr(JIT_R1);
+	jit_pushargr(JIT_R2);
 
-	jit_ldxi_ui(JIT_R1, LIGHTREC_REG_STATE,
+	jit_ldxi_ui(JIT_R2, LIGHTREC_REG_STATE,
 		    offsetof(struct lightrec_state, target_cycle));
 
 	/* state->current_cycle = state->target_cycle - delta; */
-	jit_subr(LIGHTREC_REG_CYCLE, JIT_R1, LIGHTREC_REG_CYCLE);
+	jit_subr(LIGHTREC_REG_CYCLE, JIT_R2, LIGHTREC_REG_CYCLE);
 	jit_stxi_i(offsetof(struct lightrec_state, current_cycle),
 		   LIGHTREC_REG_STATE, LIGHTREC_REG_CYCLE);
 
 	/* Call the wrapper function */
-	jit_finishr(JIT_R2);
+	jit_finishr(JIT_R1);
 
 	/* delta = state->target_cycle - state->current_cycle */;
 	jit_ldxi_ui(LIGHTREC_REG_CYCLE, LIGHTREC_REG_STATE,
@@ -889,7 +871,15 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 		    offsetof(struct lightrec_state, target_cycle));
 	jit_subr(LIGHTREC_REG_CYCLE, JIT_R1, LIGHTREC_REG_CYCLE);
 
-	jit_patch_at(jit_jmpi(), to_fn_epilog);
+	/* Restore temporaries from stack */
+	for (i = 0; i < NUM_TEMPS; i++) {
+		if (i + FIRST_TEMP != 1) {
+			jit_ldxi(JIT_R(i + FIRST_TEMP), JIT_FP,
+				 stack_ptr + i * sizeof(uintptr_t));
+		}
+	}
+
+	jit_ret();
 	jit_epilog();
 
 	block->_jit = _jit;
