@@ -1062,8 +1062,9 @@ static void rec_special_MTLO(struct lightrec_cstate *state,
 	rec_alu_mv_lo_hi(state, block, REG_LO, c.r.rs);
 }
 
-static void call_to_c_wrapper(struct lightrec_cstate *state, const struct block *block,
-			      u32 arg, bool with_arg, enum c_wrappers wrapper)
+static void call_to_c_wrapper(struct lightrec_cstate *state,
+			      const struct block *block, u32 arg,
+			      enum c_wrappers wrapper)
 {
 	struct regcache *reg_cache = state->reg_cache;
 	jit_state_t *_jit = block->_jit;
@@ -1093,10 +1094,8 @@ static void call_to_c_wrapper(struct lightrec_cstate *state, const struct block 
 		lightrec_unload_reg(reg_cache, _jit, _T9);
 #endif
 
-	if (with_arg) {
-		jit_prepare();
-		jit_pushargi(arg);
-	}
+	jit_prepare();
+	jit_pushargi(arg);
 
 	lightrec_regcache_mark_live(reg_cache, _jit);
 	jit_callr(tmp);
@@ -1126,11 +1125,11 @@ static void rec_io(struct lightrec_cstate *state,
 		lightrec_clean_reg_if_loaded(reg_cache, _jit, c.i.rt, false);
 
 	if (is_tagged) {
-		call_to_c_wrapper(state, block, c.opcode, true, C_WRAPPER_RW);
+		call_to_c_wrapper(state, block, c.opcode, C_WRAPPER_RW);
 	} else {
 		lut_entry = lightrec_get_lut_entry(block);
 		call_to_c_wrapper(state, block, (lut_entry << 16) | offset,
-				  true, C_WRAPPER_RW_GENERIC);
+				  C_WRAPPER_RW_GENERIC);
 	}
 }
 
@@ -1811,7 +1810,7 @@ static void rec_mtc(struct lightrec_cstate *state, const struct block *block, u1
 	lightrec_clean_reg_if_loaded(reg_cache, _jit, c.i.rs, false);
 	lightrec_clean_reg_if_loaded(reg_cache, _jit, c.i.rt, false);
 
-	call_to_c_wrapper(state, block, c.opcode, true, C_WRAPPER_MTC);
+	call_to_c_wrapper(state, block, c.opcode, C_WRAPPER_MTC);
 
 	if (c.i.op == OP_CP0 &&
 	    !op_flag_no_ds(block->opcode_list[offset].flags) &&
@@ -2271,7 +2270,7 @@ static void rec_CP(struct lightrec_cstate *state,
 	jit_name(__func__);
 	jit_note(__FILE__, __LINE__);
 
-	call_to_c_wrapper(state, block, c.opcode, true, C_WRAPPER_CP);
+	call_to_c_wrapper(state, block, c.opcode, C_WRAPPER_CP);
 }
 
 static void rec_meta_MOV(struct lightrec_cstate *state,
