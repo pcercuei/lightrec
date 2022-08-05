@@ -10,6 +10,7 @@
 #include "lightrec-config.h"
 #include "disassembler.h"
 #include "lightrec.h"
+#include "regcache.h"
 
 #if ENABLE_THREADED_COMPILER
 #include <stdatomic.h>
@@ -128,6 +129,7 @@ struct lightrec_cstate {
 
 struct lightrec_state {
 	struct lightrec_registers regs;
+	uintptr_t wrapper_regs[NUM_TEMPS];
 	u32 next_pc;
 	u32 current_cycle;
 	u32 target_cycle;

@@ -6,12 +6,12 @@
 #ifndef __REGCACHE_H__
 #define __REGCACHE_H__
 
-#include "lightrec-private.h"
-
 #define NUM_REGS (JIT_V_NUM - 1)
 #define NUM_TEMPS (JIT_R_NUM - 1)
 #define LIGHTREC_REG_STATE (JIT_V(JIT_V_NUM - 1))
 #define LIGHTREC_REG_CYCLE JIT_R0
+
+#include "lightrec-private.h"
 
 #define FIRST_REG 0
 #define FIRST_TEMP 1
