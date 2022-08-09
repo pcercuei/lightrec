@@ -1154,8 +1154,7 @@ static void rec_store_memory(struct lightrec_cstate *cstate,
 	bool add_imm = c.i.imm &&
 		((!state->mirrors_mapped && !no_mask) || (invalidate &&
 		((imm & 0x3) || simm + lut_offt != (s16)(simm + lut_offt))));
-	bool need_tmp = !no_mask || addr_offset || add_imm;
-	bool need_tmp2 = addr_offset || invalidate;
+	bool need_tmp = !no_mask || addr_offset || add_imm || invalidate;
 
 	rt = lightrec_alloc_reg_in(reg_cache, _jit, c.i.rt, 0);
 	rs = lightrec_alloc_reg_in(reg_cache, _jit, c.i.rs, 0);
@@ -1177,10 +1176,8 @@ static void rec_store_memory(struct lightrec_cstate *cstate,
 		addr_reg = tmp;
 	}
 
-	if (need_tmp2)
-		tmp2 = lightrec_alloc_reg_temp(reg_cache, _jit);
-
 	if (addr_offset) {
+		tmp2 = lightrec_alloc_reg_temp(reg_cache, _jit);
 		jit_addi(tmp2, addr_reg, addr_offset);
 		addr_reg2 = tmp2;
 	} else {
@@ -1204,20 +1201,20 @@ static void rec_store_memory(struct lightrec_cstate *cstate,
 		tmp3 = lightrec_alloc_reg_in(reg_cache, _jit, 0, 0);
 
 		if (c.i.op != OP_SW) {
-			jit_andi(tmp2, addr_reg, ~3);
-			addr_reg = tmp2;
+			jit_andi(tmp, addr_reg, ~3);
+			addr_reg = tmp;
 		}
 
 		if (!lut_is_32bit(state)) {
-			jit_lshi(tmp2, addr_reg, 1);
-			addr_reg = tmp2;
+			jit_lshi(tmp, addr_reg, 1);
+			addr_reg = tmp;
 		}
 
 		if (addr_reg == rs && c.i.rs == 0) {
 			addr_reg = LIGHTREC_REG_STATE;
 		} else {
-			jit_addr(tmp2, addr_reg, LIGHTREC_REG_STATE);
-			addr_reg = tmp2;
+			jit_addr(tmp, addr_reg, LIGHTREC_REG_STATE);
+			addr_reg = tmp;
 		}
 
 		if (lut_is_32bit(state))
@@ -1228,7 +1225,7 @@ static void rec_store_memory(struct lightrec_cstate *cstate,
 		lightrec_free_reg(reg_cache, tmp3);
 	}
 
-	if (need_tmp2)
+	if (addr_offset)
 		lightrec_free_reg(reg_cache, tmp2);
 	if (need_tmp)
 		lightrec_free_reg(reg_cache, tmp);
