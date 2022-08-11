@@ -911,7 +911,8 @@ static int lightrec_transform_branches(struct lightrec_state *state,
 				op->i.imm = offset;
 
 			}
-		default: /* fall-through */
+			fallthrough;
+		default:
 			break;
 		}
 	}
