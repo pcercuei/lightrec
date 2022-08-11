@@ -1718,8 +1718,10 @@ static void rec_LBU(struct lightrec_cstate *state, const struct block *block, u1
 
 static void rec_LH(struct lightrec_cstate *state, const struct block *block, u16 offset)
 {
+	jit_code_t code = is_big_endian() ? jit_code_ldxi_us : jit_code_ldxi_s;
+
 	_jit_name(block->_jit, __func__);
-	rec_load(state, block, offset, jit_code_ldxi_s, jit_code_bswapr_us, false);
+	rec_load(state, block, offset, code, jit_code_bswapr_us, false);
 }
 
 static void rec_LHU(struct lightrec_cstate *state, const struct block *block, u16 offset)
@@ -1742,8 +1744,15 @@ static void rec_LWR(struct lightrec_cstate *state, const struct block *block, u1
 
 static void rec_LW(struct lightrec_cstate *state, const struct block *block, u16 offset)
 {
+	jit_code_t code;
+
+	if (is_big_endian() && __WORDSIZE == 64)
+		code = jit_code_ldxi_ui;
+	else
+		code = jit_code_ldxi_i;
+
 	_jit_name(block->_jit, __func__);
-	rec_load(state, block, offset, jit_code_ldxi_i, jit_code_bswapr_ui, false);
+	rec_load(state, block, offset, code, jit_code_bswapr_ui, false);
 }
 
 static void rec_LWC2(struct lightrec_cstate *state, const struct block *block, u16 offset)
