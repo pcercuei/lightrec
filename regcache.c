@@ -626,4 +626,7 @@ void lightrec_regcache_mark_live(struct regcache *cache, jit_state_t *_jit)
 		if (nreg->used || nreg->prio > REG_IS_TEMP)
 			jit_live(JIT_R(FIRST_TEMP + i));
 	}
+
+	jit_live(LIGHTREC_REG_STATE);
+	jit_live(LIGHTREC_REG_CYCLE);
 }
