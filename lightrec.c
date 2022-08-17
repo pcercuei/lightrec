@@ -976,6 +976,8 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 		 * lightrec_memset() */
 		addr3 = jit_indirect();
 
+		jit_movr(JIT_V1, LIGHTREC_REG_CYCLE);
+
 		jit_prepare();
 		jit_pushargr(LIGHTREC_REG_STATE);
 		jit_finishi(lightrec_memset);
@@ -983,8 +985,8 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 		jit_ldxi_ui(JIT_V0, LIGHTREC_REG_STATE,
 			    offsetof(struct lightrec_state, regs.gpr[31]));
 
-		jit_retval(JIT_V1);
-		jit_subr(LIGHTREC_REG_CYCLE, LIGHTREC_REG_CYCLE, JIT_V1);
+		jit_retval(LIGHTREC_REG_CYCLE);
+		jit_subr(LIGHTREC_REG_CYCLE, JIT_V1, LIGHTREC_REG_CYCLE);
 	}
 
 	/* The block will jump here, with the number of cycles remaining in
@@ -1035,10 +1037,15 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 	 * recompiler */
 	addr = jit_indirect();
 
-	/* Get the next block */
 	jit_prepare();
 	jit_pushargr(LIGHTREC_REG_STATE);
 	jit_pushargr(JIT_V0);
+
+	/* Save the cycles register if needed */
+	if (!(ENABLE_FIRST_PASS || OPT_DETECT_IMPOSSIBLE_BRANCHES))
+		jit_movr(JIT_V0, LIGHTREC_REG_CYCLE);
+
+	/* Get the next block */
 	jit_finishi(&get_next_block_func);
 	jit_retval(JIT_V1);
 
@@ -1050,6 +1057,8 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 		jit_ldxi_i(JIT_R2, LIGHTREC_REG_STATE,
 			   offsetof(struct lightrec_state, target_cycle));
 		jit_subr(LIGHTREC_REG_CYCLE, JIT_R2, JIT_R1);
+	} else {
+		jit_movr(LIGHTREC_REG_CYCLE, JIT_V0);
 	}
 
 	/* If we get non-NULL, loop */
