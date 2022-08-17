@@ -1300,6 +1300,14 @@ static void lightrec_reap_function(struct lightrec_state *state, void *data)
 	lightrec_free_function(state, data);
 }
 
+static void lightrec_reap_opcode_list(struct lightrec_state *state, void *data)
+{
+	struct block *block = data;
+
+	lightrec_free_opcode_list(state, block);
+	block->opcode_list = NULL;
+}
+
 int lightrec_compile_block(struct lightrec_cstate *cstate,
 			   struct block *block)
 {
@@ -1477,8 +1485,14 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 	if (fully_tagged && !op_list_freed) {
 		pr_debug("Block PC 0x%08x is fully tagged"
 			 " - free opcode list\n", block->pc);
-		lightrec_free_opcode_list(state, block);
-		block->opcode_list = NULL;
+
+		if (ENABLE_THREADED_COMPILER) {
+			lightrec_reaper_add(state->reaper,
+					    lightrec_reap_opcode_list, block);
+		} else {
+			lightrec_free_opcode_list(state, block);
+			block->opcode_list = NULL;
+		}
 	}
 
 	if (oldjit) {
