@@ -24,6 +24,7 @@ struct reaper_elm {
 struct reaper {
 	struct lightrec_state *state;
 	pthread_mutex_t mutex;
+	pthread_cond_t cond;
 	struct slist_elm reap_list;
 
 	atomic_uint sem;
@@ -52,11 +53,21 @@ struct reaper *lightrec_reaper_init(struct lightrec_state *state)
 		return NULL;
 	}
 
+	ret = pthread_cond_init(&reaper->cond, NULL);
+	if (ret) {
+		pr_err("Cannot init cond variable: %d\n", ret);
+		pthread_mutex_destroy(&reaper->mutex);
+		lightrec_free(reaper->state, MEM_FOR_LIGHTREC,
+			      sizeof(*reaper), reaper);
+		return NULL;
+	}
+
 	return reaper;
 }
 
 void lightrec_reaper_destroy(struct reaper *reaper)
 {
+	pthread_cond_destroy(&reaper->cond);
 	pthread_mutex_destroy(&reaper->mutex);
 	lightrec_free(reaper->state, MEM_FOR_LIGHTREC, sizeof(*reaper), reaper);
 }
@@ -120,6 +131,7 @@ void lightrec_reaper_reap(struct reaper *reaper)
 		pthread_mutex_lock(&reaper->mutex);
 	}
 
+	pthread_cond_signal(&reaper->cond);
 	pthread_mutex_unlock(&reaper->mutex);
 }
 
@@ -131,4 +143,17 @@ void lightrec_reaper_pause(struct reaper *reaper)
 void lightrec_reaper_continue(struct reaper *reaper)
 {
 	atomic_fetch_sub_explicit(&reaper->sem, 1, memory_order_relaxed);
+}
+
+void lightrec_reaper_lock(struct reaper *reaper)
+{
+	pthread_mutex_lock(&reaper->mutex);
+	do {
+		pthread_cond_wait(&reaper->cond, &reaper->mutex);
+	} while(!slist_empty(&reaper->reap_list));
+}
+
+void lightrec_reaper_unlock(struct reaper *reaper)
+{
+	pthread_mutex_unlock(&reaper->mutex);
 }

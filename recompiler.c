@@ -117,18 +117,15 @@ static void lightrec_cancel_list(struct recompiler *rec)
 	pthread_cond_broadcast(&rec->cond2);
 }
 
-static void lightrec_flush_code_buffer(struct lightrec_state *state, void *d)
+static void lightrec_flush_code_buffer(struct recompiler *rec)
 {
-	struct recompiler *rec = d;
+	struct lightrec_state *state = rec->state;
 
-	pthread_mutex_lock(&rec->mutex);
+	lightrec_reaper_lock(state->reaper);
 
-	if (rec->must_flush) {
-		lightrec_remove_outdated_blocks(state->block_cache, NULL);
-		rec->must_flush = false;
-	}
+	lightrec_remove_outdated_blocks(state->block_cache, NULL);
 
-	pthread_mutex_unlock(&rec->mutex);
+	lightrec_reaper_unlock(state->reaper);
 }
 
 static void lightrec_compile_list(struct recompiler *rec,
@@ -153,12 +150,18 @@ static void lightrec_compile_list(struct recompiler *rec,
 				 * flush it. */
 
 				pthread_mutex_lock(&rec->mutex);
+				block_rec->compiling = false;
+
 				if (!rec->must_flush) {
-					lightrec_reaper_add(rec->state->reaper,
-							    lightrec_flush_code_buffer,
-							    rec);
-					lightrec_cancel_list(rec);
 					rec->must_flush = true;
+
+					lightrec_cancel_list(rec);
+
+					pthread_mutex_unlock(&rec->mutex);
+					lightrec_flush_code_buffer(rec);
+					pthread_mutex_lock(&rec->mutex);
+
+					rec->must_flush = false;
 				}
 				return;
 			}

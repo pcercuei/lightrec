@@ -20,4 +20,7 @@ void lightrec_reaper_reap(struct reaper *reaper);
 void lightrec_reaper_pause(struct reaper *reaper);
 void lightrec_reaper_continue(struct reaper *reaper);
 
+void lightrec_reaper_lock(struct reaper *reaper);
+void lightrec_reaper_unlock(struct reaper *reaper);
+
 #endif /* __LIGHTREC_REAPER_H__ */
