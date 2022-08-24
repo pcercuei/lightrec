@@ -646,8 +646,6 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 		if (unlikely(should_recompile)) {
 			pr_debug("Block at PC 0x%08x should recompile\n", pc);
 
-			lightrec_unregister(MEM_FOR_CODE, block->code_size);
-
 			if (ENABLE_THREADED_COMPILER) {
 				lightrec_recompiler_add(state->rec, block);
 			} else {
@@ -1320,6 +1318,7 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 	jit_node_t *start_of_block;
 	bool skip_next = false;
 	void *old_fn, *new_fn;
+	size_t old_code_size;
 	unsigned int i, j;
 	u32 offset;
 
@@ -1333,6 +1332,7 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 
 	oldjit = block->_jit;
 	old_fn = block->function;
+	old_code_size = block->code_size;
 	block->_jit = _jit;
 
 	lightrec_regcache_reset(cstate->reg_cache);
@@ -1508,6 +1508,8 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 			_jit_destroy_state(oldjit);
 			lightrec_free_function(state, old_fn);
 		}
+
+		lightrec_unregister(MEM_FOR_CODE, old_code_size);
 	}
 
 	return 0;
