@@ -1587,8 +1587,12 @@ u32 lightrec_run_interpreter(struct lightrec_state *state, u32 pc)
 
 void lightrec_free_block(struct lightrec_state *state, struct block *block)
 {
+	u8 old_flags;
+
 	lightrec_unregister(MEM_FOR_MIPS_CODE, block->nb_ops * sizeof(u32));
-	if (block->opcode_list)
+	old_flags = block_set_flags(block, BLOCK_NO_OPCODE_LIST);
+
+	if (!(old_flags & BLOCK_NO_OPCODE_LIST))
 		lightrec_free_opcode_list(state, block);
 	if (block->_jit)
 		_jit_destroy_state(block->_jit);
