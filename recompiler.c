@@ -106,15 +106,12 @@ static bool lightrec_cancel_block_rec(struct recompiler *rec,
 static void lightrec_cancel_list(struct recompiler *rec)
 {
 	struct block_rec *block_rec;
-	struct slist_elm *next;
+	struct slist_elm *elm, *head = &rec->slist;
 
-	while (!!(next = lightrec_get_first_elm(&rec->slist))) {
-		block_rec = container_of(next, struct block_rec, slist);
-
+	for (elm = slist_first(head); elm; elm = slist_first(head)) {
+		block_rec = container_of(elm, struct block_rec, slist);
 		lightrec_cancel_block_rec(rec, block_rec);
 	}
-
-	pthread_cond_broadcast(&rec->cond2);
 }
 
 static void lightrec_flush_code_buffer(struct lightrec_state *state, void *d)
@@ -153,12 +150,16 @@ static void lightrec_compile_list(struct recompiler *rec,
 				 * flush it. */
 
 				pthread_mutex_lock(&rec->mutex);
+				block_rec->compiling = false;
+				pthread_cond_broadcast(&rec->cond2);
+
 				if (!rec->must_flush) {
+					rec->must_flush = true;
+					lightrec_cancel_list(rec);
+
 					lightrec_reaper_add(rec->state->reaper,
 							    lightrec_flush_code_buffer,
 							    rec);
-					lightrec_cancel_list(rec);
-					rec->must_flush = true;
 				}
 				return;
 			}
@@ -174,7 +175,7 @@ static void lightrec_compile_list(struct recompiler *rec,
 		slist_remove(&rec->slist, next);
 		lightrec_free(rec->state, MEM_FOR_LIGHTREC,
 			      sizeof(*block_rec), block_rec);
-		pthread_cond_signal(&rec->cond2);
+		pthread_cond_broadcast(&rec->cond2);
 	}
 }
 
