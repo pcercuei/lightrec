@@ -1142,7 +1142,7 @@ static int shrink_opcode_list(struct lightrec_state *state, struct block *block,
 	old_list = container_of(block->opcode_list, struct opcode_list, ops);
 	memcpy(list->ops, old_list->ops, sizeof(struct opcode) * new_size);
 
-	lightrec_free_opcode_list(state, block);
+	lightrec_free_opcode_list(state, block->opcode_list);
 	list->nb_ops = new_size;
 	block->nb_ops = new_size;
 	block->opcode_list = list->ops;

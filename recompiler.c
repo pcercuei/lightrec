@@ -437,8 +437,7 @@ void * lightrec_recompiler_run_first_pass(struct lightrec_state *state,
 
 				/* The block was already compiled but the opcode list
 				 * didn't get freed yet - do it now */
-				lightrec_free_opcode_list(state, block);
-				block->opcode_list = NULL;
+				lightrec_free_opcode_list(state, block->opcode_list);
 			}
 		}
 
@@ -464,8 +463,7 @@ void * lightrec_recompiler_run_first_pass(struct lightrec_state *state,
 			pr_debug("Block PC 0x%08x is fully tagged"
 				 " - free opcode list\n", block->pc);
 
-			lightrec_free_opcode_list(state, block);
-			block->opcode_list = NULL;
+			lightrec_free_opcode_list(state, block->opcode_list);
 		}
 	}
 

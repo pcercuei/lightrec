@@ -1121,9 +1121,8 @@ unsigned int lightrec_cycles_of_opcode(union code code)
 	return 2;
 }
 
-void lightrec_free_opcode_list(struct lightrec_state *state, struct block *block)
+void lightrec_free_opcode_list(struct lightrec_state *state, struct opcode *ops)
 {
-	struct opcode *ops = block->opcode_list;
 	struct opcode_list *list = container_of(ops, struct opcode_list, ops);
 
 	lightrec_free(state, MEM_FOR_IR,
@@ -1313,10 +1312,7 @@ static void lightrec_reap_function(struct lightrec_state *state, void *data)
 
 static void lightrec_reap_opcode_list(struct lightrec_state *state, void *data)
 {
-	struct block *block = data;
-
-	lightrec_free_opcode_list(state, block);
-	block->opcode_list = NULL;
+	lightrec_free_opcode_list(state, data);
 }
 
 int lightrec_compile_block(struct lightrec_cstate *cstate,
@@ -1501,10 +1497,10 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 
 		if (ENABLE_THREADED_COMPILER) {
 			lightrec_reaper_add(state->reaper,
-					    lightrec_reap_opcode_list, block);
+					    lightrec_reap_opcode_list,
+					    block->opcode_list);
 		} else {
-			lightrec_free_opcode_list(state, block);
-			block->opcode_list = NULL;
+			lightrec_free_opcode_list(state, block->opcode_list);
 		}
 	}
 
@@ -1604,7 +1600,7 @@ void lightrec_free_block(struct lightrec_state *state, struct block *block)
 	old_flags = block_set_flags(block, BLOCK_NO_OPCODE_LIST);
 
 	if (!(old_flags & BLOCK_NO_OPCODE_LIST))
-		lightrec_free_opcode_list(state, block);
+		lightrec_free_opcode_list(state, block->opcode_list);
 	if (block->_jit)
 		_jit_destroy_state(block->_jit);
 	if (block->function) {
