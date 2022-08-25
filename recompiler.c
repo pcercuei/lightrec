@@ -421,6 +421,12 @@ void * lightrec_recompiler_run_first_pass(struct lightrec_state *state,
 	if (block_has_flag(block, BLOCK_NEVER_COMPILE))
 		return NULL;
 
+	/* The block is marked as dead, and will be removed the next time the
+	 * reaper is run. In the meantime, the old function can still be
+	 * executed. */
+	if (block_has_flag(block, BLOCK_IS_DEAD))
+		return block->function;
+
 	/* If the block is already fully tagged, there is no point in running
 	 * the first pass. Request a recompilation of the block, and maybe the
 	 * interpreter will run the block in the meantime. */
