@@ -255,6 +255,11 @@ struct opcode {
 	u32 flags;
 };
 
+struct opcode_list {
+	u16 nb_ops;
+	struct opcode ops[];
+};
+
 void lightrec_print_disassembly(const struct block *block, const u32 *code);
 
 static inline _Bool op_flag_no_ds(u32 flags)

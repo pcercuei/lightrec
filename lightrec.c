@@ -1123,9 +1123,12 @@ unsigned int lightrec_cycles_of_opcode(union code code)
 
 void lightrec_free_opcode_list(struct lightrec_state *state, struct block *block)
 {
+	struct opcode *ops = block->opcode_list;
+	struct opcode_list *list = container_of(ops, struct opcode_list, ops);
+
 	lightrec_free(state, MEM_FOR_IR,
-		      sizeof(*block->opcode_list) * block->nb_ops,
-		      block->opcode_list);
+		      sizeof(*list) + list->nb_ops * sizeof(struct opcode),
+		      list);
 }
 
 static unsigned int lightrec_get_mips_block_len(const u32 *src)
@@ -1147,25 +1150,28 @@ static unsigned int lightrec_get_mips_block_len(const u32 *src)
 static struct opcode * lightrec_disassemble(struct lightrec_state *state,
 					    const u32 *src, unsigned int *len)
 {
-	struct opcode *list;
+	struct opcode_list *list;
 	unsigned int i, length;
 
 	length = lightrec_get_mips_block_len(src);
 
-	list = lightrec_malloc(state, MEM_FOR_IR, sizeof(*list) * length);
+	list = lightrec_malloc(state, MEM_FOR_IR,
+			       sizeof(*list) + sizeof(struct opcode) * length);
 	if (!list) {
 		pr_err("Unable to allocate memory\n");
 		return NULL;
 	}
 
+	list->nb_ops = (u16) length;
+
 	for (i = 0; i < length; i++) {
-		list[i].opcode = LE32TOH(src[i]);
-		list[i].flags = 0;
+		list->ops[i].opcode = LE32TOH(src[i]);
+		list->ops[i].flags = 0;
 	}
 
 	*len = length * sizeof(u32);
 
-	return list;
+	return list->ops;
 }
 
 static struct block * lightrec_precompile_block(struct lightrec_state *state,

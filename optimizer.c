@@ -1124,7 +1124,7 @@ static int lightrec_switch_delay_slots(struct lightrec_state *state, struct bloc
 
 static int shrink_opcode_list(struct lightrec_state *state, struct block *block, u16 new_size)
 {
-	struct opcode *list;
+	struct opcode_list *list, *old_list;
 
 	if (new_size >= block->nb_ops) {
 		pr_err("Invalid shrink size (%u vs %u)\n",
@@ -1132,19 +1132,20 @@ static int shrink_opcode_list(struct lightrec_state *state, struct block *block,
 		return -EINVAL;
 	}
 
-
 	list = lightrec_malloc(state, MEM_FOR_IR,
-			       sizeof(*list) * new_size);
+			       sizeof(*list) + sizeof(struct opcode) * new_size);
 	if (!list) {
 		pr_err("Unable to allocate memory\n");
 		return -ENOMEM;
 	}
 
-	memcpy(list, block->opcode_list, sizeof(*list) * new_size);
+	old_list = container_of(block->opcode_list, struct opcode_list, ops);
+	memcpy(list->ops, old_list->ops, sizeof(struct opcode) * new_size);
 
 	lightrec_free_opcode_list(state, block);
-	block->opcode_list = list;
+	list->nb_ops = new_size;
 	block->nb_ops = new_size;
+	block->opcode_list = list->ops;
 
 	pr_debug("Shrunk opcode list of block PC 0x%08x to %u opcodes\n",
 		 block->pc, new_size);
