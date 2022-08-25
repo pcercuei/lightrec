@@ -137,7 +137,7 @@ static void lightrec_compile_list(struct recompiler *rec,
 
 		pthread_mutex_unlock(&rec->mutex);
 
-		if (likely(!(block->flags & BLOCK_IS_DEAD))) {
+		if (likely(!block_has_flag(block, BLOCK_IS_DEAD))) {
 			ret = lightrec_compile_block(thd->cstate, block);
 			if (ret == -ENOMEM) {
 				/* Code buffer is full. Request the reaper to
@@ -328,7 +328,7 @@ int lightrec_recompiler_add(struct recompiler *rec, struct block *block)
 
 	/* If the block is marked as dead, don't compile it, it will be removed
 	 * as soon as it's safe. */
-	if (block->flags & BLOCK_IS_DEAD)
+	if (block_has_flag(block, BLOCK_IS_DEAD))
 		goto out_unlock;
 
 	for (elm = slist_first(&rec->slist), prev = NULL; elm;
@@ -340,7 +340,7 @@ int lightrec_recompiler_add(struct recompiler *rec, struct block *block)
 			 * it to the top of the list, unless the block is being
 			 * recompiled. */
 			if (prev && !block_rec->compiling &&
-			    !(block->flags & BLOCK_SHOULD_RECOMPILE)) {
+			    !block_has_flag(block, BLOCK_SHOULD_RECOMPILE)) {
 				slist_remove_next(prev);
 				slist_append(&rec->slist, elm);
 			}
@@ -351,7 +351,7 @@ int lightrec_recompiler_add(struct recompiler *rec, struct block *block)
 
 	/* By the time this function was called, the block has been recompiled
 	 * and ins't in the wait list anymore. Just return here. */
-	if (block->function && !(block->flags & BLOCK_SHOULD_RECOMPILE))
+	if (block->function && !block_has_flag(block, BLOCK_SHOULD_RECOMPILE))
 		goto out_unlock;
 
 	block_rec = lightrec_malloc(rec->state, MEM_FOR_LIGHTREC,
@@ -370,7 +370,7 @@ int lightrec_recompiler_add(struct recompiler *rec, struct block *block)
 
 	/* If the block is being recompiled, push it to the end of the queue;
 	 * otherwise push it to the front of the queue. */
-	if (block->flags & BLOCK_SHOULD_RECOMPILE)
+	if (block_has_flag(block, BLOCK_SHOULD_RECOMPILE))
 		for (; elm->next; elm = elm->next);
 
 	slist_append(elm, &block_rec->slist);
@@ -418,17 +418,17 @@ void * lightrec_recompiler_run_first_pass(struct lightrec_state *state,
 
 	/* There's no point in running the first pass if the block will never
 	 * be compiled. Let the main loop run the interpreter instead. */
-	if (block->flags & BLOCK_NEVER_COMPILE)
+	if (block_has_flag(block, BLOCK_NEVER_COMPILE))
 		return NULL;
 
 	/* If the block is already fully tagged, there is no point in running
 	 * the first pass. Request a recompilation of the block, and maybe the
 	 * interpreter will run the block in the meantime. */
-	if (block->flags & BLOCK_FULLY_TAGGED)
+	if (block_has_flag(block, BLOCK_FULLY_TAGGED))
 		lightrec_recompiler_add(state->rec, block);
 
 	if (likely(block->function)) {
-		if (block->flags & BLOCK_FULLY_TAGGED) {
+		if (block_has_flag(block, BLOCK_FULLY_TAGGED)) {
 			freed = atomic_flag_test_and_set(&block->op_list_freed);
 
 			if (!freed) {
@@ -457,7 +457,7 @@ void * lightrec_recompiler_run_first_pass(struct lightrec_state *state,
 
 	/* The block got compiled while the interpreter was running.
 	 * We can free the opcode list now. */
-	if (block->function && (block->flags & BLOCK_FULLY_TAGGED) &&
+	if (block->function && block_has_flag(block, BLOCK_FULLY_TAGGED) &&
 	    !atomic_flag_test_and_set(&block->op_list_freed)) {
 		pr_debug("Block PC 0x%08x is fully tagged"
 			 " - free opcode list\n", block->pc);

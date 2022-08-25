@@ -91,9 +91,11 @@ struct block {
 	u32 precompile_date;
 	unsigned int code_size;
 	u16 nb_ops;
-	u8 flags;
 #if ENABLE_THREADED_COMPILER
+	_Atomic u8 flags;
 	atomic_flag op_list_freed;
+#else
+	u8 flags;
 #endif
 };
 
@@ -277,6 +279,43 @@ static inline u8 get_mult_div_hi(union code c)
 static inline s16 s16_max(s16 a, s16 b)
 {
 	return a > b ? a : b;
+}
+
+static inline _Bool block_has_flag(struct block *block, u8 flag)
+{
+#if ENABLE_THREADED_COMPILER
+	return atomic_load_explicit(&block->flags, memory_order_relaxed) & flag;
+#else
+	return block->flags & flag;
+#endif
+}
+
+static inline u8 block_set_flags(struct block *block, u8 mask)
+{
+#if ENABLE_THREADED_COMPILER
+	return atomic_fetch_or_explicit(&block->flags, mask,
+					memory_order_relaxed);
+#else
+	u8 flags = block->flags;
+
+	block->flags |= mask;
+
+	return flags;
+#endif
+}
+
+static inline u8 block_clear_flags(struct block *block, u8 mask)
+{
+#if ENABLE_THREADED_COMPILER
+	return atomic_fetch_and_explicit(&block->flags, ~mask,
+					 memory_order_relaxed);
+#else
+	u8 flags = block->flags;
+
+	block->flags &= ~mask;
+
+	return flags;
+#endif
 }
 
 #endif /* __LIGHTREC_PRIVATE_H__ */

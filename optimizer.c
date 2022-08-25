@@ -1485,7 +1485,7 @@ static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 				    kunseg(values[list->i.rs]) < (kunseg(block->pc) +
 								  block->nb_ops * 4)) {
 					pr_debug("Self-modifying block detected\n");
-					block->flags |= BLOCK_NEVER_COMPILE;
+					block_set_flags(block, BLOCK_NEVER_COMPILE);
 					list->flags |= LIGHTREC_SMC;
 				}
 			}
@@ -1938,7 +1938,8 @@ static int lightrec_replace_memset(struct lightrec_state *state, struct block *b
 		if (i == ARRAY_SIZE(memset_code) - 1) {
 			/* success! */
 			pr_debug("Block at PC 0x%x is a memset\n", block->pc);
-			block->flags |= BLOCK_IS_MEMSET | BLOCK_NEVER_COMPILE;
+			block_set_flags(block,
+					BLOCK_IS_MEMSET | BLOCK_NEVER_COMPILE);
 
 			/* Return non-zero to skip other optimizers. */
 			return 1;

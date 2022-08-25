@@ -360,7 +360,7 @@ static void lightrec_rw_generic_cb(struct lightrec_state *state, u32 arg)
 		pr_debug("Opcode of block at PC 0x%08x has been tagged - flag "
 			 "for recompilation\n", block->pc);
 
-		block->flags |= BLOCK_SHOULD_RECOMPILE;
+		block_set_flags(block, BLOCK_SHOULD_RECOMPILE);
 		lut_write(state, lut_offset(block->pc), NULL);
 	}
 }
@@ -635,13 +635,14 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 		if (unlikely(!block))
 			break;
 
-		if (OPT_REPLACE_MEMSET && (block->flags & BLOCK_IS_MEMSET)) {
+		if (OPT_REPLACE_MEMSET &&
+		    block_has_flag(block, BLOCK_IS_MEMSET)) {
 			func = state->memset_func;
 			break;
 		}
 
-		should_recompile = block->flags & BLOCK_SHOULD_RECOMPILE &&
-			!(block->flags & BLOCK_IS_DEAD);
+		should_recompile = block_has_flag(block, BLOCK_SHOULD_RECOMPILE) &&
+			!block_has_flag(block, BLOCK_IS_DEAD);
 
 		if (unlikely(should_recompile)) {
 			pr_debug("Block at PC 0x%08x should recompile\n", pc);
@@ -665,12 +666,12 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 		if (likely(func))
 			break;
 
-		if (unlikely(block->flags & BLOCK_NEVER_COMPILE)) {
+		if (unlikely(block_has_flag(block, BLOCK_NEVER_COMPILE))) {
 			pc = lightrec_emulate_block(state, block, pc);
 
 		} else if (!ENABLE_THREADED_COMPILER) {
 			/* Block wasn't compiled yet - run the interpreter */
-			if (block->flags & BLOCK_FULLY_TAGGED)
+			if (block_has_flag(block, BLOCK_FULLY_TAGGED))
 				pr_debug("Block fully tagged, skipping first pass\n");
 			else if (ENABLE_FIRST_PASS && likely(!should_recompile))
 				pc = lightrec_emulate_block(state, block, pc);
@@ -1172,6 +1173,7 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 	const u32 *code = (u32 *) host;
 	unsigned int length;
 	bool fully_tagged;
+	u8 block_flags = 0;
 
 	if (!map)
 		return NULL;
@@ -1218,13 +1220,16 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 	/* If the first opcode is an 'impossible' branch, never compile the
 	 * block */
 	if (should_emulate(block->opcode_list))
-		block->flags |= BLOCK_NEVER_COMPILE;
+		block_flags |= BLOCK_NEVER_COMPILE;
 
 	fully_tagged = lightrec_block_is_fully_tagged(block);
 	if (fully_tagged)
-		block->flags |= BLOCK_FULLY_TAGGED;
+		block_flags |= BLOCK_FULLY_TAGGED;
 
-	if (OPT_REPLACE_MEMSET && (block->flags & BLOCK_IS_MEMSET))
+	if (block_flags)
+		block_set_flags(block, block_flags);
+
+	if (OPT_REPLACE_MEMSET && block_has_flag(block, BLOCK_IS_MEMSET))
 		lut_write(state, lut_offset(pc), state->memset_func);
 
 	block->hash = lightrec_calculate_block_hash(block);
@@ -1324,7 +1329,7 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 
 	fully_tagged = lightrec_block_is_fully_tagged(block);
 	if (fully_tagged)
-		block->flags |= BLOCK_FULLY_TAGGED;
+		block_set_flags(block, BLOCK_FULLY_TAGGED);
 
 	_jit = jit_new_state();
 	if (!_jit)
@@ -1410,7 +1415,7 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 	}
 
 	block->function = new_fn;
-	block->flags &= ~BLOCK_SHOULD_RECOMPILE;
+	block_clear_flags(block, BLOCK_SHOULD_RECOMPILE);
 
 	/* Add compiled function to the LUT */
 	lut_write(state, lut_offset(block->pc), block->function);
@@ -1437,7 +1442,7 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 
 			/* Set the "block dead" flag to prevent the dynarec from
 			 * recompiling this block */
-			block2->flags |= BLOCK_IS_DEAD;
+			block_set_flags(block2, BLOCK_IS_DEAD);
 
 			/* If block2 was pending for compilation, cancel it.
 			 * If it's being compiled right now, wait until it
