@@ -687,6 +687,15 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 				state->exit_flags = LIGHTREC_EXIT_NOMEM;
 				return NULL;
 			}
+		} else if (unlikely(block_has_flag(block, BLOCK_IS_DEAD))) {
+			/*
+			 * If the block is dead but has never been compiled,
+			 * then its function pointer is NULL and we cannot
+			 * execute the block. In that case, reap all the dead
+			 * blocks now, and in the next loop we will create a
+			 * new block.
+			 */
+			lightrec_reaper_reap(state->reaper);
 		} else {
 			lightrec_recompiler_add(state->rec, block);
 		}
