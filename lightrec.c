@@ -589,18 +589,23 @@ static void lightrec_cp_cb(struct lightrec_state *state, u32 arg)
 static struct block * lightrec_get_block(struct lightrec_state *state, u32 pc)
 {
 	struct block *block = lightrec_find_block(state->block_cache, pc);
+	u8 old_flags;
 
 	if (block && lightrec_block_is_outdated(state, block)) {
 		pr_debug("Block at PC 0x%08x is outdated!\n", block->pc);
 
-		/* Make sure the recompiler isn't processing the block we'll
-		 * destroy */
-		if (ENABLE_THREADED_COMPILER)
-			lightrec_recompiler_remove(state->rec, block);
+		old_flags = block_set_flags(block, BLOCK_IS_DEAD);
+		if (!(old_flags & BLOCK_IS_DEAD)) {
+			/* Make sure the recompiler isn't processing the block
+			 * we'll destroy */
+			if (ENABLE_THREADED_COMPILER)
+				lightrec_recompiler_remove(state->rec, block);
 
-		lightrec_unregister_block(state->block_cache, block);
-		remove_from_code_lut(state->block_cache, block);
-		lightrec_free_block(state, block);
+			lightrec_unregister_block(state->block_cache, block);
+			remove_from_code_lut(state->block_cache, block);
+			lightrec_free_block(state, block);
+		}
+
 		block = NULL;
 	}
 
