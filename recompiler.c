@@ -414,7 +414,7 @@ out_unlock:
 void * lightrec_recompiler_run_first_pass(struct lightrec_state *state,
 					  struct block *block, u32 *pc)
 {
-	bool freed;
+	u8 old_flags;
 
 	/* There's no point in running the first pass if the block will never
 	 * be compiled. Let the main loop run the interpreter instead. */
@@ -429,9 +429,9 @@ void * lightrec_recompiler_run_first_pass(struct lightrec_state *state,
 
 	if (likely(block->function)) {
 		if (block_has_flag(block, BLOCK_FULLY_TAGGED)) {
-			freed = atomic_flag_test_and_set(&block->op_list_freed);
+			old_flags = block_set_flags(block, BLOCK_NO_OPCODE_LIST);
 
-			if (!freed) {
+			if (!(old_flags & BLOCK_NO_OPCODE_LIST)) {
 				pr_debug("Block PC 0x%08x is fully tagged"
 					 " - free opcode list\n", block->pc);
 
@@ -447,23 +447,26 @@ void * lightrec_recompiler_run_first_pass(struct lightrec_state *state,
 
 	/* Mark the opcode list as freed, so that the threaded compiler won't
 	 * free it while we're using it in the interpreter. */
-	freed = atomic_flag_test_and_set(&block->op_list_freed);
+	old_flags = block_set_flags(block, BLOCK_NO_OPCODE_LIST);
 
 	/* Block wasn't compiled yet - run the interpreter */
 	*pc = lightrec_emulate_block(state, block, *pc);
 
-	if (!freed)
-		atomic_flag_clear(&block->op_list_freed);
+	if (!(old_flags & BLOCK_NO_OPCODE_LIST))
+		block_clear_flags(block, BLOCK_NO_OPCODE_LIST);
 
 	/* The block got compiled while the interpreter was running.
 	 * We can free the opcode list now. */
-	if (block->function && block_has_flag(block, BLOCK_FULLY_TAGGED) &&
-	    !atomic_flag_test_and_set(&block->op_list_freed)) {
-		pr_debug("Block PC 0x%08x is fully tagged"
-			 " - free opcode list\n", block->pc);
+	if (block->function && block_has_flag(block, BLOCK_FULLY_TAGGED)) {
+		old_flags = block_set_flags(block, BLOCK_NO_OPCODE_LIST);
 
-		lightrec_free_opcode_list(state, block);
-		block->opcode_list = NULL;
+		if (!(old_flags & BLOCK_NO_OPCODE_LIST)) {
+			pr_debug("Block PC 0x%08x is fully tagged"
+				 " - free opcode list\n", block->pc);
+
+			lightrec_free_opcode_list(state, block);
+			block->opcode_list = NULL;
+		}
 	}
 
 	return NULL;

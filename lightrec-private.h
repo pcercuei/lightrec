@@ -52,6 +52,7 @@
 #define BLOCK_FULLY_TAGGED	BIT(2)
 #define BLOCK_IS_DEAD		BIT(3)
 #define BLOCK_IS_MEMSET		BIT(4)
+#define BLOCK_NO_OPCODE_LIST	BIT(5)
 
 #define RAM_SIZE	0x200000
 #define BIOS_SIZE	0x80000
@@ -93,7 +94,6 @@ struct block {
 	u16 nb_ops;
 #if ENABLE_THREADED_COMPILER
 	_Atomic u8 flags;
-	atomic_flag op_list_freed;
 #else
 	u8 flags;
 #endif

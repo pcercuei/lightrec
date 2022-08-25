@@ -880,7 +880,7 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 
 	block->_jit = _jit;
 	block->opcode_list = NULL;
-	block->flags = 0;
+	block->flags = BLOCK_NO_OPCODE_LIST;
 	block->nb_ops = 0;
 
 	block->function = lightrec_emit_code(state, block, _jit,
@@ -1072,7 +1072,7 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 
 	block->_jit = _jit;
 	block->opcode_list = NULL;
-	block->flags = 0;
+	block->flags = BLOCK_NO_OPCODE_LIST;
 	block->nb_ops = 0;
 
 	block->function = lightrec_emit_code(state, block, _jit,
@@ -1199,9 +1199,6 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 	block->flags = 0;
 	block->code_size = 0;
 	block->precompile_date = state->current_cycle;
-#if ENABLE_THREADED_COMPILER
-	block->op_list_freed = (atomic_flag)ATOMIC_FLAG_INIT;
-#endif
 	block->nb_ops = length / sizeof(u32);
 
 	lightrec_optimize(state, block);
@@ -1316,7 +1313,7 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 {
 	struct lightrec_state *state = cstate->state;
 	struct lightrec_branch_target *target;
-	bool op_list_freed = false, fully_tagged = false;
+	bool fully_tagged = false;
 	struct block *block2;
 	struct opcode *elm;
 	jit_state_t *_jit, *oldjit;
@@ -1325,6 +1322,7 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 	void *old_fn, *new_fn;
 	size_t old_code_size;
 	unsigned int i, j;
+	u8 old_flags;
 	u32 offset;
 
 	fully_tagged = lightrec_block_is_fully_tagged(block);
@@ -1483,11 +1481,10 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 
 	jit_clear_state();
 
-#if ENABLE_THREADED_COMPILER
 	if (fully_tagged)
-		op_list_freed = atomic_flag_test_and_set(&block->op_list_freed);
-#endif
-	if (fully_tagged && !op_list_freed) {
+		old_flags = block_set_flags(block, BLOCK_NO_OPCODE_LIST);
+
+	if (fully_tagged && !(old_flags & BLOCK_NO_OPCODE_LIST)) {
 		pr_debug("Block PC 0x%08x is fully tagged"
 			 " - free opcode list\n", block->pc);
 
