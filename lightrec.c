@@ -1440,7 +1440,7 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 
 			/* Set the "block dead" flag to prevent the dynarec from
 			 * recompiling this block */
-			block_set_flags(block2, BLOCK_IS_DEAD);
+			old_flags = block_set_flags(block2, BLOCK_IS_DEAD);
 
 			/* If block2 was pending for compilation, cancel it.
 			 * If it's being compiled right now, wait until it
@@ -1460,13 +1460,13 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 				 "0x%08x\n", block2->pc, block->pc);
 
 			/* Finally, reap the block. */
-			if (ENABLE_THREADED_COMPILER) {
+			if (!ENABLE_THREADED_COMPILER) {
+				lightrec_unregister_block(state->block_cache, block2);
+				lightrec_free_block(state, block2);
+			} else if (!(old_flags & BLOCK_IS_DEAD)) {
 				lightrec_reaper_add(state->reaper,
 						    lightrec_reap_block,
 						    block2);
-			} else {
-				lightrec_unregister_block(state->block_cache, block2);
-				lightrec_free_block(state, block2);
 			}
 		}
 	}
