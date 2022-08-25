@@ -117,6 +117,7 @@ static void lightrec_free_blocks(struct blockcache *cache,
 	struct block *block, *next;
 	bool outdated = all;
 	unsigned int i;
+	u8 old_flags;
 
 	for (i = 0; i < LUT_SIZE; i++) {
 		for (block = cache->lut[i]; block; block = next) {
@@ -130,7 +131,12 @@ static void lightrec_free_blocks(struct blockcache *cache,
 					lightrec_block_is_outdated(state, block);
 			}
 
-			if (outdated) {
+			if (!outdated)
+				continue;
+
+			old_flags = block_set_flags(block, BLOCK_IS_DEAD);
+
+			if (!(old_flags & BLOCK_IS_DEAD)) {
 				pr_debug("Freeing outdated block at PC 0x%08x\n", block->pc);
 				remove_from_code_lut(cache, block);
 				lightrec_unregister_block(cache, block);
