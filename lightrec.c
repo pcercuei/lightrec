@@ -1191,7 +1191,7 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 {
 	struct opcode *list;
 	struct block *block;
-	void *host;
+	void *host, *addr;
 	const struct lightrec_mem_map *map = lightrec_get_map(state, &host, kunseg(pc));
 	const u32 *code = (u32 *) host;
 	unsigned int length;
@@ -1249,10 +1249,13 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 	if (block_flags)
 		block_set_flags(block, block_flags);
 
-	if (OPT_REPLACE_MEMSET && block_has_flag(block, BLOCK_IS_MEMSET))
-		lut_write(state, lut_offset(pc), state->memset_func);
-
 	block->hash = lightrec_calculate_block_hash(block);
+
+	if (OPT_REPLACE_MEMSET && block_has_flag(block, BLOCK_IS_MEMSET))
+		addr = state->memset_func;
+	else
+		addr = state->get_next_block;
+	lut_write(state, lut_offset(pc), addr);
 
 	pr_debug("Recompile count: %u\n", state->nb_precompile++);
 
