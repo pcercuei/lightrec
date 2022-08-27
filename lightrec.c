@@ -342,6 +342,7 @@ static void lightrec_rw_generic_cb(struct lightrec_state *state, u32 arg)
 	struct opcode *op;
 	bool was_tagged;
 	u16 offset = (u16)arg;
+	u16 old_flags;
 
 	block = lightrec_find_block_from_lut(state->block_cache,
 					     arg >> 16, state->next_pc);
@@ -357,11 +358,14 @@ static void lightrec_rw_generic_cb(struct lightrec_state *state, u32 arg)
 	lightrec_rw_helper(state, op->c, &op->flags, block);
 
 	if (!was_tagged) {
-		pr_debug("Opcode of block at PC 0x%08x has been tagged - flag "
-			 "for recompilation\n", block->pc);
+		old_flags = block_set_flags(block, BLOCK_SHOULD_RECOMPILE);
 
-		block_set_flags(block, BLOCK_SHOULD_RECOMPILE);
-		lut_write(state, lut_offset(block->pc), NULL);
+		if (!(old_flags & BLOCK_SHOULD_RECOMPILE)) {
+			pr_debug("Opcode of block at PC 0x%08x has been tagged"
+				 " - flag for recompilation\n", block->pc);
+
+			lut_write(state, lut_offset(block->pc), NULL);
+		}
 	}
 }
 
