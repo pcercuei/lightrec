@@ -1034,6 +1034,11 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 	/* If we get non-NULL, loop */
 	jit_patch_at(jit_bnei(JIT_V1, 0), loop);
 
+	/* The code LUT will be set to this address when the block at the target
+	 * PC has been preprocessed but not yet compiled by the threaded
+	 * recompiler */
+	addr = jit_indirect();
+
 	/* Slow path: call C function get_next_block_func() */
 
 	if (ENABLE_FIRST_PASS || OPT_DETECT_IMPOSSIBLE_BRANCHES) {
@@ -1044,11 +1049,6 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 		jit_stxi_i(offsetof(struct lightrec_state, current_cycle),
 			   LIGHTREC_REG_STATE, JIT_V1);
 	}
-
-	/* The code LUT will be set to this address when the block at the target
-	 * PC has been preprocessed but not yet compiled by the threaded
-	 * recompiler */
-	addr = jit_indirect();
 
 	jit_prepare();
 	jit_pushargr(LIGHTREC_REG_STATE);
