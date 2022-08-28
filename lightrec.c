@@ -1435,11 +1435,19 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 		return -ENOMEM;
 	}
 
+	/* Pause the reaper, because lightrec_reset_lut_offset() may try to set
+	 * the old block->function pointer to the code LUT. */
+	if (ENABLE_THREADED_COMPILER)
+		lightrec_reaper_pause(state->reaper);
+
 	block->function = new_fn;
 	block_clear_flags(block, BLOCK_SHOULD_RECOMPILE);
 
 	/* Add compiled function to the LUT */
 	lut_write(state, lut_offset(block->pc), block->function);
+
+	if (ENABLE_THREADED_COMPILER)
+		lightrec_reaper_continue(state->reaper);
 
 	/* Detect old blocks that have been covered by the new one */
 	for (i = 0; i < cstate->nb_targets; i++) {
