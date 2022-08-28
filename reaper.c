@@ -70,6 +70,8 @@ err_free_reaper:
 
 void lightrec_reaper_destroy(struct reaper *reaper)
 {
+	lightrec_reaper_reap(reaper);
+
 	pthread_cond_destroy(&reaper->cond);
 	pthread_mutex_destroy(&reaper->mutex);
 	lightrec_free(reaper->state, MEM_FOR_LIGHTREC, sizeof(*reaper), reaper);
