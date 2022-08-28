@@ -8,6 +8,7 @@
 #include "lightrec-private.h"
 #include "memmanager.h"
 #include "reaper.h"
+#include "recompiler.h"
 
 #include <stdbool.h>
 #include <stdlib.h>
@@ -138,6 +139,9 @@ static void lightrec_free_blocks(struct blockcache *cache,
 			old_flags = block_set_flags(block, BLOCK_IS_DEAD);
 
 			if (!(old_flags & BLOCK_IS_DEAD)) {
+				if (ENABLE_THREADED_COMPILER)
+					lightrec_recompiler_remove(state->rec, block);
+
 				pr_debug("Freeing outdated block at PC 0x%08x\n", block->pc);
 				remove_from_code_lut(cache, block);
 				lightrec_unregister_block(cache, block);
