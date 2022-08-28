@@ -118,14 +118,8 @@ static void lightrec_flush_code_buffer(struct lightrec_state *state, void *d)
 {
 	struct recompiler *rec = d;
 
-	pthread_mutex_lock(&rec->mutex);
-
-	if (rec->must_flush) {
-		lightrec_remove_outdated_blocks(state->block_cache, NULL);
-		rec->must_flush = false;
-	}
-
-	pthread_mutex_unlock(&rec->mutex);
+	lightrec_remove_outdated_blocks(state->block_cache, NULL);
+	rec->must_flush = false;
 }
 
 static void lightrec_compile_list(struct recompiler *rec,
