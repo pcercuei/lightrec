@@ -1441,13 +1441,6 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 	/* Add compiled function to the LUT */
 	lut_write(state, lut_offset(block->pc), block->function);
 
-	if (ENABLE_THREADED_COMPILER) {
-		/* Since we might try to reap the same block multiple times,
-		 * we need the reaper to wait until everything has been
-		 * submitted, so that the duplicate entries can be dropped. */
-		lightrec_reaper_pause(state->reaper);
-	}
-
 	/* Detect old blocks that have been covered by the new one */
 	for (i = 0; i < cstate->nb_targets; i++) {
 		target = &cstate->targets[i];
@@ -1456,6 +1449,13 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 			continue;
 
 		offset = block->pc + target->offset * sizeof(u32);
+
+		/* Pause the reaper while we search for the block until we set
+		 * the BLOCK_IS_DEAD flag, otherwise the block may be removed
+		 * under our feet. */
+		if (ENABLE_THREADED_COMPILER)
+			lightrec_reaper_pause(state->reaper);
+
 		block2 = lightrec_find_block(state->block_cache, offset);
 		if (block2) {
 			/* No need to check if block2 is compilable - it must
@@ -1464,11 +1464,15 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 			/* Set the "block dead" flag to prevent the dynarec from
 			 * recompiling this block */
 			old_flags = block_set_flags(block2, BLOCK_IS_DEAD);
+		}
+
+		if (ENABLE_THREADED_COMPILER) {
+			lightrec_reaper_continue(state->reaper);
 
 			/* If block2 was pending for compilation, cancel it.
 			 * If it's being compiled right now, wait until it
 			 * finishes. */
-			if (ENABLE_THREADED_COMPILER)
+			if (block2)
 				lightrec_recompiler_remove(state->rec, block2);
 		}
 
@@ -1493,9 +1497,6 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 			}
 		}
 	}
-
-	if (ENABLE_THREADED_COMPILER)
-		lightrec_reaper_continue(state->reaper);
 
 	if (ENABLE_DISASSEMBLER) {
 		pr_debug("Compiling block at PC: 0x%08x\n", block->pc);
