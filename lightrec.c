@@ -1602,6 +1602,9 @@ u32 lightrec_run_interpreter(struct lightrec_state *state, u32 pc)
 
 	pc = lightrec_emulate_block(state, block, pc);
 
+	if (ENABLE_THREADED_COMPILER)
+		lightrec_reaper_reap(state->reaper);
+
 	if (LOG_LEVEL >= INFO_L)
 		lightrec_print_info(state);
 
