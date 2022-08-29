@@ -1431,6 +1431,7 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 		if (!ENABLE_THREADED_COMPILER)
 			pr_err("Unable to compile block!\n");
 		block->_jit = oldjit;
+		jit_clear_state();
 		_jit_destroy_state(_jit);
 		return -ENOMEM;
 	}
