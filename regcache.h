@@ -6,15 +6,25 @@
 #ifndef __REGCACHE_H__
 #define __REGCACHE_H__
 
+#include "lightning-wrapper.h"
+
 #define NUM_REGS (JIT_V_NUM - 1)
-#define NUM_TEMPS (JIT_R_NUM - 1)
 #define LIGHTREC_REG_STATE (JIT_V(JIT_V_NUM - 1))
-#define LIGHTREC_REG_CYCLE JIT_R0
+
+#if defined(__powerpc__)
+#  define NUM_TEMPS JIT_R_NUM
+/* JIT_R0 is callee-saved on PowerPC, we have to use something else */
+#  define LIGHTREC_REG_CYCLE _R10
+#  define FIRST_TEMP 0
+#else
+#  define NUM_TEMPS (JIT_R_NUM - 1)
+#  define LIGHTREC_REG_CYCLE JIT_R0
+#  define FIRST_TEMP 1
+#endif
 
 #include "lightrec-private.h"
 
 #define FIRST_REG 0
-#define FIRST_TEMP 1
 
 /* Flags for lightrec_alloc_reg_in / lightrec_alloc_reg_out. */
 #define REG_EXT		BIT(0) /* register is sign-extended */
