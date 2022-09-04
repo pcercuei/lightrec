@@ -947,6 +947,8 @@ static u32 lightrec_memset(struct lightrec_state *state)
 	if (!state->invalidate_from_dma_only)
 		lightrec_invalidate_map(state, map, kunseg_pc, length);
 
+	state->next_pc = state->regs.gpr[31];
+
 	/* Rough estimation of the number of cycles consumed */
 	return 8 + 5 * (length  + 3 / 4);
 }
@@ -1000,9 +1002,6 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 		jit_pushargr(LIGHTREC_REG_STATE);
 		jit_finishi(lightrec_memset);
 
-		jit_ldxi_ui(JIT_V0, LIGHTREC_REG_STATE,
-			    offsetof(struct lightrec_state, regs.gpr[31]));
-
 		jit_retval(LIGHTREC_REG_CYCLE);
 		jit_subr(LIGHTREC_REG_CYCLE, JIT_V1, LIGHTREC_REG_CYCLE);
 	}
@@ -1011,12 +1010,12 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 	 * LIGHTREC_REG_CYCLE */
 	addr2 = jit_indirect();
 
-	/* Store back the next_pc to the lightrec_state structure */
-	offset = offsetof(struct lightrec_state, next_pc);
-	jit_stxi_i(offset, LIGHTREC_REG_STATE, JIT_V0);
-
 	/* Jump to end if state->target_cycle < state->current_cycle */
 	to_end = jit_blei(LIGHTREC_REG_CYCLE, 0);
+
+	/* Load the next PC from state->next_pc */
+	jit_ldxi_ui(JIT_V0, LIGHTREC_REG_STATE,
+		    offsetof(struct lightrec_state, next_pc));
 
 	/* Convert next PC to KUNSEG and avoid mirrors */
 	jit_andi(JIT_V1, JIT_V0, 0x10000000 | (RAM_SIZE - 1));

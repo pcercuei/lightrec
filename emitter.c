@@ -57,6 +57,7 @@ static void lightrec_emit_end_of_block(struct lightrec_cstate *state,
 	const struct opcode *op = &block->opcode_list[offset],
 			    *next = &block->opcode_list[offset + 1];
 	u32 cycles = state->cycles + lightrec_cycles_of_opcode(op->c);
+	u8 tmp;
 
 	jit_note(__FILE__, __LINE__);
 
@@ -68,10 +69,16 @@ static void lightrec_emit_end_of_block(struct lightrec_cstate *state,
 	}
 
 	if (reg_new_pc < 0) {
-		reg_new_pc = lightrec_alloc_reg(reg_cache, _jit, JIT_V0);
-		lightrec_lock_reg(reg_cache, _jit, reg_new_pc);
+		tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
 
-		jit_movi(reg_new_pc, imm);
+		jit_movi(tmp, imm);
+		jit_stxi_i(offsetof(struct lightrec_state, next_pc),
+			   LIGHTREC_REG_STATE, tmp);
+
+		lightrec_free_reg(reg_cache, tmp);
+	} else {
+		jit_stxi_i(offsetof(struct lightrec_state, next_pc),
+			   LIGHTREC_REG_STATE, reg_new_pc);
 	}
 
 	if (has_delay_slot(op->c) &&
@@ -85,8 +92,6 @@ static void lightrec_emit_end_of_block(struct lightrec_cstate *state,
 
 	/* Clean the remaining registers */
 	lightrec_clean_regs(reg_cache, _jit);
-
-	jit_movr(JIT_V0, reg_new_pc);
 
 	if (cycles && update_cycles) {
 		jit_subi(LIGHTREC_REG_CYCLE, LIGHTREC_REG_CYCLE, cycles);
@@ -103,13 +108,19 @@ void lightrec_emit_eob(struct lightrec_cstate *state, const struct block *block,
 	jit_state_t *_jit = block->_jit;
 	union code c = block->opcode_list[offset].c;
 	u32 cycles = state->cycles;
+	u8 tmp;
 
 	if (after_op)
 		cycles += lightrec_cycles_of_opcode(c);
 
 	lightrec_clean_regs(reg_cache, _jit);
 
-	jit_movi(JIT_V0, block->pc + (offset << 2));
+	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
+	jit_movi(tmp, block->pc + (offset << 2));
+	jit_stxi_i(offsetof(struct lightrec_state, next_pc),
+		   LIGHTREC_REG_STATE, tmp);
+	lightrec_free_reg(reg_cache, tmp);
+
 	jit_subi(LIGHTREC_REG_CYCLE, LIGHTREC_REG_CYCLE, cycles);
 
 	lightrec_jump_to_eob(state, _jit);
@@ -122,8 +133,10 @@ static u8 get_jr_jalr_reg(struct lightrec_cstate *state, const struct block *blo
 	const struct opcode *op = &block->opcode_list[offset];
 	u8 rs;
 
-	rs = lightrec_request_reg_in(reg_cache, _jit, op->r.rs, JIT_V0);
-	lightrec_lock_reg(reg_cache, _jit, rs);
+	rs = lightrec_alloc_reg_in(reg_cache, _jit, op->r.rs, 0);
+
+	jit_stxi_i(offsetof(struct lightrec_state, next_pc),
+		   LIGHTREC_REG_STATE, rs);
 
 	return rs;
 }
