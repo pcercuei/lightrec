@@ -11,7 +11,7 @@
 #include "lightrec-private.h"
 #include "regcache.h"
 
-static const char *std_opcodes[] = {
+static const char * const std_opcodes[] = {
 	[OP_J]			= "j       ",
 	[OP_JAL]		= "jal     ",
 	[OP_BEQ]		= "beq     ",
@@ -42,7 +42,7 @@ static const char *std_opcodes[] = {
 	[OP_SWC2]		= "swc2    ",
 };
 
-static const char *special_opcodes[] = {
+static const char * const special_opcodes[] = {
 	[OP_SPECIAL_SLL]	= "sll     ",
 	[OP_SPECIAL_SRL]	= "srl     ",
 	[OP_SPECIAL_SRA]	= "sra     ",
@@ -73,14 +73,14 @@ static const char *special_opcodes[] = {
 	[OP_SPECIAL_SLTU]	= "sltu    ",
 };
 
-static const char *regimm_opcodes[] = {
+static const char * const regimm_opcodes[] = {
 	[OP_REGIMM_BLTZ]	= "bltz    ",
 	[OP_REGIMM_BGEZ]	= "bgez    ",
 	[OP_REGIMM_BLTZAL]	= "bltzal  ",
 	[OP_REGIMM_BGEZAL]	= "bgezal  ",
 };
 
-static const char *cp0_opcodes[] = {
+static const char * const cp0_opcodes[] = {
 	[OP_CP0_MFC0]		= "mfc0    ",
 	[OP_CP0_CFC0]		= "cfc0    ",
 	[OP_CP0_MTC0]		= "mtc0    ",
@@ -88,14 +88,14 @@ static const char *cp0_opcodes[] = {
 	[OP_CP0_RFE]		= "rfe",
 };
 
-static const char *cp2_basic_opcodes[] = {
+static const char * const cp2_basic_opcodes[] = {
 	[OP_CP2_BASIC_MFC2]	= "mfc2    ",
 	[OP_CP2_BASIC_CFC2]	= "cfc2    ",
 	[OP_CP2_BASIC_MTC2]	= "mtc2    ",
 	[OP_CP2_BASIC_CTC2]	= "ctc2    ",
 };
 
-static const char *cp2_opcodes[] = {
+static const char * const cp2_opcodes[] = {
 	[OP_CP2_RTPS]		= "rtps    ",
 	[OP_CP2_NCLIP]		= "nclip   ",
 	[OP_CP2_OP]		= "op      ",
@@ -120,18 +120,18 @@ static const char *cp2_opcodes[] = {
 	[OP_CP2_NCCT]		= "ncct    ",
 };
 
-static const char *opcode_flags[] = {
+static const char * const opcode_flags[] = {
 	"switched branch/DS",
 	"sync point",
 };
 
-static const char *opcode_io_flags[] = {
+static const char * const opcode_io_flags[] = {
 	"self-modifying code",
 	"no invalidation",
 	"no mask",
 };
 
-static const char *opcode_io_modes[] = {
+static const char * const opcode_io_modes[] = {
 	"Memory access",
 	"I/O access",
 	"RAM access",
@@ -139,12 +139,12 @@ static const char *opcode_io_modes[] = {
 	"Scratchpad access",
 };
 
-static const char *opcode_branch_flags[] = {
+static const char * const opcode_branch_flags[] = {
 	"emulate branch",
 	"local branch",
 };
 
-static const char *opcode_multdiv_flags[] = {
+static const char * const opcode_multdiv_flags[] = {
 	"No LO",
 	"No HI",
 	"No div check",
