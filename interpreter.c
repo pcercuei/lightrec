@@ -1184,5 +1184,7 @@ u32 lightrec_emulate_block(struct lightrec_state *state, struct block *block, u3
 
 	pr_err("PC 0x%x is outside block at PC 0x%x\n", pc, block->pc);
 
+	lightrec_set_exit_flags(state, LIGHTREC_EXIT_SEGFAULT);
+
 	return 0;
 }
