@@ -349,6 +349,7 @@ static void lightrec_rw_generic_cb(struct lightrec_state *state, u32 arg)
 	if (unlikely(!block)) {
 		pr_err("rw_generic: No block found in LUT for PC 0x%x offset 0x%x\n",
 			 state->next_pc, offset);
+		lightrec_set_exit_flags(state, LIGHTREC_EXIT_SEGFAULT);
 		return;
 	}
 
