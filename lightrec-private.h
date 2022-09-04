@@ -49,7 +49,7 @@
 #define container_of(ptr, type, member) \
 	((type *)((void *)(ptr) - offsetof(type, member)))
 
-#ifdef _WIN32
+#ifdef _MSC_BUILD
 #	define popcount32(x)	__popcnt(x)
 #	define ffs32(x)		(31 - __lzcnt(x))
 #else
