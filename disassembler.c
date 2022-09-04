@@ -174,7 +174,7 @@ static const char * const reg_op_token[3] = {
 };
 
 static int print_flags(char *buf, size_t len, const struct opcode *op,
-		       const char **array, size_t array_size,
+		       const char * const *array, size_t array_size,
 		       bool is_io)
 {
 	const char *flag_name, *io_mode_name;
@@ -252,7 +252,7 @@ static int print_flags(char *buf, size_t len, const struct opcode *op,
 }
 
 static int print_op_special(union code c, char *buf, size_t len,
-			    const char ***flags_ptr, size_t *nb_flags)
+			    const char * const **flags_ptr, size_t *nb_flags)
 {
 	switch (c.r.op) {
 	case OP_SPECIAL_SLL:
@@ -351,7 +351,7 @@ static int print_op_cp(union code c, char *buf, size_t len, unsigned int cp)
 }
 
 static int print_op(union code c, u32 pc, char *buf, size_t len,
-		    const char ***flags_ptr, size_t *nb_flags,
+		    const char * const **flags_ptr, size_t *nb_flags,
 		    bool *is_io)
 {
 	if (c.opcode == 0)
@@ -472,7 +472,7 @@ static int print_op(union code c, u32 pc, char *buf, size_t len,
 void lightrec_print_disassembly(const struct block *block, const u32 *code_ptr)
 {
 	const struct opcode *op;
-	const char **flags_ptr;
+	const char * const *flags_ptr;
 	size_t nb_flags, count, count2;
 	char buf[256], buf2[256], buf3[256];
 	unsigned int i;
