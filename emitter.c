@@ -32,22 +32,10 @@ static void unknown_opcode(struct lightrec_cstate *state, const struct block *bl
 static void
 lightrec_jump_to_eob(struct lightrec_cstate *state, jit_state_t *_jit)
 {
-#ifdef __powerpc__
-	/*
-	 * Workaround on PowerPC, as Lightning does not seem to emit correct
-	 * code when an absolute jump is generated.
-	 *
-	 * TODO: Fix it in Lightning.
-	 */
-	jit_ldxi(JIT_R1, LIGHTREC_REG_STATE,
-		 offsetof(struct lightrec_state, eob_wrapper_func));
-	jit_jmpr(JIT_R1);
-#else
 	/* Prevent jit_jmpi() from using our cycles register as a temporary */
 	jit_live(LIGHTREC_REG_CYCLE);
 
 	jit_patch_abs(jit_jmpi(), state->state->eob_wrapper_func);
-#endif
 }
 
 static void lightrec_emit_end_of_block(struct lightrec_cstate *state,
