@@ -43,6 +43,9 @@ lightrec_jump_to_eob(struct lightrec_cstate *state, jit_state_t *_jit)
 		 offsetof(struct lightrec_state, eob_wrapper_func));
 	jit_jmpr(JIT_R1);
 #else
+	/* Prevent jit_jmpi() from using our cycles register as a temporary */
+	jit_live(LIGHTREC_REG_CYCLE);
+
 	jit_patch_abs(jit_jmpi(), state->state->eob_wrapper_func);
 #endif
 }
