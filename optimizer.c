@@ -484,7 +484,6 @@ static u32 lightrec_propagate_consts(const struct opcode *op,
 				     u32 known, u32 *v)
 {
 	union code c = prev->c;
-	u8 reg;
 
 	/* Register $zero is always, well, zero */
 	known |= BIT(0);
@@ -617,12 +616,8 @@ static u32 lightrec_propagate_consts(const struct opcode *op,
 		case OP_SPECIAL_DIVU:
 			if (OPT_FLAG_MULT_DIV && c.r.rd)
 				known &= ~BIT(c.r.rd);
-			else
-				known &= ~BIT(REG_LO);
 			if (OPT_FLAG_MULT_DIV && c.r.imm)
 				known &= ~BIT(c.r.imm);
-			else
-				known &= ~BIT(REG_HI);
 			break;
 		default:
 			break;
@@ -630,33 +625,31 @@ static u32 lightrec_propagate_consts(const struct opcode *op,
 		break;
 	case OP_META_MULT2:
 	case OP_META_MULTU2:
-		if (known & BIT(c.r.rs)) {
-			reg = OPT_FLAG_MULT_DIV && c.r.rd ? c.r.rd : REG_LO;
-			known |= BIT(reg);
+		if (OPT_FLAG_MULT_DIV && (known & BIT(c.r.rs))) {
+			if (c.r.rd) {
+				known |= BIT(c.r.rd);
 
-			if (c.r.op < 32)
-				v[reg] = v[c.r.rs] << c.r.op;
-			else
-				v[reg] = 0;
+				if (c.r.op < 32)
+					v[c.r.rd] = v[c.r.rs] << c.r.op;
+				else
+					v[c.r.rd] = 0;
+			}
 
-			reg = OPT_FLAG_MULT_DIV && c.r.imm ? c.r.imm : REG_HI;
-			known |= BIT(reg);
+			if (c.r.imm) {
+				known |= BIT(c.r.imm);
 
-			if (c.r.op >= 32)
-				v[reg] = v[c.r.rs] << (c.r.op - 32);
-			else if (c.i.op == OP_META_MULT2)
-				v[reg] = (s32) v[c.r.rs] >> (32 - c.r.op);
-			else
-				v[reg] = v[c.r.rs] >> (32 - c.r.op);
+				if (c.r.op >= 32)
+					v[c.r.imm] = v[c.r.rs] << (c.r.op - 32);
+				else if (c.i.op == OP_META_MULT2)
+					v[c.r.imm] = (s32) v[c.r.rs] >> (32 - c.r.op);
+				else
+					v[c.r.imm] = v[c.r.rs] >> (32 - c.r.op);
+			}
 		} else {
 			if (OPT_FLAG_MULT_DIV && c.r.rd)
 				known &= ~BIT(c.r.rd);
-			else
-				known &= ~BIT(REG_LO);
 			if (OPT_FLAG_MULT_DIV && c.r.imm)
 				known &= ~BIT(c.r.imm);
-			else
-				known &= ~BIT(REG_HI);
 		}
 		break;
 	case OP_REGIMM:
