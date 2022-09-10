@@ -87,6 +87,7 @@ struct lightrec_mem_map {
 struct lightrec_ops {
 	void (*cop2_op)(struct lightrec_state *state, u32 op);
 	void (*enable_ram)(struct lightrec_state *state, _Bool enable);
+	_Bool (*hw_direct)(u32 kaddr, _Bool is_write, u8 size);
 };
 
 struct lightrec_registers {

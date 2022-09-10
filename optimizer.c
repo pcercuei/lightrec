@@ -370,6 +370,22 @@ static bool opcode_is_store(union code op)
 	}
 }
 
+static u8 opcode_get_io_size(union code op)
+{
+	switch (op.i.op) {
+	case OP_LB:
+	case OP_LBU:
+	case OP_SB:
+		return 8;
+	case OP_LH:
+	case OP_LHU:
+	case OP_SH:
+		return 16;
+	default:
+		return 32;
+	}
+}
+
 bool opcode_is_io(union code op)
 {
 	return opcode_is_load(op) || opcode_is_store(op);
@@ -1621,6 +1637,17 @@ static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 					 * the scratchpad. */
 					list->flags |= LIGHTREC_NO_INVALIDATE;
 					break;
+				case PSX_MAP_HW_REGISTERS:
+					if (state->ops.hw_direct &&
+					    state->ops.hw_direct(kunseg_val,
+								 opcode_is_store(list->c),
+								 opcode_get_io_size(list->c))) {
+						pr_debug("Flagging opcode %u as direct I/O access\n",
+							 i);
+						list->flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_DIRECT_HW);
+						break;
+					}
+					fallthrough;
 				default:
 					pr_debug("Flagging opcode %u as I/O access\n",
 						 i);
