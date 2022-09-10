@@ -1772,6 +1772,9 @@ struct lightrec_state * lightrec_init(char *argv0,
 	map = &state->maps[PSX_MAP_SCRATCH_PAD];
 	state->offset_scratch = (uintptr_t)map->address - map->pc;
 
+	map = &state->maps[PSX_MAP_HW_REGISTERS];
+	state->offset_io = (uintptr_t)map->address - map->pc;
+
 	map = &state->maps[PSX_MAP_KERNEL_USER_RAM];
 	state->offset_ram = (uintptr_t)map->address - map->pc;
 
@@ -1783,6 +1786,7 @@ struct lightrec_state * lightrec_init(char *argv0,
 	if (state->offset_bios == 0 &&
 	    state->offset_scratch == 0 &&
 	    state->offset_ram == 0 &&
+	    state->offset_io == 0 &&
 	    state->mirrors_mapped) {
 		pr_info("Memory map is perfect. Emitted code will be best.\n");
 	} else {

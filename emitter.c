@@ -1252,6 +1252,17 @@ static void rec_store_scratch(struct lightrec_cstate *cstate,
 				0x1fffffff, false);
 }
 
+static void rec_store_io(struct lightrec_cstate *cstate,
+			 const struct block *block, u16 offset,
+			 jit_code_t code, jit_code_t swap_code)
+{
+	_jit_note(block->_jit, __FILE__, __LINE__);
+
+	return rec_store_memory(cstate, block, offset, code, swap_code,
+				cstate->state->offset_io,
+				0x1fffffff, false);
+}
+
 static void rec_store_direct_no_invalidate(struct lightrec_cstate *cstate,
 					   const struct block *block,
 					   u16 offset, jit_code_t code,
@@ -1426,6 +1437,9 @@ static void rec_store(struct lightrec_cstate *state,
 			rec_store_direct(state, block, offset, code, swap_code);
 		}
 		break;
+	case LIGHTREC_IO_DIRECT_HW:
+		rec_store_io(state, block, offset, code, swap_code);
+		break;
 	default:
 		rec_io(state, block, offset, true, false);
 		break;
@@ -1563,6 +1577,16 @@ static void rec_load_scratch(struct lightrec_cstate *cstate,
 			cstate->state->offset_scratch, 0x1fffffff);
 }
 
+static void rec_load_io(struct lightrec_cstate *cstate,
+			const struct block *block, u16 offset,
+			jit_code_t code, jit_code_t swap_code, bool is_unsigned)
+{
+	_jit_note(block->_jit, __FILE__, __LINE__);
+
+	rec_load_memory(cstate, block, offset, code, swap_code, is_unsigned,
+			cstate->state->offset_io, 0x1fffffff);
+}
+
 static void rec_load_direct(struct lightrec_cstate *cstate,
 			    const struct block *block, u16 offset,
 			    jit_code_t code, jit_code_t swap_code,
@@ -1687,6 +1711,9 @@ static void rec_load(struct lightrec_cstate *state, const struct block *block,
 		break;
 	case LIGHTREC_IO_SCRATCH:
 		rec_load_scratch(state, block, offset, code, swap_code, is_unsigned);
+		break;
+	case LIGHTREC_IO_DIRECT_HW:
+		rec_load_io(state, block, offset, code, swap_code, is_unsigned);
 		break;
 	case LIGHTREC_IO_DIRECT:
 		rec_load_direct(state, block, offset, code, swap_code, is_unsigned);
