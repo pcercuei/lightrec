@@ -141,6 +141,7 @@ static const char * const opcode_io_modes[] = {
 	"RAM access",
 	"BIOS access",
 	"Scratchpad access",
+	"Mapped I/O access"
 };
 
 static const char * const opcode_branch_flags[] = {
