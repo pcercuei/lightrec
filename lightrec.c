@@ -1603,18 +1603,24 @@ u32 lightrec_execute_one(struct lightrec_state *state, u32 pc)
 	return lightrec_execute(state, pc, state->current_cycle);
 }
 
-u32 lightrec_run_interpreter(struct lightrec_state *state, u32 pc)
+u32 lightrec_run_interpreter(struct lightrec_state *state, u32 pc,
+			     u32 target_cycle)
 {
-	struct block *block = lightrec_get_block(state, pc);
-	if (!block)
-		return 0;
+	struct block *block;
 
 	state->exit_flags = LIGHTREC_EXIT_NORMAL;
+	state->target_cycle = target_cycle;
 
-	pc = lightrec_emulate_block(state, block, pc);
+	do {
+		block = lightrec_get_block(state, pc);
+		if (!block)
+			break;
 
-	if (ENABLE_THREADED_COMPILER)
-		lightrec_reaper_reap(state->reaper);
+		pc = lightrec_emulate_block(state, block, pc);
+
+		if (ENABLE_THREADED_COMPILER)
+			lightrec_reaper_reap(state->reaper);
+	} while (state->current_cycle < state->target_cycle);
 
 	if (LOG_LEVEL >= INFO_L)
 		lightrec_print_info(state);
