@@ -423,12 +423,27 @@ static u32 lightrec_mfc2(struct lightrec_state *state, u8 reg)
 
 u32 lightrec_mfc(struct lightrec_state *state, union code op)
 {
+	u32 val;
+
 	if (op.i.op == OP_CP0)
 		return state->regs.cp0[op.r.rd];
 	else if (op.r.rs == OP_CP2_BASIC_MFC2)
 		return lightrec_mfc2(state, op.r.rd);
-	else
-		return state->regs.cp2c[op.r.rd];
+
+	val = state->regs.cp2c[op.r.rd];
+
+	switch (op.r.rd) {
+	case 4:
+	case 12:
+	case 20:
+	case 26:
+	case 27:
+	case 29:
+	case 30:
+		return (u32)(s16)val;
+	default:
+		return val;
+	}
 }
 
 static void lightrec_mtc0(struct lightrec_state *state, u8 reg, u32 data)
