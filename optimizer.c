@@ -1645,6 +1645,9 @@ static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 						pr_debug("Flagging opcode %u as direct I/O access\n",
 							 i);
 						list->flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_DIRECT_HW);
+
+						if (no_mask)
+							list->flags |= LIGHTREC_NO_MASK;
 						break;
 					}
 					fallthrough;
