@@ -457,6 +457,14 @@ u32 lightrec_mfc(struct lightrec_state *state, union code op)
 	return val;
 }
 
+static void lightrec_mfc_cb(struct lightrec_state *state, union code op)
+{
+	u32 rt = lightrec_mfc(state, op);
+
+	if (op.r.rt)
+		state->regs.gpr[op.r.rt] = rt;
+}
+
 static void lightrec_mtc0(struct lightrec_state *state, u8 reg, u32 data)
 {
 	u32 status, oldstatus, cause;
@@ -1784,6 +1792,7 @@ struct lightrec_state * lightrec_init(char *argv0,
 
 	state->c_wrappers[C_WRAPPER_RW] = lightrec_rw_cb;
 	state->c_wrappers[C_WRAPPER_RW_GENERIC] = lightrec_rw_generic_cb;
+	state->c_wrappers[C_WRAPPER_MFC] = lightrec_mfc_cb;
 	state->c_wrappers[C_WRAPPER_MTC] = lightrec_mtc_cb;
 	state->c_wrappers[C_WRAPPER_CP] = lightrec_cp_cb;
 
