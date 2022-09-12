@@ -635,6 +635,10 @@ static u32 lightrec_propagate_consts(const struct opcode *op,
 			if (OPT_FLAG_MULT_DIV && c.r.imm)
 				known &= ~BIT(c.r.imm);
 			break;
+		case OP_SPECIAL_MFLO:
+		case OP_SPECIAL_MFHI:
+			known &= ~BIT(c.r.rd);
+			break;
 		default:
 			break;
 		}
