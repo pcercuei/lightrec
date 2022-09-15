@@ -181,6 +181,8 @@ static u64 opcode_write_mask(union code op)
 	case OP_LBU:
 	case OP_LHU:
 	case OP_LWR:
+	case OP_META_EXTC:
+	case OP_META_EXTS:
 		return BIT(op.i.rt);
 	case OP_JAL:
 		return BIT(31);
