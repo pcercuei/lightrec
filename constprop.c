@@ -14,6 +14,7 @@ void lightrec_consts_propagate(const struct opcode *op,
 			       struct constprop_data *v)
 {
 	union code c = prev->c;
+	u32 imm;
 
 	/* Register $zero is always, well, zero */
 	v[0].value = 0;
@@ -29,56 +30,61 @@ void lightrec_consts_propagate(const struct opcode *op,
 	case OP_SPECIAL:
 		switch (c.r.op) {
 		case OP_SPECIAL_SLL:
-			if (is_known(v, c.r.rt)) {
-				v[c.r.rd].known = 0xffffffff;
-				v[c.r.rd].value = v[c.r.rt].value << c.r.imm;
-			} else {
-				v[c.r.rd].known = 0;
-			}
+			v[c.r.rd].value = v[c.r.rt].value << c.r.imm;
+			v[c.r.rd].known = (v[c.r.rt].known << c.r.imm)
+				| (BIT(c.r.imm) - 1);
+			v[c.r.rd].sign = v[c.r.rt].sign << c.r.imm;
 			break;
 
 		case OP_SPECIAL_SRL:
-			if (is_known(v, c.r.rt)) {
-				v[c.r.rd].known = 0xffffffff;
-				v[c.r.rd].value = v[c.r.rt].value >> c.r.imm;
-			} else {
-				v[c.r.rd].known = 0;
-			}
+			v[c.r.rd].value = v[c.r.rt].value >> c.r.imm;
+			v[c.r.rd].known = (v[c.r.rt].known >> c.r.imm)
+				| (BIT(c.r.imm) - 1 << 32 - c.r.imm);
+			v[c.r.rd].sign = c.r.imm ? 0 : v[c.r.rt].sign;
 			break;
 
 		case OP_SPECIAL_SRA:
-			if (is_known(v, c.r.rt)) {
-				v[c.r.rd].known = 0xffffffff;
-				v[c.r.rd].value = (s32)v[c.r.rt].value >> c.r.imm;
-			} else {
-				v[c.r.rd].known = 0;
-			}
+			v[c.r.rd].value = (s32)v[c.r.rt].value >> c.r.imm;
+			v[c.r.rd].known = (s32)v[c.r.rt].known >> c.r.imm;
+			v[c.r.rd].sign = (s32)v[c.r.rt].sign >> c.r.imm;
 			break;
 
 		case OP_SPECIAL_SLLV:
-			if (is_known(v, c.r.rs) && is_known(v, c.r.rt)) {
-				v[c.r.rd].known = 0xffffffff;
-				v[c.r.rd].value = v[c.r.rt].value >> (v[c.r.rs].value & 0x1f);
+			if ((v[c.r.rs].known & 0x1f) == 0x1f) {
+				imm = v[c.r.rs].value & 0x1f;
+				v[c.r.rd].value = v[c.r.rt].value << imm;
+				v[c.r.rd].known = (v[c.r.rt].known << imm)
+					| (BIT(imm) - 1);
+				v[c.r.rd].sign = v[c.r.rt].sign << imm;
 			} else {
 				v[c.r.rd].known = 0;
+				v[c.r.rd].sign = 0;
 			}
 			break;
 
 		case OP_SPECIAL_SRLV:
-			if (is_known(v, c.r.rs) && is_known(v, c.r.rt)) {
-				v[c.r.rd].known = 0xffffffff;
-				v[c.r.rd].value = v[c.r.rt].value >> (v[c.r.rs].value & 0x1f);
+			if ((v[c.r.rs].known & 0x1f) == 0x1f) {
+				imm = v[c.r.rs].value & 0x1f;
+				v[c.r.rd].value = v[c.r.rt].value >> imm;
+				v[c.r.rd].known = (v[c.r.rt].known >> imm)
+					| (BIT(imm) - 1 << 32 - imm);
+				if (imm)
+					v[c.r.rd].sign = 0;
 			} else {
 				v[c.r.rd].known = 0;
+				v[c.r.rd].sign = 0;
 			}
 			break;
 
 		case OP_SPECIAL_SRAV:
-			if (is_known(v, c.r.rs) && is_known(v, c.r.rt)) {
-				v[c.r.rd].known = 0xffffffff;
-				v[c.r.rd].value = (s32)v[c.r.rt].value >> (v[c.r.rs].value & 0x1f);
+			if ((v[c.r.rs].known & 0x1f) == 0x1f) {
+				imm = v[c.r.rs].value & 0x1f;
+				v[c.r.rd].value = (s32)v[c.r.rt].value >> imm;
+				v[c.r.rd].known = (s32)v[c.r.rt].known >> imm;
+				v[c.r.rd].sign = (s32)v[c.r.rt].sign >> imm;
 			} else {
 				v[c.r.rd].known = 0;
+				v[c.r.rd].sign = 0;
 			}
 			break;
 
