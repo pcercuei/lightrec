@@ -196,6 +196,53 @@ static void lightrec_propagate_sub(u32 rs, u32 rt, u32 rd,
 	lightrec_propagate_addi(rs, rd, &d, v);
 }
 
+static void lightrec_propagate_slt(u32 rs, u32 rd, bool is_signed,
+				   const struct constprop_data *d,
+				   struct constprop_data *v)
+{
+	unsigned int bit;
+
+	if (is_signed && (v[rs].known & d->known
+			  & (v[rs].value ^ d->value) & BIT(31))) {
+		/* If doing a signed comparison and the two bits 31 are known
+		 * to be opposite, we can deduce the value. */
+		v[rd].value = v[rs].value >> 31;
+		v[rd].known = 0xffffffff;
+		v[rd].sign = 0;
+		return;
+	}
+
+	for (bit = 32; bit > 0; bit--) {
+		if (!(v[rs].known & d->known & BIT(bit - 1))) {
+			/* One bit is unknown and we cannot figure out which
+			 * value is smaller. We still know that the upper 31
+			 * bits are zero. */
+			v[rd].value = 0;
+			v[rd].known = 0xfffffffe;
+			v[rd].sign = 0;
+			break;
+		}
+
+		/* The two bits are equal - continue to the next bit. */
+		if (~(v[rs].value ^ d->value) & BIT(bit - 1))
+			continue;
+
+		/* The two bits aren't equal; we can therefore deduce which
+		 * value is smaller. */
+		v[rd].value = !(v[rs].value & BIT(bit - 1));
+		v[rd].known = 0xffffffff;
+		v[rd].sign = 0;
+		break;
+	}
+
+	if (bit == 0) {
+		/* rs == rt and all bits are known */
+		v[rd].value = 0;
+		v[rd].known = 0xffffffff;
+		v[rd].sign = 0;
+	}
+}
+
 void lightrec_consts_propagate(const struct opcode *op,
 			       const struct opcode *prev,
 			       struct constprop_data *v)
@@ -327,21 +374,12 @@ void lightrec_consts_propagate(const struct opcode *op,
 			break;
 
 		case OP_SPECIAL_SLT:
-			if (is_known(v, c.r.rt) && is_known(v, c.r.rs)) {
-				v[c.r.rd].value = (s32)v[c.r.rs].value < (s32)v[c.r.rt].value;
-				v[c.r.rd].known = 0xffffffff;
-			} else {
-				v[c.r.rd].known = 0;
-			}
-			break;
 		case OP_SPECIAL_SLTU:
-			if (is_known(v, c.r.rt) && is_known(v, c.r.rs)) {
-				v[c.r.rd].value = v[c.r.rs].value < v[c.r.rt].value;
-				v[c.r.rd].known = 0xffffffff;
-			} else {
-				v[c.r.rd].known = 0;
-			}
+			lightrec_propagate_slt(c.r.rs, c.r.rd,
+					       c.r.op ==  OP_SPECIAL_SLT,
+					       &v[c.r.rt], v);
 			break;
+
 		case OP_SPECIAL_MULT:
 		case OP_SPECIAL_MULTU:
 		case OP_SPECIAL_DIV:
@@ -416,19 +454,16 @@ void lightrec_consts_propagate(const struct opcode *op,
 		break;
 
 	case OP_SLTI:
-		if (is_known(v, c.i.rs)) {
-			v[c.i.rt].value = (s32)v[c.i.rs].value < (s32)(s16)c.i.imm;
-			v[c.i.rt].known = 0xffffffff;
-		} else {
-			v[c.i.rt].known = 0;
-		}
-		break;
 	case OP_SLTIU:
-		if (is_known(v, c.i.rs)) {
-			v[c.i.rt].value = v[c.i.rs].value < (u32)(s32)(s16)c.i.imm;
-			v[c.i.rt].known = 0xffffffff;
-		} else {
-			v[c.i.rt].known = 0;
+		{
+			struct constprop_data d = {
+				.value = (s32)(s16)c.i.imm,
+				.known = 0xffffffff,
+				.sign = 0,
+			};
+
+			lightrec_propagate_slt(c.i.rs, c.i.rt,
+					       c.i.op == OP_SLTI, &d, v);
 		}
 		break;
 
