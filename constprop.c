@@ -158,6 +158,44 @@ static void lightrec_propagate_addi(u32 rs, u32 rd,
 	v[rd] = result;
 }
 
+static void lightrec_propagate_sub(u32 rs, u32 rt, u32 rd,
+				   struct constprop_data *v)
+{
+	struct constprop_data d = {
+		.value = ~v[rt].value,
+		.known = v[rt].known,
+		.sign = v[rt].sign,
+	};
+	u32 imm, mask, bit;
+
+	/* Negate the known Rt value, then propagate as a regular ADD. */
+
+	for (bit = 0; bit < 32; bit++) {
+		if (!(d.known & BIT(bit))) {
+			/* Unknown bit - mark bits unknown up to the next known 0 */
+
+			imm = (d.known & ~d.value) | d.sign;
+			imm &= GENMASK(31, bit);
+			imm = imm ? ctz32(imm) : 31;
+			mask = GENMASK(imm, bit);
+			d.known &= ~mask;
+			d.sign &= ~mask;
+			break;
+		}
+
+		if (!(d.value & BIT(bit))) {
+			/* Bit is 0: we can set our carry, and the algorithm is done. */
+			d.value |= BIT(bit);
+			break;
+		}
+
+		/* Bit is 1 - set to 0 and continue algorithm */
+		d.value &= ~BIT(bit);
+	}
+
+	lightrec_propagate_addi(rs, rd, &d, v);
+}
+
 void lightrec_consts_propagate(const struct opcode *op,
 			       const struct opcode *prev,
 			       struct constprop_data *v)
@@ -249,13 +287,13 @@ void lightrec_consts_propagate(const struct opcode *op,
 
 		case OP_SPECIAL_SUB:
 		case OP_SPECIAL_SUBU:
-			if (is_known(v, c.r.rt) && is_known(v, c.r.rs)) {
-				v[c.r.rd].value = v[c.r.rt].value - v[c.r.rs].value;
+			if (c.r.rs == c.r.rt) {
+				v[c.r.rd].value = 0;
 				v[c.r.rd].known = 0xffffffff;
+				v[c.r.rd].sign = 0;
 			} else {
-				v[c.r.rd].known = 0;
+				lightrec_propagate_sub(c.r.rs, c.r.rt, c.r.rd, v);
 			}
-			v[c.r.rd].sign = 0;
 			break;
 
 		case OP_SPECIAL_AND:
