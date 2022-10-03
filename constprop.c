@@ -511,21 +511,27 @@ void lightrec_consts_propagate(const struct opcode *op,
 		v[c.r.rd] = v[c.r.rs];
 		break;
 	case OP_META_EXTC:
-		if (is_known(v, c.i.rs)) {
-			v[c.i.rt].value = (s32)(s8)v[c.i.rs].value;
-			v[c.i.rt].known = 0xffffffff;
+		v[c.i.rt].value = (s32)(s8)v[c.i.rs].value;
+		if (v[c.i.rs].known & BIT(7)) {
+			v[c.i.rt].known = v[c.i.rs].known | 0xffffff00;
+			v[c.i.rt].sign = 0;
 		} else {
-			v[c.i.rt].known = 0;
+			v[c.i.rt].known = v[c.i.rs].known & 0x7f;
+			v[c.i.rt].sign = 0xffffff80;
 		}
 		break;
+
 	case OP_META_EXTS:
-		if (is_known(v, c.i.rs)) {
-			v[c.i.rt].value = (s32)(s16)v[c.i.rs].value;
-			v[c.i.rt].known = 0xffffffff;
+		v[c.i.rt].value = (s32)(s16)v[c.i.rs].value;
+		if (v[c.i.rs].known & BIT(15)) {
+			v[c.i.rt].known = v[c.i.rs].known | 0xffff0000;
+			v[c.i.rt].sign = 0;
 		} else {
-			v[c.i.rt].known = 0;
+			v[c.i.rt].known = v[c.i.rs].known & 0x7fff;
+			v[c.i.rt].sign = 0xffff8000;
 		}
 		break;
+
 	default:
 		break;
 	}
