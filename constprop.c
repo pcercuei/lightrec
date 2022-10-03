@@ -7,7 +7,156 @@
 #include "disassembler.h"
 #include "lightrec-private.h"
 
+#include <stdbool.h>
 #include <string.h>
+
+static u32 get_min_value(const struct constprop_data *d)
+{
+	/* Min value: all sign bits to 1, all unknown bits but MSB to 0 */
+	return (d->value & d->known) | d->sign | (~d->known & BIT(31));
+}
+
+static u32 get_max_value(const struct constprop_data *d)
+{
+	/* Max value: all sign bits to 0, all unknown bits to 1 */
+	return ((d->value & d->known) | ~d->known) & ~d->sign;
+}
+
+static u32 lightrec_same_sign(const struct constprop_data *d1,
+			      const struct constprop_data *d2)
+{
+	u32 min1, min2, max1, max2, a, b, c, d;
+
+	min1 = get_min_value(d1);
+	max1 = get_max_value(d1);
+	min2 = get_min_value(d2);
+	max2 = get_max_value(d2);
+
+	a = min1 + min2;
+	b = min1 + max2;
+	c = max1 + min2;
+	d = max1 + max2;
+
+	return ((a & b & c & d) | (~a & ~b & ~c & ~d)) & BIT(31);
+}
+
+static u32 lightrec_get_sign_mask(const struct constprop_data *d)
+{
+	u32 imm;
+
+	if (d->sign)
+		return d->sign;
+
+	imm = (d->value & BIT(31)) ? d->value : ~d->value;
+	imm = ~(imm & d->known);
+	if (imm)
+		imm = 32 - clz32(imm);
+
+	return GENMASK(31, imm);
+}
+
+static void lightrec_propagate_addi(u32 rs, u32 rd,
+				    const struct constprop_data *d,
+				    struct constprop_data *v)
+{
+	u32 end, bit, sum, min, mask, imm, value;
+	struct constprop_data result = {
+		.value = v[rd].value,
+		.known = v[rd].known,
+		.sign = v[rd].sign,
+	};
+	bool carry = false;
+
+	/* clear unknown bits to ease processing */
+	v[rs].value &= v[rs].known;
+	value = d->value & d->known;
+
+	mask = ~(lightrec_get_sign_mask(d) & lightrec_get_sign_mask(&v[rs]));
+	end = mask ? 32 - clz32(mask) : 0;
+
+	for (bit = 0; bit < 32; bit++) {
+		if (v[rs].known & d->known & BIT(bit)) {
+			/* the bits are known - compute the resulting bit and
+			 * the carry */
+			sum = ((u32)carry << bit) + (v[rs].value & BIT(bit))
+				+ (value & BIT(bit));
+
+			if (sum & BIT(bit))
+				result.value |= BIT(bit);
+			else
+				result.value &= ~BIT(bit);
+
+			result.known |= BIT(bit);
+			result.sign &= ~BIT(bit);
+			carry = sum & BIT(bit + 1);
+			continue;
+		}
+
+		if (bit >= end) {
+			/* We're past the last significant bits of the values
+			 * (extra sign bits excepted).
+			 * The destination register will be sign-extended
+			 * starting from here (if no carry) or from the next
+			 * bit (if carry).
+			 * If the source registers are not sign-extended and we
+			 * have no carry, the algorithm is done here. */
+
+			if ((v[rs].sign | d->sign) & BIT(bit)) {
+				mask = GENMASK(31, bit);
+
+				if (lightrec_same_sign(&v[rs], d)) {
+					/* Theorical minimum and maximum values
+					 * have the same sign; therefore the
+					 * sign bits are known. */
+					min = get_min_value(&v[rs])
+						+ get_min_value(d);
+					result.value = (min & mask)
+						| (result.value & ~mask);
+					result.known |= mask << carry;
+					result.sign = 0;
+				} else {
+					/* min/max have different signs. */
+					result.sign = mask << 1;
+					result.known &= ~mask;
+				}
+				break;
+			} else if (!carry) {
+				/* Past end bit, no carry; we're done here. */
+				break;
+			}
+		}
+
+		result.known &= ~BIT(bit);
+		result.sign &= ~BIT(bit);
+
+		/* Found an unknown bit in one of the registers.
+		 * If the carry and the bit in the other register are both zero,
+		 * we can continue the algorithm. */
+		if (!carry && (((d->known & ~value)
+				| (v[rs].known & ~v[rs].value)) & BIT(bit)))
+			continue;
+
+		/* We have an unknown bit in one of the source registers, and we
+		 * may generate a carry: there's nothing to do. Everything from
+		 * this bit till the next known 0 bit or sign bit will be marked
+		 * as unknown. The algorithm can then restart at the following
+		 * bit. */
+
+		imm = (v[rs].known & d->known & ~v[rs].value & ~value)
+			| v[rs].sign | d->sign;
+
+		imm &= GENMASK(31, bit);
+		imm = imm ? ctz32(imm) : 31;
+		mask = GENMASK(imm, bit);
+		result.known &= ~mask;
+		result.sign &= ~mask;
+
+		bit = imm;
+		carry = false;
+	}
+
+	v[rd] = result;
+}
 
 void lightrec_consts_propagate(const struct opcode *op,
 			       const struct opcode *prev,
@@ -90,13 +239,12 @@ void lightrec_consts_propagate(const struct opcode *op,
 
 		case OP_SPECIAL_ADD:
 		case OP_SPECIAL_ADDU:
-			if (is_known(v, c.r.rt) && is_known(v, c.r.rs)) {
-				v[c.r.rd].value = v[c.r.rt].value + v[c.r.rs].value;
-				v[c.r.rd].known = 0xffffffff;
-			} else {
-				v[c.r.rd].known = 0;
-			}
-			v[c.r.rd].sign = 0;
+			if (is_known_zero(v, c.r.rs))
+				v[c.r.rd] = v[c.r.rt];
+			else if (is_known_zero(v, c.r.rt))
+				v[c.r.rd] = v[c.r.rs];
+			else
+				lightrec_propagate_addi(c.r.rs, c.r.rd, &v[c.r.rt], v);
 			break;
 
 		case OP_SPECIAL_SUB:
@@ -215,11 +363,17 @@ void lightrec_consts_propagate(const struct opcode *op,
 
 	case OP_ADDI:
 	case OP_ADDIU:
-		if (is_known(v, c.i.rs)) {
-			v[c.i.rt].value = (u32)((s32)v[c.i.rs].value + (s32)(s16)c.i.imm);
-			v[c.i.rt].known = 0xffffffff;
+		if (c.i.imm) {
+			struct constprop_data d = {
+				.value = (s32)(s16)c.i.imm,
+				.known = 0xffffffff,
+				.sign = 0,
+			};
+
+			lightrec_propagate_addi(c.i.rs, c.i.rt, &d, v);
 		} else {
-			v[c.i.rt].known = 0;
+			/* immediate is zero - that's just a register copy. */
+			v[c.i.rt] = v[c.i.rs];
 		}
 		break;
 
