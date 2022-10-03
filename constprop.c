@@ -105,39 +105,33 @@ void lightrec_consts_propagate(const struct opcode *op,
 			break;
 
 		case OP_SPECIAL_AND:
-			if (is_known(v, c.r.rt) && is_known(v, c.r.rs)) {
-				v[c.r.rd].value = v[c.r.rt].value & v[c.r.rs].value;
-				v[c.r.rd].known = 0xffffffff;
-			} else {
-				v[c.r.rd].known = 0;
-			}
+			v[c.r.rd].known = (v[c.r.rt].known & v[c.r.rs].known)
+				| (~v[c.r.rt].value & v[c.r.rt].known)
+				| (~v[c.r.rs].value & v[c.r.rs].known);
+			v[c.r.rd].value = v[c.r.rt].value & v[c.r.rs].value & v[c.r.rd].known;
+			v[c.r.rd].sign = v[c.r.rt].sign & v[c.r.rs].sign;
 			break;
 
 		case OP_SPECIAL_OR:
-			if (is_known(v, c.r.rt) && is_known(v, c.r.rs)) {
-				v[c.r.rd].value = v[c.r.rt].value | v[c.r.rs].value;
-				v[c.r.rd].known = 0xffffffff;
-			} else {
-				v[c.r.rd].known = 0;
-			}
+			v[c.r.rd].known = (v[c.r.rt].known & v[c.r.rs].known)
+				| (v[c.r.rt].value & v[c.r.rt].known)
+				| (v[c.r.rs].value & v[c.r.rs].known);
+			v[c.r.rd].value = (v[c.r.rt].value | v[c.r.rs].value) & v[c.r.rd].known;
+			v[c.r.rd].sign = v[c.r.rt].sign & v[c.r.rs].sign;
 			break;
 
 		case OP_SPECIAL_XOR:
-			if (is_known(v, c.r.rt) && is_known(v, c.r.rs)) {
-				v[c.r.rd].value = v[c.r.rt].value ^ v[c.r.rs].value;
-				v[c.r.rd].known = 0xffffffff;
-			} else {
-				v[c.r.rd].known = 0;
-			}
+			v[c.r.rd].value = v[c.r.rt].value ^ v[c.r.rs].value;
+			v[c.r.rd].known = v[c.r.rt].known & v[c.r.rs].known;
+			v[c.r.rd].sign = v[c.r.rt].sign & v[c.r.rs].sign;
 			break;
 
 		case OP_SPECIAL_NOR:
-			if (is_known(v, c.r.rt) && is_known(v, c.r.rs)) {
-				v[c.r.rd].value = ~(v[c.r.rt].value | v[c.r.rs].value);
-				v[c.r.rd].known = 0xffffffff;
-			} else {
-				v[c.r.rd].known = 0;
-			}
+			v[c.r.rd].known = (v[c.r.rt].known & v[c.r.rs].known)
+				| (v[c.r.rt].value & v[c.r.rt].known)
+				| (v[c.r.rs].value & v[c.r.rs].known);
+			v[c.r.rd].value = ~(v[c.r.rt].value | v[c.r.rs].value) & v[c.r.rd].known;
+			v[c.r.rd].sign = v[c.r.rt].sign & v[c.r.rs].sign;
 			break;
 
 		case OP_SPECIAL_SLT:
@@ -241,30 +235,21 @@ void lightrec_consts_propagate(const struct opcode *op,
 		break;
 
 	case OP_ANDI:
-		if (is_known(v, c.i.rs)) {
-			v[c.i.rt].value = v[c.i.rs].value & c.i.imm;
-			v[c.i.rt].known = 0xffffffff;
-		} else {
-			v[c.i.rt].known = 0;
-		}
+		v[c.i.rt].value = v[c.i.rs].value & c.i.imm;
+		v[c.i.rt].known = v[c.i.rs].known | ~c.i.imm;
+		v[c.i.rt].sign = 0;
 		break;
 
 	case OP_ORI:
-		if (is_known(v, c.i.rs)) {
-			v[c.i.rt].value = v[c.i.rs].value | c.i.imm;
-			v[c.i.rt].known = 0xffffffff;
-		} else {
-			v[c.i.rt].known = 0;
-		}
+		v[c.i.rt].value = v[c.i.rs].value | c.i.imm;
+		v[c.i.rt].known = v[c.i.rs].known | c.i.imm;
+		v[c.i.rt].sign = (v[c.i.rs].sign & 0xffff) ? 0xffff0000 : v[c.i.rs].sign;
 		break;
 
 	case OP_XORI:
-		if (is_known(v, c.i.rs)) {
-			v[c.i.rt].value = v[c.i.rs].value ^ c.i.imm;
-			v[c.i.rt].known = 0xffffffff;
-		} else {
-			v[c.i.rt].known = 0;
-		}
+		v[c.i.rt].value = v[c.i.rs].value ^ c.i.imm;
+		v[c.i.rt].known = v[c.i.rs].known;
+		v[c.i.rt].sign = (v[c.i.rs].sign & 0xffff) ? 0xffff0000 : v[c.i.rs].sign;
 		break;
 
 	case OP_LUI:
