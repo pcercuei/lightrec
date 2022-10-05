@@ -1229,11 +1229,20 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 					op->m.op = OP_META_MOV;
 					op->i.op = OP_META;
 				}
-				fallthrough;
+				break;
+
+			case OP_SPECIAL_JR:
+				if (is_known(v, op->i.rs)
+				    && kunseg(v[op->i.rs].value) >> 28 == kunseg(block->pc) >> 28) {
+					pr_debug("Convert JR to J\n");
+					op->j.imm = kunseg(v[op->i.rs].value) >> 2;
+					op->j.op = OP_J;
+				}
+				break;
 			default:
 				break;
 			}
-			fallthrough;
+			break;
 		default:
 			break;
 		}
