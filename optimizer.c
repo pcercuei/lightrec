@@ -1241,6 +1241,19 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 				break;
 
 			case OP_SPECIAL_JR:
+				if (is_known(v, op->i.rs)
+				    && lightrec_should_exit(v[op->i.rs].value)) {
+					op->flags |= LIGHTREC_EARLY_EXIT;
+				}
+
+				if (is_known(v, op->i.rs)
+				    && kunseg(v[op->i.rs].value) >> 28 == kunseg(block->pc) >> 28) {
+					pr_debug("Convert JR to J\n");
+					op->j.imm = kunseg(v[op->i.rs].value) >> 2;
+					op->j.op = OP_J;
+				}
+				break;
+
 			case OP_SPECIAL_JALR:
 				if (is_known(v, op->i.rs)
 				    && lightrec_should_exit(v[op->i.rs].value)) {
