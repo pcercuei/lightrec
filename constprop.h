@@ -23,6 +23,11 @@ static inline _Bool is_known(const struct constprop_data *v, u8 reg)
 	return v[reg].known == 0xffffffff;
 }
 
+static inline _Bool is_known_zero(const struct constprop_data *v, u8 reg)
+{
+	return is_known(v, reg) && v[reg].value == 0;
+}
+
 void lightrec_consts_propagate(const struct opcode *op,
 			       const struct opcode *prev,
 			       struct constprop_data *v);

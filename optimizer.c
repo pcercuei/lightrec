@@ -726,6 +726,109 @@ static inline bool is_power_of_two(u32 value)
 	return popcount32(value) == 1;
 }
 
+static void lightrec_patch_known_zero(struct opcode *op,
+				      const struct constprop_data *v)
+{
+	switch (op->i.op) {
+	case OP_SPECIAL:
+		switch (op->r.op) {
+		case OP_SPECIAL_JR:
+		case OP_SPECIAL_JALR:
+		case OP_SPECIAL_MTHI:
+		case OP_SPECIAL_MTLO:
+			if (is_known_zero(v, op->r.rs))
+				op->r.rs = 0;
+			break;
+		default:
+			if (is_known_zero(v, op->r.rs))
+				op->r.rs = 0;
+			fallthrough;
+		case OP_SPECIAL_SLL:
+		case OP_SPECIAL_SRL:
+		case OP_SPECIAL_SRA:
+			if (is_known_zero(v, op->r.rt))
+				op->r.rt = 0;
+			break;
+		case OP_SPECIAL_SYSCALL:
+		case OP_SPECIAL_BREAK:
+		case OP_SPECIAL_MFHI:
+		case OP_SPECIAL_MFLO:
+			break;
+		}
+		break;
+	case OP_CP0:
+		switch (op->r.rs) {
+		case OP_CP0_MTC0:
+		case OP_CP0_CTC0:
+			if (is_known_zero(v, op->r.rt))
+				op->r.rt = 0;
+			break;
+		default:
+			break;
+		}
+		break;
+	case OP_CP2:
+		if (op->r.op == OP_CP2_BASIC) {
+			switch (op->r.rs) {
+			case OP_CP2_BASIC_MTC2:
+			case OP_CP2_BASIC_CTC2:
+				if (is_known_zero(v, op->r.rt))
+					op->r.rt = 0;
+				break;
+			default:
+				break;
+			}
+		}
+		break;
+	case OP_BEQ:
+	case OP_BNE:
+		if (is_known_zero(v, op->i.rt))
+			op->i.rt = 0;
+		fallthrough;
+	case OP_REGIMM:
+	case OP_BLEZ:
+	case OP_BGTZ:
+	case OP_ADDI:
+	case OP_ADDIU:
+	case OP_SLTI:
+	case OP_SLTIU:
+	case OP_ANDI:
+	case OP_ORI:
+	case OP_XORI:
+	case OP_META_MOV:
+	case OP_META_EXTC:
+	case OP_META_EXTS:
+	case OP_META_MULT2:
+	case OP_META_MULTU2:
+		if (is_known_zero(v, op->i.rs))
+			op->i.rs = 0;
+		break;
+	case OP_SB:
+	case OP_SH:
+	case OP_SWL:
+	case OP_SW:
+	case OP_SWR:
+		if (is_known_zero(v, op->i.rt))
+			op->i.rt = 0;
+		fallthrough;
+	case OP_LB:
+	case OP_LH:
+	case OP_LWL:
+	case OP_LW:
+	case OP_LBU:
+	case OP_LHU:
+	case OP_LWR:
+	case OP_LWC2:
+	case OP_SWC2:
+		if (is_known(v, op->i.rs)
+		    && kunseg(v[op->i.rs].value) == 0)
+			op->i.rs = 0;
+		break;
+	default:
+		break;
+	}
+}
+
 static int lightrec_transform_ops(struct lightrec_state *state, struct block *block)
 {
 	struct opcode *list = block->opcode_list;
@@ -740,6 +843,8 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 
 		if (prev)
 			lightrec_consts_propagate(op, prev, v);
+
+		lightrec_patch_known_zero(op, v);
 
 		/* Transform all opcodes detected as useless to real NOPs
 		 * (0x0: SLL r0, r0, #0) */
