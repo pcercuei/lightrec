@@ -894,6 +894,15 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 			break;
 		case OP_SPECIAL:
 			switch (op->r.op) {
+			case OP_SPECIAL_SRAV:
+				if ((v[op->r.rs].known & 0x1f) != 0x1f)
+					break;
+
+				pr_debug("Convert SRAV to SRA\n");
+				op->r.imm = v[op->r.rs].value & 0x1f;
+				op->r.op = OP_SPECIAL_SRA;
+
+				fallthrough;
 			case OP_SPECIAL_SRA:
 				if (op->r.imm == 0) {
 					pr_debug("Convert SRA #0 to MOV\n");
@@ -902,6 +911,16 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 					break;
 				}
 				break;
+
+			case OP_SPECIAL_SLLV:
+				if ((v[op->r.rs].known & 0x1f) != 0x1f)
+					break;
+
+				pr_debug("Convert SLLV to SLL\n");
+				op->r.imm = v[op->r.rs].value & 0x1f;
+				op->r.op = OP_SPECIAL_SLL;
+
+				fallthrough;
 			case OP_SPECIAL_SLL:
 				if (op->r.imm == 0) {
 					pr_debug("Convert SLL #0 to MOV\n");
@@ -911,6 +930,16 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 
 				lightrec_optimize_sll_sra(block->opcode_list, i, v);
 				break;
+
+			case OP_SPECIAL_SRLV:
+				if ((v[op->r.rs].known & 0x1f) != 0x1f)
+					break;
+
+				pr_debug("Convert SRLV to SRL\n");
+				op->r.imm = v[op->r.rs].value & 0x1f;
+				op->r.op = OP_SPECIAL_SRL;
+
+				fallthrough;
 			case OP_SPECIAL_SRL:
 				if (op->r.imm == 0) {
 					pr_debug("Convert SRL #0 to MOV\n");
@@ -918,6 +947,7 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 					op->r.rs = op->r.rt;
 				}
 				break;
+
 			case OP_SPECIAL_MULT:
 			case OP_SPECIAL_MULTU:
 				if (is_known(v, op->r.rs) &&
