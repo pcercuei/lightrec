@@ -1259,6 +1259,14 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 				    && lightrec_should_exit(v[op->i.rs].value)) {
 					op->flags |= LIGHTREC_EARLY_EXIT;
 				}
+
+				if (is_known(v, op->r.rs)
+				    && op->r.rd == 31
+				    && kunseg(v[op->r.rs].value) >> 28 == kunseg(block->pc) >> 28) {
+					pr_debug("Convert JALR to JAL\n");
+					op->j.imm = kunseg(v[op->i.rs].value) >> 2;
+					op->j.op = OP_JAL;
+				}
 				fallthrough;
 			default:
 				break;
