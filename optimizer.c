@@ -1239,6 +1239,17 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 					op->j.op = OP_J;
 				}
 				break;
+
+			case OP_SPECIAL_JALR:
+				if (is_known(v, op->r.rs)
+				    && op->r.rd == 31
+				    && kunseg(v[op->r.rs].value) >> 28 == kunseg(block->pc) >> 28) {
+					pr_debug("Convert JALR to JAL (value = 0x%08x)\n",
+						 v[op->r.rs].value);
+					op->j.imm = kunseg(v[op->i.rs].value) >> 2;
+					op->j.op = OP_JAL;
+				}
+				break;
 			default:
 				break;
 			}
