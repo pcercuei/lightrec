@@ -498,7 +498,8 @@ bool load_in_delay_slot(union code op)
 	return false;
 }
 
-static void lightrec_optimize_sll_sra(struct opcode *list, unsigned int offset)
+static void lightrec_optimize_sll_sra(struct opcode *list, unsigned int offset,
+				      struct constprop_data *v)
 {
 	struct opcode *ldop = NULL, *curr = &list[offset], *next;
 	struct opcode *to_change, *to_nop;
@@ -585,6 +586,8 @@ static void lightrec_optimize_sll_sra(struct opcode *list, unsigned int offset)
 				/* The target register of the SRA is dead after the
 				 * LBU/LHU; we can change the target register of the
 				 * LBU/LHU to the one of the SRA. */
+				v[ldop->i.rt].known = 0;
+				v[ldop->i.rt].sign = 0;
 				ldop->i.rt = next->r.rd;
 				to_change->opcode = 0;
 			} else {
@@ -597,6 +600,9 @@ static void lightrec_optimize_sll_sra(struct opcode *list, unsigned int offset)
 				pr_debug("Convert LBU+SLL+SRA to LB\n");
 			else
 				pr_debug("Convert LHU+SLL+SRA to LH\n");
+
+			v[ldop->i.rt].known = 0;
+			v[ldop->i.rt].sign = 0xffffff80 << 24 - curr->r.imm;
 		}
 	}
 
@@ -798,7 +804,7 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 					op->r.rs = op->r.rt;
 				}
 
-				lightrec_optimize_sll_sra(block->opcode_list, i);
+				lightrec_optimize_sll_sra(block->opcode_list, i, v);
 				break;
 			case OP_SPECIAL_SRL:
 				if (op->r.imm == 0) {
