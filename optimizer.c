@@ -790,97 +790,97 @@ static u32 lightrec_propagate_consts(const struct opcode *op,
 
 static void lightrec_optimize_sll_sra(struct opcode *list, unsigned int offset)
 {
-	struct opcode *prev, *prev2 = NULL, *curr = &list[offset];
+	struct opcode *ldop = NULL, *curr = &list[offset], *next;
 	struct opcode *to_change, *to_nop;
 	int idx, idx2;
 
 	if (curr->r.imm != 24 && curr->r.imm != 16)
 		return;
 
-	idx = find_prev_writer(list, offset, curr->r.rt);
+	idx = find_next_reader(list, offset, curr->r.rd);
 	if (idx < 0)
 		return;
 
-	prev = &list[idx];
+	next = &list[idx];
 
-	if (prev->i.op != OP_SPECIAL || prev->r.op != OP_SPECIAL_SLL ||
-	    prev->r.imm != curr->r.imm || prev->r.rd != curr->r.rt)
+	if (next->i.op != OP_SPECIAL || next->r.op != OP_SPECIAL_SRA ||
+	    next->r.imm != curr->r.imm || next->r.rt != curr->r.rd)
 		return;
 
-	if (prev->r.rd != prev->r.rt && curr->r.rd != curr->r.rt) {
+	if (curr->r.rd != curr->r.rt && next->r.rd != next->r.rt) {
 		/* sll rY, rX, 16
 		 * ...
-		 * srl rZ, rY, 16 */
+		 * sra rZ, rY, 16 */
 
-		if (!reg_is_dead(list, offset, curr->r.rt) ||
-		    reg_is_read_or_written(list, idx, offset, curr->r.rd))
+		if (!reg_is_dead(list, idx, curr->r.rd) ||
+		    reg_is_read_or_written(list, offset, idx, next->r.rd))
 			return;
 
 		/* If rY is dead after the SRL, and rZ is not used after the SLL,
 		 * we can change rY to rZ */
 
 		pr_debug("Detected SLL/SRA with middle temp register\n");
-		prev->r.rd = curr->r.rd;
-		curr->r.rt = prev->r.rd;
+		curr->r.rd = next->r.rd;
+		next->r.rt = curr->r.rd;
 	}
 
-	/* We got a SLL/SRA combo. If imm #16, that's a cast to u16.
-	 * If imm #24 that's a cast to u8.
+	/* We got a SLL/SRA combo. If imm #16, that's a cast to s16.
+	 * If imm #24 that's a cast to s8.
 	 *
 	 * First of all, make sure that the target register of the SLL is not
-	 * read before the SRA. */
+	 * read after the SRA. */
 
-	if (prev->r.rd == prev->r.rt) {
+	if (curr->r.rd == curr->r.rt) {
 		/* sll rX, rX, 16
 		 * ...
-		 * srl rY, rX, 16 */
-		to_change = curr;
-		to_nop = prev;
+		 * sra rY, rX, 16 */
+		to_change = next;
+		to_nop = curr;
 
 		/* rX is used after the SRA - we cannot convert it. */
-		if (prev->r.rd != curr->r.rd && !reg_is_dead(list, offset, prev->r.rd))
+		if (curr->r.rd != next->r.rd && !reg_is_dead(list, idx, curr->r.rd))
 			return;
 	} else {
 		/* sll rY, rX, 16
 		 * ...
-		 * srl rY, rY, 16 */
-		to_change = prev;
-		to_nop = curr;
+		 * sra rY, rY, 16 */
+		to_change = curr;
+		to_nop = next;
 	}
 
-	idx2 = find_prev_writer(list, idx, prev->r.rt);
+	idx2 = find_prev_writer(list, offset, curr->r.rt);
 	if (idx2 >= 0) {
 		/* Note that PSX games sometimes do casts after
 		 * a LHU or LBU; in this case we can change the
 		 * load opcode to a LH or LB, and the cast can
 		 * be changed to a MOV or a simple NOP. */
 
-		prev2 = &list[idx2];
+		ldop = &list[idx2];
 
-		if (curr->r.rd != prev2->i.rt &&
-		    !reg_is_dead(list, offset, prev2->i.rt))
-			prev2 = NULL;
-		else if (curr->r.imm == 16 && prev2->i.op == OP_LHU)
-			prev2->i.op = OP_LH;
-		else if (curr->r.imm == 24 && prev2->i.op == OP_LBU)
-			prev2->i.op = OP_LB;
+		if (next->r.rd != ldop->i.rt &&
+		    !reg_is_dead(list, idx, ldop->i.rt))
+			ldop = NULL;
+		else if (curr->r.imm == 16 && ldop->i.op == OP_LHU)
+			ldop->i.op = OP_LH;
+		else if (curr->r.imm == 24 && ldop->i.op == OP_LBU)
+			ldop->i.op = OP_LB;
 		else
-			prev2 = NULL;
+			ldop = NULL;
 
-		if (prev2) {
-			if (curr->r.rd == prev2->i.rt) {
+		if (ldop) {
+			if (next->r.rd == ldop->i.rt) {
 				to_change->opcode = 0;
-			} else if (reg_is_dead(list, offset, prev2->i.rt) &&
-				   !reg_is_read_or_written(list, idx2 + 1, offset, curr->r.rd)) {
+			} else if (reg_is_dead(list, idx, ldop->i.rt) &&
+				   !reg_is_read_or_written(list, idx2 + 1, idx, next->r.rd)) {
 				/* The target register of the SRA is dead after the
 				 * LBU/LHU; we can change the target register of the
 				 * LBU/LHU to the one of the SRA. */
-				prev2->i.rt = curr->r.rd;
+				ldop->i.rt = next->r.rd;
 				to_change->opcode = 0;
 			} else {
 				to_change->i.op = OP_META_MOV;
-				to_change->r.rd = curr->r.rd;
-				to_change->r.rs = prev2->i.rt;
+				to_change->r.rd = next->r.rd;
+				to_change->r.rs = ldop->i.rt;
 			}
 
 			if (to_nop->r.imm == 24)
@@ -890,17 +890,16 @@ static void lightrec_optimize_sll_sra(struct opcode *list, unsigned int offset)
 		}
 	}
 
-	if (!prev2) {
+	if (!ldop) {
 		pr_debug("Convert SLL/SRA #%u to EXT%c\n",
-			 prev->r.imm,
-			 prev->r.imm == 24 ? 'C' : 'S');
+			 curr->r.imm, curr->r.imm == 24 ? 'C' : 'S');
 
-		if (to_change == prev) {
-			to_change->i.rs = prev->r.rt;
-			to_change->i.rt = curr->r.rd;
+		if (to_change == curr) {
+			to_change->i.rs = curr->r.rt;
+			to_change->i.rt = next->r.rd;
 		} else {
-			to_change->i.rt = curr->r.rd;
-			to_change->i.rs = prev->r.rt;
+			to_change->i.rt = next->r.rd;
+			to_change->i.rs = curr->r.rt;
 		}
 
 		if (to_nop->r.imm == 24)
@@ -1081,13 +1080,19 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 					op->r.rs = op->r.rt;
 					break;
 				}
+				break;
+			case OP_SPECIAL_SLL:
+				if (op->r.imm == 0) {
+					pr_debug("Convert SLL #0 to MOV\n");
+					op->i.op = OP_META_MOV;
+					op->r.rs = op->r.rt;
+				}
 
 				lightrec_optimize_sll_sra(block->opcode_list, i);
 				break;
-			case OP_SPECIAL_SLL:
 			case OP_SPECIAL_SRL:
 				if (op->r.imm == 0) {
-					pr_debug("Convert SLL/SRL #0 to MOV\n");
+					pr_debug("Convert SRL #0 to MOV\n");
 					op->i.op = OP_META_MOV;
 					op->r.rs = op->r.rt;
 				}
