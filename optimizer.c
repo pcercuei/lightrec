@@ -1477,13 +1477,22 @@ static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 		case OP_LWL:
 		case OP_LWR:
 		case OP_LWC2:
-			if (OPT_FLAG_IO && is_known(v, list->i.rs)) {
-				val = v[list->i.rs].value + (s16) list->i.imm;
-				kunseg_val = kunseg(val);
-				psx_map = lightrec_get_map_idx(state, kunseg_val);
+			if (OPT_FLAG_IO &&
+			    (v[list->i.rs].known | v[list->i.rs].sign)) {
+				psx_map = lightrec_get_constprop_map(state, v,
+								     list->i.rs,
+								     (s16) list->i.imm);
+
+				if (psx_map != PSX_MAP_UNKNOWN && !is_known(v, list->i.rs))
+					pr_debug("Detected map thanks to bit-level const propagation!\n");
 
 				list->flags &= ~LIGHTREC_IO_MASK;
-				no_mask = val == kunseg_val;
+
+				val = v[list->i.rs].value + (s16) list->i.imm;
+				kunseg_val = kunseg(val);
+
+				no_mask = (v[list->i.rs].known & ~v[list->i.rs].value
+					   & 0xe0000000) == 0xe0000000;
 
 				switch (psx_map) {
 				case PSX_MAP_KERNEL_USER_RAM:
@@ -1525,13 +1534,13 @@ static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 
 						if (no_mask)
 							list->flags |= LIGHTREC_NO_MASK;
-						break;
+					} else {
+						pr_debug("Flagging opcode %u as I/O access\n",
+							 i);
+						list->flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_HW);
 					}
-					fallthrough;
+					break;
 				default:
-					pr_debug("Flagging opcode %u as I/O access\n",
-						 i);
-					list->flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_HW);
 					break;
 				}
 			}

@@ -32,4 +32,8 @@ void lightrec_consts_propagate(const struct opcode *op,
 			       const struct opcode *prev,
 			       struct constprop_data *v);
 
+enum psx_map
+lightrec_get_constprop_map(const struct lightrec_state *state,
+			   const struct constprop_data *v, u8 reg, s16 imm);
+
 #endif /* __LIGHTREC_CONSTPROP_H__ */

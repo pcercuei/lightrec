@@ -636,3 +636,31 @@ void lightrec_consts_propagate(const struct opcode *op,
 	v[0].sign = 0;
 	v[0].known = 0xffffffff;
 }
+
+enum psx_map
+lightrec_get_constprop_map(const struct lightrec_state *state,
+			   const struct constprop_data *v, u8 reg, s16 imm)
+{
+	const struct lightrec_mem_map *map;
+	unsigned int i;
+	u32 min, max;
+
+	min = get_min_value(&v[reg]) + imm;
+	max = get_max_value(&v[reg]) + imm;
+
+	pr_debug("Min: 0x%08x max: 0x%08x Known: 0x%08x Sign: 0x%08x\n",
+		 min, max, v[reg].known, v[reg].sign);
+
+	min = kunseg(min);
+	max = kunseg(max);
+
+	for (i = 0; i < state->nb_maps; i++) {
+		map = &state->maps[i];
+
+		if (min >= map->pc && min < map->pc + map->length
+		    && max >= map->pc && max < map->pc + map->length)
+			return (enum psx_map) i;
+	}
+
+	return PSX_MAP_UNKNOWN;
+}
