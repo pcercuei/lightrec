@@ -250,7 +250,7 @@ static void rec_b(struct lightrec_cstate *state, const struct block *block, u16 
 
 	if (op_flag_local_branch(op->flags)) {
 		/* Recompile the delay slot */
-		if (next && next->opcode && !op_flag_no_ds(op->flags))
+		if (!op_flag_no_ds(op->flags) && next->opcode)
 			lightrec_rec_opcode(state, block, offset + 1);
 
 		if (link) {
