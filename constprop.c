@@ -407,29 +407,32 @@ void lightrec_consts_propagate(const struct opcode *op,
 	case OP_META_MULT2:
 	case OP_META_MULTU2:
 		if (OPT_FLAG_MULT_DIV && c.r.rd) {
-			if (!is_known(v, c.r.rs)) {
-				v[c.r.rd].known = 0;
-			} else if (c.r.op < 32) {
+			if (c.r.op < 32) {
 				v[c.r.rd].value = v[c.r.rs].value << c.r.op;
-				v[c.r.rd].known = 0xffffffff;
+				v[c.r.rd].known = (v[c.r.rs].known << c.r.op)
+					| (BIT(c.r.op) - 1);
+				v[c.r.rd].sign = v[c.r.rs].sign << c.r.op;
 			} else {
 				v[c.r.rd].value = 0;
 				v[c.r.rd].known = 0xffffffff;
+				v[c.r.rd].sign = 0;
 			}
 		}
 
 		if (OPT_FLAG_MULT_DIV && c.r.imm) {
-			if (!is_known(v, c.r.rs)) {
-				v[c.r.rd].known = 0;
-			} else if (c.r.op >= 32) {
-				v[c.r.rd].value = v[c.r.rs].value << c.r.op - 32;
-				v[c.r.rd].known = 0xffffffff;
+			if (c.r.op >= 32) {
+				v[c.r.imm].value = v[c.r.rs].value << c.r.op - 32;
+				v[c.r.imm].known = (v[c.r.rs].known << c.r.op - 32)
+					| (BIT(c.r.op - 32) - 1);
+				v[c.r.imm].sign = v[c.r.rs].sign << c.r.op - 32;
 			} else if (c.i.op == OP_META_MULT2) {
-				v[c.r.rd].value = (s32)v[c.r.rs].value >> 32 - c.r.op;
-				v[c.r.rd].known = 0xffffffff;
+				v[c.r.imm].value = (s32)v[c.r.rs].value >> 32 - c.r.op;
+				v[c.r.imm].known = (s32)v[c.r.rs].known >> 32 - c.r.op;
+				v[c.r.imm].sign = (s32)v[c.r.rs].sign >> 32 - c.r.op;
 			} else {
-				v[c.r.rd].value = v[c.r.rs].value >> 32 - c.r.op;
-				v[c.r.rd].known = 0xffffffff;
+				v[c.r.imm].value = v[c.r.rs].value >> 32 - c.r.op;
+				v[c.r.imm].known = v[c.r.rs].known >> 32 - c.r.op;
+				v[c.r.imm].sign = v[c.r.rs].sign >> 32 - c.r.op;
 			}
 		}
 		break;
