@@ -87,21 +87,16 @@ static void lightrec_emit_end_of_block(struct lightrec_cstate *state,
 	lightrec_jump_to_eob(state, _jit);
 }
 
-void lightrec_emit_eob(struct lightrec_cstate *state, const struct block *block,
-		       u16 offset, bool after_op)
+void lightrec_emit_eob(struct lightrec_cstate *state,
+		       const struct block *block, u16 offset)
 {
 	struct regcache *reg_cache = state->reg_cache;
 	jit_state_t *_jit = block->_jit;
-	union code c = block->opcode_list[offset].c;
-	u32 cycles = state->cycles;
-
-	if (after_op)
-		cycles += lightrec_cycles_of_opcode(c);
 
 	lightrec_clean_regs(reg_cache, _jit);
 
 	jit_movi(JIT_V0, block->pc + (offset << 2));
-	jit_subi(LIGHTREC_REG_CYCLE, LIGHTREC_REG_CYCLE, cycles);
+	jit_subi(LIGHTREC_REG_CYCLE, LIGHTREC_REG_CYCLE, state->cycles);
 
 	lightrec_jump_to_eob(state, _jit);
 }
@@ -1966,8 +1961,10 @@ rec_mtc0(struct lightrec_cstate *state, const struct block *block, u16 offset)
 	lightrec_free_reg(reg_cache, rt);
 
 	if (!op_flag_no_ds(block->opcode_list[offset].flags) &&
-	    (c.r.rd == 12 || c.r.rd == 13))
-		lightrec_emit_eob(state, block, offset + 1, true);
+	    (c.r.rd == 12 || c.r.rd == 13)) {
+		state->cycles += lightrec_cycles_of_opcode(c);
+		lightrec_emit_eob(state, block, offset + 1);
+	}
 }
 
 static void rec_cp0_MFC0(struct lightrec_cstate *state,
