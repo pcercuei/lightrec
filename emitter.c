@@ -1122,6 +1122,13 @@ static u32 rec_ram_mask(struct lightrec_state *state)
 	return (RAM_SIZE << (state->mirrors_mapped * 2)) - 1;
 }
 
+static u32 rec_io_mask(const struct lightrec_state *state)
+{
+	u32 length = state->maps[PSX_MAP_HW_REGISTERS].length;
+
+	return GENMASK(31 - clz32(length - 1), 0);
+}
+
 static void rec_store_memory(struct lightrec_cstate *cstate,
 			     const struct block *block,
 			     u16 offset, jit_code_t code,
@@ -1253,7 +1260,7 @@ static void rec_store_io(struct lightrec_cstate *cstate,
 
 	return rec_store_memory(cstate, block, offset, code, swap_code,
 				cstate->state->offset_io,
-				0x1fffffff, false);
+				rec_io_mask(cstate->state), false);
 }
 
 static void rec_store_direct_no_invalidate(struct lightrec_cstate *cstate,
@@ -1577,7 +1584,7 @@ static void rec_load_io(struct lightrec_cstate *cstate,
 	_jit_note(block->_jit, __FILE__, __LINE__);
 
 	rec_load_memory(cstate, block, offset, code, swap_code, is_unsigned,
-			cstate->state->offset_io, 0x1fffffff);
+			cstate->state->offset_io, rec_io_mask(cstate->state));
 }
 
 static void rec_load_direct(struct lightrec_cstate *cstate,

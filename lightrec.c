@@ -28,9 +28,6 @@
 #include <stddef.h>
 #include <string.h>
 
-#define GENMASK(h, l) \
-	(((uintptr_t)-1 << (l)) & ((uintptr_t)-1 >> (__WORDSIZE - 1 - (h))))
-
 static struct block * lightrec_precompile_block(struct lightrec_state *state,
 						u32 pc);
 static bool lightrec_block_is_fully_tagged(const struct block *block);
