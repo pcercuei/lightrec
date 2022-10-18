@@ -16,6 +16,10 @@
 #include <stdatomic.h>
 #endif
 
+#ifdef _MSC_BUILD
+#include <immintrin.h>
+#endif
+
 #define ARRAY_SIZE(x) (sizeof(x) ? sizeof(x) / sizeof((x)[0]) : 0)
 
 #ifdef __GNUC__
@@ -51,10 +55,10 @@
 
 #ifdef _MSC_BUILD
 #	define popcount32(x)	__popcnt(x)
-#	define ffs32(x)		(31 - __lzcnt(x))
+#	define ctz32(x)		_tzcnt_u32(x)
 #else
 #	define popcount32(x)	__builtin_popcount(x)
-#	define ffs32(x)		(__builtin_ffs(x) - 1)
+#	define ctz32(x)		__builtin_ctz(x)
 #endif
 
 /* Flags for (struct block *)->flags */
