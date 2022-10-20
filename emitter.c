@@ -1885,6 +1885,7 @@ rec_mtc0(struct lightrec_cstate *state, const struct block *block, u16 offset)
 	const union code c = block->opcode_list[offset].c;
 	jit_state_t *_jit = block->_jit;
 	u8 rt, tmp = 0, tmp2, status;
+	jit_node_t *to_end;
 
 	jit_note(__FILE__, __LINE__);
 
@@ -1957,15 +1958,23 @@ rec_mtc0(struct lightrec_cstate *state, const struct block *block, u16 offset)
 		jit_orr(tmp, tmp, tmp2);
 	}
 
-	if (c.r.rd == 12 || c.r.rd == 13) {
-		jit_stxi_i(offsetof(struct lightrec_state, exit_flags),
-			   LIGHTREC_REG_STATE, tmp);
-
-		lightrec_free_reg(reg_cache, tmp);
-		lightrec_free_reg(reg_cache, tmp2);
-	}
-
 	lightrec_free_reg(reg_cache, rt);
+
+	if (c.r.rd == 12 || c.r.rd == 13) {
+		to_end = jit_beqi(tmp, 0);
+
+		jit_ldxi_i(tmp2, LIGHTREC_REG_STATE,
+			   offsetof(struct lightrec_state, target_cycle));
+		jit_subr(tmp2, tmp2, LIGHTREC_REG_CYCLE);
+		jit_movi(LIGHTREC_REG_CYCLE, 0);
+		jit_stxi_i(offsetof(struct lightrec_state, target_cycle),
+			   LIGHTREC_REG_STATE, tmp2);
+		jit_stxi_i(offsetof(struct lightrec_state, current_cycle),
+			   LIGHTREC_REG_STATE, tmp2);
+
+
+		jit_patch(to_end);
+	}
 
 	if (!op_flag_no_ds(block->opcode_list[offset].flags) &&
 	    (c.r.rd == 12 || c.r.rd == 13)) {
