@@ -2137,7 +2137,7 @@ static void rec_cp2_basic_CFC2(struct lightrec_cstate *state,
 		break;
 	default:
 		rt = lightrec_alloc_reg_out(reg_cache, _jit, c.r.rt, REG_ZEXT);
-		jit_ldxi_i(rt, LIGHTREC_REG_STATE, cp2c_i_offset(c.r.rd));
+		jit_ldxi_ui(rt, LIGHTREC_REG_STATE, cp2c_i_offset(c.r.rd));
 		break;
 	}
 
