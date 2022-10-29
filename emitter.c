@@ -2399,6 +2399,7 @@ static void rec_meta_MULT2(struct lightrec_cstate *state,
 	u32 flags = block->opcode_list[offset].flags;
 	bool is_signed = c.i.op == OP_META_MULT2;
 	u8 rs, lo, hi, rflags = 0, hiflags = 0;
+	unsigned int i;
 
 	if (!op_flag_no_hi(flags) && c.r.op < 32) {
 		rflags = is_signed ? REG_EXT : REG_ZEXT;
@@ -2410,28 +2411,38 @@ static void rec_meta_MULT2(struct lightrec_cstate *state,
 
 	rs = lightrec_alloc_reg_in(reg_cache, _jit, c.i.rs, rflags);
 
-	if (!op_flag_no_lo(flags)) {
-		lo = lightrec_alloc_reg_out(reg_cache, _jit, reg_lo, 0);
+	/*
+	 * We must handle the case where one of the output registers is our rs
+	 * input register. Thanksfully, computing LO/HI can be done in any
+	 * order. Here, we make sure that the computation that overwrites the
+	 * input register is always performed last.
+	 */
+	for (i = 0; i < 2; i++) {
+		if ((!i ^ (reg_lo == c.i.rs)) && !op_flag_no_lo(flags)) {
+			lo = lightrec_alloc_reg_out(reg_cache, _jit, reg_lo, 0);
 
-		if (c.r.op < 32)
-			jit_lshi(lo, rs, c.r.op);
-		else
-			jit_movi(lo, 0);
+			if (c.r.op < 32)
+				jit_lshi(lo, rs, c.r.op);
+			else
+				jit_movi(lo, 0);
 
-		lightrec_free_reg(reg_cache, lo);
-	}
+			lightrec_free_reg(reg_cache, lo);
+			continue;
+		}
 
-	if (!op_flag_no_hi(flags)) {
-		hi = lightrec_alloc_reg_out(reg_cache, _jit, reg_hi, hiflags);
+		if ((!!i ^ (reg_lo == c.i.rs)) && !op_flag_no_hi(flags)) {
+			hi = lightrec_alloc_reg_out(reg_cache, _jit,
+						    reg_hi, hiflags);
 
-		if (c.r.op >= 32)
-			jit_lshi(hi, rs, c.r.op - 32);
-		else if (is_signed)
-			jit_rshi(hi, rs, 32 - c.r.op);
-		else
-			jit_rshi_u(hi, rs, 32 - c.r.op);
+			if (c.r.op >= 32)
+				jit_lshi(hi, rs, c.r.op - 32);
+			else if (is_signed)
+				jit_rshi(hi, rs, 32 - c.r.op);
+			else
+				jit_rshi_u(hi, rs, 32 - c.r.op);
 
-		lightrec_free_reg(reg_cache, hi);
+			lightrec_free_reg(reg_cache, hi);
+		}
 	}
 
 	lightrec_free_reg(reg_cache, rs);
