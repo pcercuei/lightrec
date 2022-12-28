@@ -29,6 +29,7 @@ set(HAS_DEFAULT_ELM ${CMAKE_COMPILER_IS_GNUCC})
 
 list(APPEND LIGHTREC_SOURCES
 	blockcache.c
+	constprop.c
 	emitter.c
 	interpreter.c
 	lightrec.c
@@ -38,6 +39,7 @@ list(APPEND LIGHTREC_SOURCES
 )
 list(APPEND LIGHTREC_HEADERS
 	blockcache.h
+	constprop.h
 	debug.h
 	disassembler.h
 	emitter.h
