@@ -3,6 +3,7 @@
  * Copyright (C) 2014-2021 Paul Cercueil <paul@crapouillou.net>
  */
 
+#include "constprop.h"
 #include "lightrec-config.h"
 #include "disassembler.h"
 #include "lightrec.h"
@@ -497,297 +498,6 @@ bool load_in_delay_slot(union code op)
 	return false;
 }
 
-static u32 lightrec_propagate_consts(const struct opcode *op,
-				     const struct opcode *prev,
-				     u32 known, u32 *v)
-{
-	union code c = prev->c;
-
-	/* Register $zero is always, well, zero */
-	known |= BIT(0);
-	v[0] = 0;
-
-	if (op_flag_sync(op->flags))
-		return BIT(0);
-
-	switch (c.i.op) {
-	case OP_SPECIAL:
-		switch (c.r.op) {
-		case OP_SPECIAL_SLL:
-			if (known & BIT(c.r.rt)) {
-				known |= BIT(c.r.rd);
-				v[c.r.rd] = v[c.r.rt] << c.r.imm;
-			} else {
-				known &= ~BIT(c.r.rd);
-			}
-			break;
-		case OP_SPECIAL_SRL:
-			if (known & BIT(c.r.rt)) {
-				known |= BIT(c.r.rd);
-				v[c.r.rd] = v[c.r.rt] >> c.r.imm;
-			} else {
-				known &= ~BIT(c.r.rd);
-			}
-			break;
-		case OP_SPECIAL_SRA:
-			if (known & BIT(c.r.rt)) {
-				known |= BIT(c.r.rd);
-				v[c.r.rd] = (s32)v[c.r.rt] >> c.r.imm;
-			} else {
-				known &= ~BIT(c.r.rd);
-			}
-			break;
-		case OP_SPECIAL_SLLV:
-			if (known & BIT(c.r.rt) && known & BIT(c.r.rs)) {
-				known |= BIT(c.r.rd);
-				v[c.r.rd] = v[c.r.rt] << (v[c.r.rs] & 0x1f);
-			} else {
-				known &= ~BIT(c.r.rd);
-			}
-			break;
-		case OP_SPECIAL_SRLV:
-			if (known & BIT(c.r.rt) && known & BIT(c.r.rs)) {
-				known |= BIT(c.r.rd);
-				v[c.r.rd] = v[c.r.rt] >> (v[c.r.rs] & 0x1f);
-			} else {
-				known &= ~BIT(c.r.rd);
-			}
-			break;
-		case OP_SPECIAL_SRAV:
-			if (known & BIT(c.r.rt) && known & BIT(c.r.rs)) {
-				known |= BIT(c.r.rd);
-				v[c.r.rd] = (s32)v[c.r.rt]
-					  >> (v[c.r.rs] & 0x1f);
-			} else {
-				known &= ~BIT(c.r.rd);
-			}
-			break;
-		case OP_SPECIAL_ADD:
-		case OP_SPECIAL_ADDU:
-			if (known & BIT(c.r.rt) && known & BIT(c.r.rs)) {
-				known |= BIT(c.r.rd);
-				v[c.r.rd] = (s32)v[c.r.rt] + (s32)v[c.r.rs];
-			} else {
-				known &= ~BIT(c.r.rd);
-			}
-			break;
-		case OP_SPECIAL_SUB:
-		case OP_SPECIAL_SUBU:
-			if (known & BIT(c.r.rt) && known & BIT(c.r.rs)) {
-				known |= BIT(c.r.rd);
-				v[c.r.rd] = v[c.r.rt] - v[c.r.rs];
-			} else {
-				known &= ~BIT(c.r.rd);
-			}
-			break;
-		case OP_SPECIAL_AND:
-			if (known & BIT(c.r.rt) && known & BIT(c.r.rs)) {
-				known |= BIT(c.r.rd);
-				v[c.r.rd] = v[c.r.rt] & v[c.r.rs];
-			} else {
-				known &= ~BIT(c.r.rd);
-			}
-			break;
-		case OP_SPECIAL_OR:
-			if (known & BIT(c.r.rt) && known & BIT(c.r.rs)) {
-				known |= BIT(c.r.rd);
-				v[c.r.rd] = v[c.r.rt] | v[c.r.rs];
-			} else {
-				known &= ~BIT(c.r.rd);
-			}
-			break;
-		case OP_SPECIAL_XOR:
-			if (known & BIT(c.r.rt) && known & BIT(c.r.rs)) {
-				known |= BIT(c.r.rd);
-				v[c.r.rd] = v[c.r.rt] ^ v[c.r.rs];
-			} else {
-				known &= ~BIT(c.r.rd);
-			}
-			break;
-		case OP_SPECIAL_NOR:
-			if (known & BIT(c.r.rt) && known & BIT(c.r.rs)) {
-				known |= BIT(c.r.rd);
-				v[c.r.rd] = ~(v[c.r.rt] | v[c.r.rs]);
-			} else {
-				known &= ~BIT(c.r.rd);
-			}
-			break;
-		case OP_SPECIAL_SLT:
-			if (known & BIT(c.r.rt) && known & BIT(c.r.rs)) {
-				known |= BIT(c.r.rd);
-				v[c.r.rd] = (s32)v[c.r.rs] < (s32)v[c.r.rt];
-			} else {
-				known &= ~BIT(c.r.rd);
-			}
-			break;
-		case OP_SPECIAL_SLTU:
-			if (known & BIT(c.r.rt) && known & BIT(c.r.rs)) {
-				known |= BIT(c.r.rd);
-				v[c.r.rd] = v[c.r.rs] < v[c.r.rt];
-			} else {
-				known &= ~BIT(c.r.rd);
-			}
-			break;
-		case OP_SPECIAL_MULT:
-		case OP_SPECIAL_MULTU:
-		case OP_SPECIAL_DIV:
-		case OP_SPECIAL_DIVU:
-			if (OPT_FLAG_MULT_DIV && c.r.rd)
-				known &= ~BIT(c.r.rd);
-			if (OPT_FLAG_MULT_DIV && c.r.imm)
-				known &= ~BIT(c.r.imm);
-			break;
-		case OP_SPECIAL_MFLO:
-		case OP_SPECIAL_MFHI:
-			known &= ~BIT(c.r.rd);
-			break;
-		default:
-			break;
-		}
-		break;
-	case OP_META_MULT2:
-	case OP_META_MULTU2:
-		if (OPT_FLAG_MULT_DIV && (known & BIT(c.r.rs))) {
-			if (c.r.rd) {
-				known |= BIT(c.r.rd);
-
-				if (c.r.op < 32)
-					v[c.r.rd] = v[c.r.rs] << c.r.op;
-				else
-					v[c.r.rd] = 0;
-			}
-
-			if (c.r.imm) {
-				known |= BIT(c.r.imm);
-
-				if (c.r.op >= 32)
-					v[c.r.imm] = v[c.r.rs] << (c.r.op - 32);
-				else if (c.i.op == OP_META_MULT2)
-					v[c.r.imm] = (s32) v[c.r.rs] >> (32 - c.r.op);
-				else
-					v[c.r.imm] = v[c.r.rs] >> (32 - c.r.op);
-			}
-		} else {
-			if (OPT_FLAG_MULT_DIV && c.r.rd)
-				known &= ~BIT(c.r.rd);
-			if (OPT_FLAG_MULT_DIV && c.r.imm)
-				known &= ~BIT(c.r.imm);
-		}
-		break;
-	case OP_REGIMM:
-		break;
-	case OP_ADDI:
-	case OP_ADDIU:
-		if (known & BIT(c.i.rs)) {
-			known |= BIT(c.i.rt);
-			v[c.i.rt] = v[c.i.rs] + (s32)(s16)c.i.imm;
-		} else {
-			known &= ~BIT(c.i.rt);
-		}
-		break;
-	case OP_SLTI:
-		if (known & BIT(c.i.rs)) {
-			known |= BIT(c.i.rt);
-			v[c.i.rt] = (s32)v[c.i.rs] < (s32)(s16)c.i.imm;
-		} else {
-			known &= ~BIT(c.i.rt);
-		}
-		break;
-	case OP_SLTIU:
-		if (known & BIT(c.i.rs)) {
-			known |= BIT(c.i.rt);
-			v[c.i.rt] = v[c.i.rs] < (u32)(s32)(s16)c.i.imm;
-		} else {
-			known &= ~BIT(c.i.rt);
-		}
-		break;
-	case OP_ANDI:
-		if (known & BIT(c.i.rs)) {
-			known |= BIT(c.i.rt);
-			v[c.i.rt] = v[c.i.rs] & c.i.imm;
-		} else {
-			known &= ~BIT(c.i.rt);
-		}
-		break;
-	case OP_ORI:
-		if (known & BIT(c.i.rs)) {
-			known |= BIT(c.i.rt);
-			v[c.i.rt] = v[c.i.rs] | c.i.imm;
-		} else {
-			known &= ~BIT(c.i.rt);
-		}
-		break;
-	case OP_XORI:
-		if (known & BIT(c.i.rs)) {
-			known |= BIT(c.i.rt);
-			v[c.i.rt] = v[c.i.rs] ^ c.i.imm;
-		} else {
-			known &= ~BIT(c.i.rt);
-		}
-		break;
-	case OP_LUI:
-		known |= BIT(c.i.rt);
-		v[c.i.rt] = c.i.imm << 16;
-		break;
-	case OP_CP0:
-		switch (c.r.rs) {
-		case OP_CP0_MFC0:
-		case OP_CP0_CFC0:
-			known &= ~BIT(c.r.rt);
-			break;
-		}
-		break;
-	case OP_CP2:
-		if (c.r.op == OP_CP2_BASIC) {
-			switch (c.r.rs) {
-			case OP_CP2_BASIC_MFC2:
-			case OP_CP2_BASIC_CFC2:
-				known &= ~BIT(c.r.rt);
-				break;
-			}
-		}
-		break;
-	case OP_LB:
-	case OP_LH:
-	case OP_LWL:
-	case OP_LW:
-	case OP_LBU:
-	case OP_LHU:
-	case OP_LWR:
-	case OP_LWC2:
-		known &= ~BIT(c.i.rt);
-		break;
-	case OP_META_MOV:
-		if (known & BIT(c.r.rs)) {
-			known |= BIT(c.r.rd);
-			v[c.r.rd] = v[c.r.rs];
-		} else {
-			known &= ~BIT(c.r.rd);
-		}
-		break;
-	case OP_META_EXTC:
-		if (known & BIT(c.i.rs)) {
-			known |= BIT(c.i.rt);
-			v[c.i.rt] = (s32)(s8)v[c.i.rs];
-		} else {
-			known &= ~BIT(c.i.rt);
-		}
-		break;
-	case OP_META_EXTS:
-		if (known & BIT(c.i.rs)) {
-			known |= BIT(c.i.rt);
-			v[c.i.rt] = (s32)(s16)v[c.i.rs];
-		} else {
-			known &= ~BIT(c.i.rt);
-		}
-		break;
-	default:
-		break;
-	}
-
-	return known;
-}
-
 static void lightrec_optimize_sll_sra(struct opcode *list, unsigned int offset)
 {
 	struct opcode *ldop = NULL, *curr = &list[offset], *next;
@@ -911,15 +621,16 @@ static void lightrec_optimize_sll_sra(struct opcode *list, unsigned int offset)
 	to_nop->opcode = 0;
 }
 
-static void lightrec_remove_useless_lui(struct block *block, unsigned int offset,
-					u32 known, u32 *values)
+static void
+lightrec_remove_useless_lui(struct block *block, unsigned int offset,
+			    const struct constprop_data *v)
 {
 	struct opcode *list = block->opcode_list,
 		      *op = &block->opcode_list[offset];
 	int reader;
 
-	if (!op_flag_sync(op->flags) && (known & BIT(op->i.rt)) &&
-	    values[op->i.rt] == op->i.imm << 16) {
+	if (!op_flag_sync(op->flags) && is_known(v, op->i.rt) &&
+	    v[op->i.rt].value == op->i.imm << 16) {
 		pr_debug("Converting duplicated LUI to NOP\n");
 		op->opcode = 0x0;
 		return;
@@ -1013,8 +724,7 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 {
 	struct opcode *list = block->opcode_list;
 	struct opcode *prev, *op = NULL;
-	u32 known = BIT(0);
-	u32 values[32] = { 0 };
+	struct constprop_data v[32] = LIGHTREC_CONSTPROP_INITIALIZER;
 	unsigned int i;
 	u8 tmp;
 
@@ -1023,7 +733,7 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 		op = &list[i];
 
 		if (prev)
-			known = lightrec_propagate_consts(op, prev, known, values);
+			lightrec_consts_propagate(op, prev, v);
 
 		/* Transform all opcodes detected as useless to real NOPs
 		 * (0x0: SLL r0, r0, #0) */
@@ -1057,7 +767,7 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 		case OP_LUI:
 			if (!prev || !has_delay_slot(prev->c))
 				lightrec_modify_lui(block, i);
-			lightrec_remove_useless_lui(block, i, known, values);
+			lightrec_remove_useless_lui(block, i, v);
 			break;
 
 		/* Transform ORI/ADDI/ADDIU with imm #0 or ORR/ADD/ADDU/SUB/SUBU
@@ -1099,25 +809,25 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 				break;
 			case OP_SPECIAL_MULT:
 			case OP_SPECIAL_MULTU:
-				if ((known & BIT(op->r.rs)) &&
-				    is_power_of_two(values[op->r.rs])) {
+				if (is_known(v, op->r.rs) &&
+				    is_power_of_two(v[op->r.rs].value)) {
 					tmp = op->c.i.rs;
 					op->c.i.rs = op->c.i.rt;
 					op->c.i.rt = tmp;
-				} else if (!(known & BIT(op->r.rt)) ||
-					   !is_power_of_two(values[op->r.rt])) {
+				} else if (!is_known(v, op->r.rt) ||
+					   !is_power_of_two(v[op->r.rt].value)) {
 					break;
 				}
 
 				pr_debug("Multiply by power-of-two: %u\n",
-					 values[op->r.rt]);
+					 v[op->r.rt].value);
 
 				if (op->r.op == OP_SPECIAL_MULT)
 					op->i.op = OP_META_MULT2;
 				else
 					op->i.op = OP_META_MULTU2;
 
-				op->r.op = ctz32(values[op->r.rt]);
+				op->r.op = ctz32(v[op->r.rt].value);
 				break;
 			case OP_SPECIAL_OR:
 			case OP_SPECIAL_ADD:
@@ -1572,8 +1282,7 @@ static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 {
 	struct opcode *prev = NULL, *list = NULL;
 	enum psx_map psx_map;
-	u32 known = BIT(0);
-	u32 values[32] = { 0 };
+	struct constprop_data v[32] = LIGHTREC_CONSTPROP_INITIALIZER;
 	unsigned int i;
 	u32 val, kunseg_val;
 	bool no_mask;
@@ -1583,7 +1292,7 @@ static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 		list = &block->opcode_list[i];
 
 		if (prev)
-			known = lightrec_propagate_consts(list, prev, known, values);
+			lightrec_consts_propagate(list, prev, v);
 
 		switch (list->i.op) {
 		case OP_SB:
@@ -1606,10 +1315,10 @@ static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 				/* Detect writes whose destination address is inside the
 				 * current block, using constant propagation. When these
 				 * occur, we mark the blocks as not compilable. */
-				if ((known & BIT(list->i.rs)) &&
-				    kunseg(values[list->i.rs]) >= kunseg(block->pc) &&
-				    kunseg(values[list->i.rs]) < (kunseg(block->pc) +
-								  block->nb_ops * 4)) {
+				if (is_known(v, list->i.rs) &&
+				    kunseg(v[list->i.rs].value) >= kunseg(block->pc) &&
+				    kunseg(v[list->i.rs].value) < (kunseg(block->pc) +
+								   block->nb_ops * 4)) {
 					pr_debug("Self-modifying block detected\n");
 					block_set_flags(block, BLOCK_NEVER_COMPILE);
 					list->flags |= LIGHTREC_SMC;
@@ -1627,8 +1336,8 @@ static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 		case OP_LWL:
 		case OP_LWR:
 		case OP_LWC2:
-			if (OPT_FLAG_IO && (known & BIT(list->i.rs))) {
-				val = values[list->i.rs] + (s16) list->i.imm;
+			if (OPT_FLAG_IO && is_known(v, list->i.rs)) {
+				val = v[list->i.rs].value + (s16) list->i.imm;
 				kunseg_val = kunseg(val);
 				psx_map = lightrec_get_map_idx(state, kunseg_val);
 
@@ -1876,17 +1585,16 @@ static bool lightrec_always_skip_div_check(void)
 static int lightrec_flag_mults_divs(struct lightrec_state *state, struct block *block)
 {
 	struct opcode *prev, *list = NULL;
+	struct constprop_data v[32] = LIGHTREC_CONSTPROP_INITIALIZER;
 	u8 reg_hi, reg_lo;
 	unsigned int i;
-	u32 known = BIT(0);
-	u32 values[32] = { 0 };
 
 	for (i = 0; i < block->nb_ops - 1; i++) {
 		prev = list;
 		list = &block->opcode_list[i];
 
 		if (prev)
-			known = lightrec_propagate_consts(list, prev, known, values);
+			lightrec_consts_propagate(list, prev, v);
 
 		switch (list->i.op) {
 		case OP_SPECIAL:
@@ -1896,8 +1604,10 @@ static int lightrec_flag_mults_divs(struct lightrec_state *state, struct block *
 				/* If we are dividing by a non-zero constant, don't
 				 * emit the div-by-zero check. */
 				if (lightrec_always_skip_div_check() ||
-				    ((known & BIT(list->c.r.rt)) && values[list->c.r.rt]))
+				    (is_known(v, list->c.r.rt)
+				     && v[list->c.r.rt].value)) {
 					list->flags |= LIGHTREC_NO_DIV_CHECK;
+				}
 				fallthrough;
 			case OP_SPECIAL_MULT:
 			case OP_SPECIAL_MULTU:
