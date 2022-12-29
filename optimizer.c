@@ -927,6 +927,31 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 			}
 			break;
 
+		case OP_BLEZ:
+			if (v[op->i.rs].known & BIT(31) &&
+			    v[op->i.rs].value & BIT(31)) {
+				pr_debug("Found always-taken BLEZ\n");
+
+				op->i.op = OP_BEQ;
+				op->i.rs = 0;
+				op->i.rt = 0;
+			}
+			break;
+
+		case OP_BGTZ:
+			if (v[op->i.rs].known & BIT(31) &&
+			    v[op->i.rs].value & BIT(31)) {
+				pr_debug("Found never-taken BGTZ\n");
+
+				local = op_flag_local_branch(op->flags);
+				op->opcode = 0;
+				op->flags = 0;
+
+				if (local)
+					lightrec_reset_syncs(block);
+			}
+			break;
+
 		case OP_LUI:
 			if (!prev || !has_delay_slot(prev->c))
 				lightrec_modify_lui(block, i);
