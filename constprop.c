@@ -648,6 +648,10 @@ lightrec_get_constprop_map(const struct lightrec_state *state,
 	min = get_min_value(&v[reg]) + imm;
 	max = get_max_value(&v[reg]) + imm;
 
+	/* Handle the case where max + imm overflows */
+	if ((min & 0xe0000000) != (max & 0xe0000000))
+		return PSX_MAP_UNKNOWN;
+
 	pr_debug("Min: 0x%08x max: 0x%08x Known: 0x%08x Sign: 0x%08x\n",
 		 min, max, v[reg].known, v[reg].sign);
 
