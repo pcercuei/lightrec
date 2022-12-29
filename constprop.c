@@ -582,8 +582,21 @@ void lightrec_consts_propagate(const struct opcode *op,
 		break;
 	case OP_LWL:
 	case OP_LWR:
-		/* TODO: LWL/LWR don't write the full register if the address is
+		/* LWL/LWR don't write the full register if the address is
 		 * unaligned, so we only need to know the low 2 bits */
+		if (v[c.i.rs].known & 0x3) {
+			imm = (v[c.i.rs].value & 0x3) * 8;
+
+			if (c.i.op == OP_LWL) {
+				imm = BIT(24 - imm) - 1;
+				v[c.i.rt].sign &= ~imm;
+			} else {
+				imm = imm ? GENMASK(31, 32 - imm) : 0;
+				v[c.i.rt].sign = 0;
+			}
+			v[c.i.rt].known &= ~imm;
+			break;
+		}
 		fallthrough;
 	case OP_LW:
 		v[c.i.rt].known = 0;
