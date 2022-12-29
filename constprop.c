@@ -510,10 +510,54 @@ void lightrec_consts_propagate(const struct opcode *op,
 		if (c.r.op == OP_CP2_BASIC) {
 			switch (c.r.rs) {
 			case OP_CP2_BASIC_MFC2:
+				switch (c.r.rd) {
+				case 1:
+				case 3:
+				case 5:
+				case 8:
+				case 9:
+				case 10:
+				case 11:
+					/* Signed 16-bit */
+					v[c.r.rt].known = 0;
+					v[c.r.rt].sign = 0xffff8000;
+					break;
+				case 7:
+				case 16:
+				case 17:
+				case 18:
+				case 19:
+					/* Unsigned 16-bit */
+					v[c.r.rt].value = 0;
+					v[c.r.rt].known = 0xffff0000;
+					v[c.r.rt].sign = 0;
+					break;
+				default:
+					/* 32-bit */
+					v[c.r.rt].known = 0;
+					v[c.r.rt].sign = 0;
+					break;
+				}
+				break;
 			case OP_CP2_BASIC_CFC2:
-				/* TODO: Some registers are 16-bit */
-				v[c.r.rt].known = 0;
-				v[c.r.rt].sign = 0;
+				switch (c.r.rd) {
+				case 4:
+				case 12:
+				case 20:
+				case 26:
+				case 27:
+				case 29:
+				case 30:
+					/* Signed 16-bit */
+					v[c.r.rt].known = 0;
+					v[c.r.rt].sign = 0xffff8000;
+					break;
+				default:
+					/* 32-bit */
+					v[c.r.rt].known = 0;
+					v[c.r.rt].sign = 0;
+					break;
+				}
 				break;
 			}
 		}
