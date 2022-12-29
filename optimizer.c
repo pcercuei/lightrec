@@ -829,12 +829,32 @@ static void lightrec_patch_known_zero(struct opcode *op,
 	}
 }
 
+static void lightrec_reset_syncs(struct block *block)
+{
+	struct opcode *op, *list = block->opcode_list;
+	unsigned int i;
+	s32 offset;
+
+	for (i = 0; i < block->nb_ops; i++)
+		list[i].flags &= ~LIGHTREC_SYNC;
+
+	for (i = 0; i < block->nb_ops; i++) {
+		op = &list[i];
+
+		if (op_flag_local_branch(op->flags) && has_delay_slot(op->c)) {
+			offset = i + 1 + (s16)op->i.imm;
+			list[offset].flags |= LIGHTREC_SYNC;
+		}
+	}
+}
+
 static int lightrec_transform_ops(struct lightrec_state *state, struct block *block)
 {
 	struct opcode *list = block->opcode_list;
 	struct opcode *prev, *op = NULL;
 	struct constprop_data v[32] = LIGHTREC_CONSTPROP_INITIALIZER;
 	unsigned int i;
+	bool local;
 	u8 tmp;
 
 	for (i = 0; i < block->nb_ops; i++) {
@@ -859,9 +879,24 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 
 		switch (op->i.op) {
 		case OP_BEQ:
-			if (op->i.rs == op->i.rt) {
+			if (op->i.rs == op->i.rt ||
+			    (is_known(v, op->i.rs) && is_known(v, op->i.rt) &&
+			     v[op->i.rs].value == v[op->i.rt].value)) {
+				if (op->i.rs != op->i.rt)
+					pr_debug("Found always-taken BEQ\n");
+
 				op->i.rs = 0;
 				op->i.rt = 0;
+			} else if (v[op->i.rs].known & v[op->i.rt].known &
+				   (v[op->i.rs].value ^ v[op->i.rt].value)) {
+				pr_debug("Found never-taken BEQ\n");
+
+				local = op_flag_local_branch(op->flags);
+				op->opcode = 0;
+				op->flags = 0;
+
+				if (local)
+					lightrec_reset_syncs(block);
 			} else if (op->i.rs == 0) {
 				op->i.rs = op->i.rt;
 				op->i.rt = 0;
@@ -869,7 +904,24 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 			break;
 
 		case OP_BNE:
-			if (op->i.rs == 0) {
+			if (v[op->i.rs].known & v[op->i.rt].known &
+			    (v[op->i.rs].value ^ v[op->i.rt].value)) {
+				pr_debug("Found always-taken BNE\n");
+
+				op->i.op = OP_BEQ;
+				op->i.rs = 0;
+				op->i.rt = 0;
+			} else if (is_known(v, op->i.rs) && is_known(v, op->i.rt) &&
+				   v[op->i.rs].value == v[op->i.rt].value) {
+				pr_debug("Found never-taken BNE\n");
+
+				local = op_flag_local_branch(op->flags);
+				op->opcode = 0;
+				op->flags = 0;
+
+				if (local)
+					lightrec_reset_syncs(block);
+			} else if (op->i.rs == 0) {
 				op->i.rs = op->i.rt;
 				op->i.rt = 0;
 			}
@@ -890,6 +942,36 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 				pr_debug("Convert ORI/ADDI/ADDIU #0 to MOV\n");
 				op->i.op = OP_META_MOV;
 				op->r.rd = op->i.rt;
+			}
+			break;
+		case OP_REGIMM:
+			switch (op->r.rt) {
+			case OP_REGIMM_BLTZ:
+			case OP_REGIMM_BGEZ:
+				if (!(v[op->r.rs].known & BIT(31)))
+					break;
+
+				if ((v[op->r.rs].value & BIT(31))
+				    ^ (op->r.rt == OP_REGIMM_BGEZ)) {
+					pr_debug("Found always-taken BLTZ/BGEZ\n");
+					op->i.op = OP_BEQ;
+					op->i.rs = 0;
+					op->i.rt = 0;
+				} else {
+					pr_debug("Found never-taken BLTZ/BGEZ\n");
+
+					local = op_flag_local_branch(op->flags);
+					op->opcode = 0;
+					op->flags = 0;
+
+					if (local)
+						lightrec_reset_syncs(block);
+				}
+				break;
+			case OP_REGIMM_BLTZAL:
+			case OP_REGIMM_BGEZAL:
+				/* TODO: Detect always-taken and replace with JAL */
+				break;
 			}
 			break;
 		case OP_SPECIAL:
@@ -1224,11 +1306,10 @@ static int lightrec_local_branches(struct lightrec_state *state, struct block *b
 			continue;
 		}
 
-		pr_debug("Adding sync at offset 0x%x\n", offset << 2);
-
-		block->opcode_list[offset].flags |= LIGHTREC_SYNC;
 		list->flags |= LIGHTREC_LOCAL_BRANCH;
 	}
+
+	lightrec_reset_syncs(block);
 
 	return 0;
 }
