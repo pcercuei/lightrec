@@ -28,8 +28,8 @@ static inline _Bool is_known_zero(const struct constprop_data *v, u8 reg)
 	return is_known(v, reg) && v[reg].value == 0;
 }
 
-void lightrec_consts_propagate(const struct opcode *op,
-			       const struct opcode *prev,
+void lightrec_consts_propagate(const struct opcode *list,
+			       unsigned int idx,
 			       struct constprop_data *v);
 
 enum psx_map

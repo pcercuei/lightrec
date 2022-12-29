@@ -243,22 +243,27 @@ static void lightrec_propagate_slt(u32 rs, u32 rd, bool is_signed,
 	}
 }
 
-void lightrec_consts_propagate(const struct opcode *op,
-			       const struct opcode *prev,
+void lightrec_consts_propagate(const struct opcode *list,
+			       unsigned int idx,
 			       struct constprop_data *v)
 {
-	union code c = prev->c;
+	union code c;
 	u32 imm;
+
+	if (idx == 0)
+		return;
 
 	/* Register $zero is always, well, zero */
 	v[0].value = 0;
 	v[0].sign = 0;
 	v[0].known = 0xffffffff;
 
-	if (op_flag_sync(op->flags)) {
+	if (op_flag_sync(list[idx].flags)) {
 		memset(&v[1], 0, sizeof(*v) * 31);
 		return;
 	}
+
+	c = list[idx - 1].c;
 
 	switch (c.i.op) {
 	case OP_SPECIAL:

@@ -850,19 +850,16 @@ static void lightrec_reset_syncs(struct block *block)
 
 static int lightrec_transform_ops(struct lightrec_state *state, struct block *block)
 {
-	struct opcode *list = block->opcode_list;
-	struct opcode *prev, *op = NULL;
+	struct opcode *op, *list = block->opcode_list;
 	struct constprop_data v[32] = LIGHTREC_CONSTPROP_INITIALIZER;
 	unsigned int i;
 	bool local;
 	u8 tmp;
 
 	for (i = 0; i < block->nb_ops; i++) {
-		prev = op;
 		op = &list[i];
 
-		if (prev)
-			lightrec_consts_propagate(op, prev, v);
+		lightrec_consts_propagate(list, i, v);
 
 		lightrec_patch_known_zero(op, v);
 
@@ -953,7 +950,7 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 			break;
 
 		case OP_LUI:
-			if (!prev || !has_delay_slot(prev->c))
+			if (i == 0 || !has_delay_slot(list[i - 1].c))
 				lightrec_modify_lui(block, i);
 			lightrec_remove_useless_lui(block, i, v);
 			break;
@@ -1527,7 +1524,7 @@ static int lightrec_early_unload(struct lightrec_state *state, struct block *blo
 
 static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 {
-	struct opcode *prev = NULL, *list = NULL;
+	struct opcode *list;
 	enum psx_map psx_map;
 	struct constprop_data v[32] = LIGHTREC_CONSTPROP_INITIALIZER;
 	unsigned int i;
@@ -1535,11 +1532,9 @@ static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 	bool no_mask;
 
 	for (i = 0; i < block->nb_ops; i++) {
-		prev = list;
 		list = &block->opcode_list[i];
 
-		if (prev)
-			lightrec_consts_propagate(list, prev, v);
+		lightrec_consts_propagate(block->opcode_list, i, v);
 
 		switch (list->i.op) {
 		case OP_SB:
@@ -1840,17 +1835,15 @@ static bool lightrec_always_skip_div_check(void)
 
 static int lightrec_flag_mults_divs(struct lightrec_state *state, struct block *block)
 {
-	struct opcode *prev, *list = NULL;
+	struct opcode *list = NULL;
 	struct constprop_data v[32] = LIGHTREC_CONSTPROP_INITIALIZER;
 	u8 reg_hi, reg_lo;
 	unsigned int i;
 
 	for (i = 0; i < block->nb_ops - 1; i++) {
-		prev = list;
 		list = &block->opcode_list[i];
 
-		if (prev)
-			lightrec_consts_propagate(list, prev, v);
+		lightrec_consts_propagate(block->opcode_list, i, v);
 
 		switch (list->i.op) {
 		case OP_SPECIAL:
