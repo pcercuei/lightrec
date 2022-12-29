@@ -263,6 +263,51 @@ void lightrec_consts_propagate(const struct opcode *list,
 		return;
 	}
 
+	if (idx > 1 && !op_flag_sync(list[idx - 1].flags)) {
+		c = list[idx - 2].c;
+
+		switch (c.i.op) {
+		case OP_BNE:
+			/* After a BNE $zero + delay slot, we know that the
+			 * branch wasn't taken, and therefore the other register
+			 * is zero. */
+			if (c.i.rs == 0) {
+				v[c.i.rt].value = 0;
+				v[c.i.rt].sign = 0;
+				v[c.i.rt].known = 0xffffffff;
+			} else if (c.i.rt == 0) {
+				v[c.i.rs].value = 0;
+				v[c.i.rs].sign = 0;
+				v[c.i.rs].known = 0xffffffff;
+			}
+			break;
+		case OP_BLEZ:
+			v[c.i.rs].value &= ~BIT(31);
+			v[c.i.rs].known |= BIT(31);
+			fallthrough;
+		case OP_BEQ:
+			/* TODO: handle non-zero? */
+			break;
+		case OP_REGIMM:
+			switch (c.r.rt) {
+			case OP_REGIMM_BLTZ:
+			case OP_REGIMM_BLTZAL:
+				v[c.i.rs].value &= ~BIT(31);
+				v[c.i.rs].known |= BIT(31);
+				break;
+			case OP_REGIMM_BGEZ:
+			case OP_REGIMM_BGEZAL:
+				v[c.i.rs].value |= BIT(31);
+				v[c.i.rs].known |= BIT(31);
+				/* TODO: handle non-zero? */
+				break;
+			}
+			break;
+		default:
+			break;
+		}
+	}
+
 	c = list[idx - 1].c;
 
 	switch (c.i.op) {
