@@ -951,7 +951,7 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 				if (!(v[op->r.rs].known & BIT(31)))
 					break;
 
-				if ((v[op->r.rs].value & BIT(31))
+				if (!!(v[op->r.rs].value & BIT(31))
 				    ^ (op->r.rt == OP_REGIMM_BGEZ)) {
 					pr_debug("Found always-taken BLTZ/BGEZ\n");
 					op->i.op = OP_BEQ;
