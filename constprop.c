@@ -52,7 +52,7 @@ static u32 lightrec_get_sign_mask(const struct constprop_data *d)
 	if (imm)
 		imm = 32 - clz32(imm);
 
-	return GENMASK(31, imm);
+	return imm < 32 ? GENMASK(31, imm) : 0;
 }
 
 static void lightrec_propagate_addi(u32 rs, u32 rd,
