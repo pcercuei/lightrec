@@ -671,7 +671,7 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 	void *func;
 	int err;
 
-	for (;;) {
+	do {
 		func = lut_read(state, lut_offset(pc));
 		if (func && func != state->get_next_block)
 			break;
@@ -740,11 +740,8 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 		} else {
 			lightrec_recompiler_add(state->rec, block);
 		}
-
-		if (state->exit_flags != LIGHTREC_EXIT_NORMAL ||
-		    state->current_cycle >= state->target_cycle)
-			break;
-	}
+	} while (state->exit_flags == LIGHTREC_EXIT_NORMAL
+		 && state->current_cycle < state->target_cycle);
 
 	state->next_pc = pc;
 	return func;
