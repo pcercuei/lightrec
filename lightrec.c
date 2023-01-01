@@ -1006,16 +1006,13 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 	jit_prolog();
 	jit_frame(256);
 
+	jit_getarg(LIGHTREC_REG_STATE, jit_arg());
 	jit_getarg(JIT_V1, jit_arg());
 	jit_getarg_i(LIGHTREC_REG_CYCLE, jit_arg());
 
 	/* Force all callee-saved registers to be pushed on the stack */
 	for (i = 0; i < NUM_REGS; i++)
 		jit_movr(JIT_V(i + FIRST_REG), JIT_V(i + FIRST_REG));
-
-	/* Pass lightrec_state structure to blocks, using the last callee-saved
-	 * register that Lightning provides */
-	jit_movi(LIGHTREC_REG_STATE, (intptr_t) state);
 
 	loop = jit_label();
 
@@ -1600,7 +1597,7 @@ static void lightrec_print_info(struct lightrec_state *state)
 
 u32 lightrec_execute(struct lightrec_state *state, u32 pc, u32 target_cycle)
 {
-	s32 (*func)(void *, s32) = (void *)state->dispatcher->function;
+	s32 (*func)(struct lightrec_state *, void *, s32) = (void *)state->dispatcher->function;
 	void *block_trace;
 	s32 cycles_delta;
 
@@ -1617,7 +1614,7 @@ u32 lightrec_execute(struct lightrec_state *state, u32 pc, u32 target_cycle)
 	if (block_trace) {
 		cycles_delta = state->target_cycle - state->current_cycle;
 
-		cycles_delta = (*func)(block_trace, cycles_delta);
+		cycles_delta = (*func)(state, block_trace, cycles_delta);
 
 		state->current_cycle = state->target_cycle - cycles_delta;
 	}
