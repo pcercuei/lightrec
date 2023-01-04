@@ -1375,7 +1375,11 @@ static void rec_store_direct(struct lightrec_cstate *cstate, const struct block 
 	jit_movnr(tmp, tmp2, tmp);
 
 	/* Compute the offset to the code LUT */
-	jit_andi(tmp, tmp, (RAM_SIZE - 1) & ~3);
+	if (c.i.op == OP_SW)
+		jit_andi(tmp, tmp, RAM_SIZE - 1);
+	else
+		jit_andi(tmp, tmp, (RAM_SIZE - 1) & ~3);
+
 	if (!lut_is_32bit(state))
 		jit_lshi(tmp, tmp, 1);
 	jit_addr(tmp, LIGHTREC_REG_STATE, tmp);
