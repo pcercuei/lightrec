@@ -81,6 +81,7 @@
 
 #define REG_LO 32
 #define REG_HI 33
+#define REG_CP2_TEMP (offsetof(struct lightrec_state, regs.cp2_temp_reg) / sizeof(u32))
 
 /* Definition of jit_state_t (avoids inclusion of <lightning.h>) */
 struct jit_node;
@@ -272,7 +273,7 @@ static inline u32 get_branch_pc(const struct block *block, u16 offset, s16 imm)
 	return block->pc + (offset + imm << 2);
 }
 
-void lightrec_mtc(struct lightrec_state *state, union code op, u32 data);
+void lightrec_mtc(struct lightrec_state *state, union code op, u8 reg, u32 data);
 u32 lightrec_mfc(struct lightrec_state *state, union code op);
 void lightrec_rfe(struct lightrec_state *state);
 void lightrec_cp(struct lightrec_state *state, union code op);

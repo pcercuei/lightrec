@@ -21,6 +21,11 @@ static void rec_SPECIAL(struct lightrec_cstate *state, const struct block *block
 static void rec_REGIMM(struct lightrec_cstate *state, const struct block *block, u16 offset);
 static void rec_CP0(struct lightrec_cstate *state, const struct block *block, u16 offset);
 static void rec_CP2(struct lightrec_cstate *state, const struct block *block, u16 offset);
+static void rec_cp2_do_mtc2(struct lightrec_cstate *state,
+			    const struct block *block, u16 offset, u8 reg, u8 in_reg);
+static void rec_cp2_do_mfc2(struct lightrec_cstate *state,
+			    const struct block *block, u16 offset,
+			    u8 reg, u8 out_reg);
 
 static void unknown_opcode(struct lightrec_cstate *state, const struct block *block, u16 offset)
 {
@@ -1150,8 +1155,10 @@ static void rec_store_memory(struct lightrec_cstate *cstate,
 		((!state->mirrors_mapped && !no_mask) || (invalidate &&
 		((imm & 0x3) || simm + lut_offt != (s16)(simm + lut_offt))));
 	bool need_tmp = !no_mask || addr_offset || add_imm || invalidate;
+	bool swc2 = c.i.op == OP_SWC2;
+	u8 in_reg = swc2 ? REG_CP2_TEMP : c.i.rt;
 
-	rt = lightrec_alloc_reg_in(reg_cache, _jit, c.i.rt, 0);
+	rt = lightrec_alloc_reg_in(reg_cache, _jit, in_reg, 0);
 	rs = lightrec_alloc_reg_in(reg_cache, _jit, c.i.rs, 0);
 	if (need_tmp)
 		tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
@@ -1179,7 +1186,7 @@ static void rec_store_memory(struct lightrec_cstate *cstate,
 		addr_reg2 = addr_reg;
 	}
 
-	if (is_big_endian() && swap_code && c.i.rt) {
+	if (is_big_endian() && swap_code && in_reg) {
 		tmp3 = lightrec_alloc_reg_temp(reg_cache, _jit);
 
 		jit_new_node_ww(swap_code, tmp3, rt);
@@ -1273,7 +1280,8 @@ static void rec_store_direct_no_invalidate(struct lightrec_cstate *cstate,
 	union code c = block->opcode_list[offset].c;
 	jit_state_t *_jit = block->_jit;
 	jit_node_t *to_not_ram, *to_end;
-	u8 tmp, tmp2, rs, rt;
+	bool swc2 = c.i.op == OP_SWC2;
+	u8 tmp, tmp2, rs, rt, in_reg = swc2 ? REG_CP2_TEMP : c.i.rt;
 	s16 imm;
 
 	jit_note(__FILE__, __LINE__);
@@ -1317,9 +1325,9 @@ static void rec_store_direct_no_invalidate(struct lightrec_cstate *cstate,
 		lightrec_free_reg(reg_cache, tmp2);
 	}
 
-	rt = lightrec_alloc_reg_in(reg_cache, _jit, c.i.rt, 0);
+	rt = lightrec_alloc_reg_in(reg_cache, _jit, in_reg, 0);
 
-	if (is_big_endian() && swap_code && c.i.rt) {
+	if (is_big_endian() && swap_code && in_reg) {
 		tmp2 = lightrec_alloc_reg_temp(reg_cache, _jit);
 
 		jit_new_node_ww(swap_code, tmp2, rt);
@@ -1343,7 +1351,8 @@ static void rec_store_direct(struct lightrec_cstate *cstate, const struct block 
 	union code c = block->opcode_list[offset].c;
 	jit_state_t *_jit = block->_jit;
 	jit_node_t *to_not_ram, *to_end;
-	u8 tmp, tmp2, tmp3, rs, rt;
+	bool swc2 = c.i.op == OP_SWC2;
+	u8 tmp, tmp2, tmp3, rs, rt, in_reg = swc2 ? REG_CP2_TEMP : c.i.rt;
 
 	jit_note(__FILE__, __LINE__);
 
@@ -1396,7 +1405,7 @@ static void rec_store_direct(struct lightrec_cstate *cstate, const struct block 
 	lightrec_free_reg(reg_cache, tmp);
 	lightrec_free_reg(reg_cache, tmp3);
 
-	rt = lightrec_alloc_reg_in(reg_cache, _jit, c.i.rt, 0);
+	rt = lightrec_alloc_reg_in(reg_cache, _jit, in_reg, 0);
 
 	if (is_big_endian() && swap_code && c.i.rt) {
 		tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
@@ -1418,10 +1427,26 @@ static void rec_store(struct lightrec_cstate *state,
 		      jit_code_t code, jit_code_t swap_code)
 {
 	u32 flags = block->opcode_list[offset].flags;
+	u32 mode = LIGHTREC_FLAGS_GET_IO_MODE(flags);
 	bool no_invalidate = op_flag_no_invalidate(flags) ||
 		state->state->invalidate_from_dma_only;
+	union code c = block->opcode_list[offset].c;
+	bool is_swc2 = c.i.op == OP_SWC2;
 
-	switch (LIGHTREC_FLAGS_GET_IO_MODE(flags)) {
+	if (is_swc2) {
+		switch (mode) {
+		case LIGHTREC_IO_RAM:
+		case LIGHTREC_IO_SCRATCH:
+		case LIGHTREC_IO_DIRECT:
+		case LIGHTREC_IO_DIRECT_HW:
+			rec_cp2_do_mfc2(state, block, offset, c.i.rt, REG_CP2_TEMP);
+			break;
+		default:
+			break;
+		}
+	}
+
+	switch (mode) {
 	case LIGHTREC_IO_RAM:
 		rec_store_ram(state, block, offset, code,
 			      swap_code, !no_invalidate);
@@ -1442,8 +1467,11 @@ static void rec_store(struct lightrec_cstate *state,
 		break;
 	default:
 		rec_io(state, block, offset, true, false);
-		break;
+		return;
 	}
+
+	if (is_swc2)
+		lightrec_discard_reg_if_loaded(state->reg_cache, REG_CP2_TEMP);
 }
 
 static void rec_SB(struct lightrec_cstate *state,
@@ -1465,7 +1493,9 @@ static void rec_SW(struct lightrec_cstate *state,
 		   const struct block *block, u16 offset)
 
 {
-	_jit_name(block->_jit, __func__);
+	union code c = block->opcode_list[offset].c;
+
+	_jit_name(block->_jit, c.i.op == OP_SWC2 ? "rec_SWC2" : "rec_SW");
 	rec_store(state, block, offset,
 		  jit_code_stxi_i, jit_code_bswapr_ui);
 }
@@ -1484,13 +1514,6 @@ static void rec_SWR(struct lightrec_cstate *state,
 	rec_io(state, block, offset, true, false);
 }
 
-static void rec_SWC2(struct lightrec_cstate *state,
-		     const struct block *block, u16 offset)
-{
-	_jit_name(block->_jit, __func__);
-	rec_io(state, block, offset, false, false);
-}
-
 static void rec_load_memory(struct lightrec_cstate *cstate,
 			    const struct block *block, u16 offset,
 			    jit_code_t code, jit_code_t swap_code, bool is_unsigned,
@@ -1499,19 +1522,23 @@ static void rec_load_memory(struct lightrec_cstate *cstate,
 	struct regcache *reg_cache = cstate->reg_cache;
 	struct opcode *op = &block->opcode_list[offset];
 	jit_state_t *_jit = block->_jit;
-	u8 rs, rt, addr_reg, flags = REG_EXT;
+	u8 rs, rt, out_reg, addr_reg, flags = REG_EXT;
 	bool no_mask = op_flag_no_mask(op->flags);
 	union code c = op->c;
 	s16 imm;
 
-	if (!c.i.rt)
+	if (c.i.op == OP_LWC2)
+		out_reg = REG_CP2_TEMP;
+	else if (c.i.rt)
+		out_reg = c.i.rt;
+	else
 		return;
 
 	if (is_unsigned)
 		flags |= REG_ZEXT;
 
 	rs = lightrec_alloc_reg_in(reg_cache, _jit, c.i.rs, 0);
-	rt = lightrec_alloc_reg_out(reg_cache, _jit, c.i.rt, flags);
+	rt = lightrec_alloc_reg_out(reg_cache, _jit, out_reg, flags);
 
 	if (!cstate->state->mirrors_mapped && c.i.imm && !no_mask) {
 		jit_addi(rt, rs, (s16)c.i.imm);
@@ -1597,10 +1624,14 @@ static void rec_load_direct(struct lightrec_cstate *cstate,
 	union code c = block->opcode_list[offset].c;
 	jit_state_t *_jit = block->_jit;
 	jit_node_t *to_not_ram, *to_not_bios, *to_end, *to_end2;
-	u8 tmp, rs, rt, addr_reg, flags = REG_EXT;
+	u8 tmp, rs, rt, out_reg, addr_reg, flags = REG_EXT;
 	s16 imm;
 
-	if (!c.i.rt)
+	if (c.i.op == OP_LWC2)
+		out_reg = REG_CP2_TEMP;
+	else if (c.i.rt)
+		out_reg = c.i.rt;
+	else
 		return;
 
 	if (is_unsigned)
@@ -1608,7 +1639,7 @@ static void rec_load_direct(struct lightrec_cstate *cstate,
 
 	jit_note(__FILE__, __LINE__);
 	rs = lightrec_alloc_reg_in(reg_cache, _jit, c.i.rs, 0);
-	rt = lightrec_alloc_reg_out(reg_cache, _jit, c.i.rt, flags);
+	rt = lightrec_alloc_reg_out(reg_cache, _jit, out_reg, flags);
 
 	if ((state->offset_ram == state->offset_bios &&
 	    state->offset_ram == state->offset_scratch &&
@@ -1700,7 +1731,8 @@ static void rec_load(struct lightrec_cstate *state, const struct block *block,
 		     u16 offset, jit_code_t code, jit_code_t swap_code,
 		     bool is_unsigned)
 {
-	u32 flags = block->opcode_list[offset].flags;
+	const struct opcode *op = &block->opcode_list[offset];
+	u32 flags = op->flags;
 
 	switch (LIGHTREC_FLAGS_GET_IO_MODE(flags)) {
 	case LIGHTREC_IO_RAM:
@@ -1720,7 +1752,12 @@ static void rec_load(struct lightrec_cstate *state, const struct block *block,
 		break;
 	default:
 		rec_io(state, block, offset, false, true);
-		break;
+		return;
+	}
+
+	if (op->i.op == OP_LWC2) {
+		rec_cp2_do_mtc2(state, block, offset, op->i.rt, REG_CP2_TEMP);
+		lightrec_discard_reg_if_loaded(state->reg_cache, REG_CP2_TEMP);
 	}
 }
 
@@ -1764,6 +1801,7 @@ static void rec_LWR(struct lightrec_cstate *state, const struct block *block, u1
 
 static void rec_LW(struct lightrec_cstate *state, const struct block *block, u16 offset)
 {
+	union code c = block->opcode_list[offset].c;
 	jit_code_t code;
 
 	if (is_big_endian() && __WORDSIZE == 64)
@@ -1771,14 +1809,8 @@ static void rec_LW(struct lightrec_cstate *state, const struct block *block, u16
 	else
 		code = jit_code_ldxi_i;
 
-	_jit_name(block->_jit, __func__);
+	_jit_name(block->_jit, c.i.op == OP_LWC2 ? "rec_LWC2" : "rec_LW");
 	rec_load(state, block, offset, code, jit_code_bswapr_ui, false);
-}
-
-static void rec_LWC2(struct lightrec_cstate *state, const struct block *block, u16 offset)
-{
-	_jit_name(block->_jit, __func__);
-	rec_io(state, block, offset, false, false);
 }
 
 static void rec_break_syscall(struct lightrec_cstate *state,
@@ -1826,7 +1858,9 @@ static void rec_mfc(struct lightrec_cstate *state, const struct block *block, u1
 	jit_state_t *_jit = block->_jit;
 
 	jit_note(__FILE__, __LINE__);
-	lightrec_clean_reg_if_loaded(reg_cache, _jit, c.i.rt, true);
+
+	if (c.i.op != OP_SWC2)
+		lightrec_clean_reg_if_loaded(reg_cache, _jit, c.i.rt, true);
 
 	call_to_c_wrapper(state, block, c.opcode, C_WRAPPER_MFC);
 }
@@ -2031,15 +2065,14 @@ static unsigned int cp2c_s_offset(u8 reg)
 	return cp2c_i_offset(reg) + is_big_endian() * 2;
 }
 
-static void rec_cp2_basic_MFC2(struct lightrec_cstate *state,
-			       const struct block *block, u16 offset)
+static void rec_cp2_do_mfc2(struct lightrec_cstate *state,
+			    const struct block *block, u16 offset,
+			    u8 reg, u8 out_reg)
 {
 	struct regcache *reg_cache = state->reg_cache;
-	const union code c = block->opcode_list[offset].c;
 	jit_state_t *_jit = block->_jit;
 	const u32 zext_regs = 0x300f0080;
 	u8 rt, tmp, tmp2, tmp3, out, flags;
-	u8 reg = c.r.rd == 15 ? 14 : c.r.rd;
 	unsigned int i;
 
 	_jit_name(block->_jit, __func__);
@@ -2051,7 +2084,10 @@ static void rec_cp2_basic_MFC2(struct lightrec_cstate *state,
 	}
 
 	flags = (zext_regs & BIT(reg)) ? REG_ZEXT : REG_EXT;
-	rt = lightrec_alloc_reg_out(reg_cache, _jit, c.r.rt, flags);
+	rt = lightrec_alloc_reg_out(reg_cache, _jit, out_reg, flags);
+
+	if (reg == 15)
+		reg = 14;
 
 	switch (reg) {
 	case 1:
@@ -2108,6 +2144,14 @@ static void rec_cp2_basic_MFC2(struct lightrec_cstate *state,
 	lightrec_free_reg(reg_cache, rt);
 }
 
+static void rec_cp2_basic_MFC2(struct lightrec_cstate *state,
+			       const struct block *block, u16 offset)
+{
+	const union code c = block->opcode_list[offset].c;
+
+	rec_cp2_do_mfc2(state, block, offset, c.r.rd, c.r.rt);
+}
+
 static void rec_cp2_basic_CFC2(struct lightrec_cstate *state,
 			       const struct block *block, u16 offset)
 {
@@ -2144,11 +2188,11 @@ static void rec_cp2_basic_CFC2(struct lightrec_cstate *state,
 	lightrec_free_reg(reg_cache, rt);
 }
 
-static void rec_cp2_basic_MTC2(struct lightrec_cstate *state,
-			       const struct block *block, u16 offset)
+static void rec_cp2_do_mtc2(struct lightrec_cstate *state,
+			    const struct block *block, u16 offset,
+			    u8 reg, u8 in_reg)
 {
 	struct regcache *reg_cache = state->reg_cache;
-	const union code c = block->opcode_list[offset].c;
 	jit_state_t *_jit = block->_jit;
 	jit_node_t *loop, *to_loop;
 	u8 rt, tmp, tmp2, flags = 0;
@@ -2161,15 +2205,15 @@ static void rec_cp2_basic_MTC2(struct lightrec_cstate *state,
 		return;
 	}
 
-	if (c.r.rd == 31)
+	if (reg == 31)
 		return;
 
-	if (c.r.rd == 30)
+	if (reg == 30)
 		flags |= REG_EXT;
 
-	rt = lightrec_alloc_reg_in(reg_cache, _jit, c.r.rt, flags);
+	rt = lightrec_alloc_reg_in(reg_cache, _jit, in_reg, flags);
 
-	switch (c.r.rd) {
+	switch (reg) {
 	case 15:
 		tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
 		jit_ldxi_i(tmp, LIGHTREC_REG_STATE, cp2d_i_offset(13));
@@ -2228,11 +2272,19 @@ static void rec_cp2_basic_MTC2(struct lightrec_cstate *state,
 		lightrec_free_reg(reg_cache, tmp2);
 		break;
 	default:
-		jit_stxi_i(cp2d_i_offset(c.r.rd), LIGHTREC_REG_STATE, rt);
+		jit_stxi_i(cp2d_i_offset(reg), LIGHTREC_REG_STATE, rt);
 		break;
 	}
 
 	lightrec_free_reg(reg_cache, rt);
+}
+
+static void rec_cp2_basic_MTC2(struct lightrec_cstate *state,
+			       const struct block *block, u16 offset)
+{
+	const union code c = block->opcode_list[offset].c;
+
+	rec_cp2_do_mtc2(state, block, offset, c.r.rd, c.r.rt);
 }
 
 static void rec_cp2_basic_CTC2(struct lightrec_cstate *state,
@@ -2483,8 +2535,8 @@ static const lightrec_rec_func_t rec_standard[64] = {
 	[OP_SWL]		= rec_SWL,
 	[OP_SW]			= rec_SW,
 	[OP_SWR]		= rec_SWR,
-	[OP_LWC2]		= rec_LWC2,
-	[OP_SWC2]		= rec_SWC2,
+	[OP_LWC2]		= rec_LW,
+	[OP_SWC2]		= rec_SW,
 
 	[OP_META_MOV]		= rec_meta_MOV,
 	[OP_META_EXTC]		= rec_meta_EXTC_EXTS,
