@@ -198,7 +198,7 @@ static void lightrec_invalidate_map(struct lightrec_state *state,
 	}
 }
 
-enum psx_map
+static enum psx_map
 lightrec_get_map_idx(struct lightrec_state *state, u32 kaddr)
 {
 	const struct lightrec_mem_map *map;
