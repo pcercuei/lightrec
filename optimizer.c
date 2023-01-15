@@ -506,7 +506,10 @@ static void lightrec_optimize_sll_sra(struct opcode *list, unsigned int offset,
 	if (curr->r.imm != 24 && curr->r.imm != 16)
 		return;
 
-	idx = find_next_reader(list, offset, curr->r.rd);
+	if (is_delay_slot(list, offset))
+		return;
+
+	idx = find_next_reader(list, offset + 1, curr->r.rd);
 	if (idx < 0)
 		return;
 
