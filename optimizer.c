@@ -269,15 +269,13 @@ static int find_next_reader(const struct opcode *list, unsigned int offset, u8 r
 	for (i = offset; ; i++) {
 		c = list[i].c;
 
-		if (opcode_reads_register(c, reg)) {
-			if (i > 0 && has_delay_slot(list[i - 1].c))
-				break;
-
+		if (opcode_reads_register(c, reg))
 			return i;
-		}
 
-		if (op_flag_sync(list[i].flags) ||
-		    has_delay_slot(c) || opcode_writes_register(c, reg))
+		if (op_flag_sync(list[i].flags)
+		    || (op_flag_no_ds(list[i].flags) && has_delay_slot(c))
+		    || is_delay_slot(list, i)
+		    || opcode_writes_register(c, reg))
 			break;
 	}
 
