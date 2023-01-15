@@ -2398,24 +2398,46 @@ static void rec_meta_MOV(struct lightrec_cstate *state,
 			 const struct block *block, u16 offset)
 {
 	struct regcache *reg_cache = state->reg_cache;
-	union code c = block->opcode_list[offset].c;
+	const struct opcode *op = &block->opcode_list[offset];
+	union code c = op->c;
 	jit_state_t *_jit = block->_jit;
+	bool unload_rd;
 	u8 rs, rd;
 
 	_jit_name(block->_jit, __func__);
 	jit_note(__FILE__, __LINE__);
-	if (c.r.rs)
+
+	unload_rd = OPT_EARLY_UNLOAD
+		&& LIGHTREC_FLAGS_GET_RD(op->flags) == LIGHTREC_REG_UNLOAD;
+
+	if (c.r.rs || unload_rd)
 		rs = lightrec_alloc_reg_in(reg_cache, _jit, c.r.rs, 0);
-	rd = lightrec_alloc_reg_out(reg_cache, _jit, c.r.rd, REG_EXT);
 
-	if (c.r.rs == 0)
-		jit_movi(rd, 0);
-	else
-		jit_extr_i(rd, rs);
+	if (unload_rd) {
+		/* If the destination register will be unloaded right after the
+		 * MOV meta-opcode, we don't actually need to write any host
+		 * register - we can just store the source register directly to
+		 * the register cache, at the offset corresponding to the
+		 * destination register. */
+		lightrec_discard_reg_if_loaded(reg_cache, c.r.rd);
 
-	if (c.r.rs)
+		jit_stxi_i(offsetof(struct lightrec_state, regs.gpr)
+			   + c.r.rd << 2, LIGHTREC_REG_STATE, rs);
+
 		lightrec_free_reg(reg_cache, rs);
-	lightrec_free_reg(reg_cache, rd);
+	} else {
+		rd = lightrec_alloc_reg_out(reg_cache, _jit, c.r.rd, REG_EXT);
+
+		if (c.r.rs == 0)
+			jit_movi(rd, 0);
+		else
+			jit_extr_i(rd, rs);
+
+		lightrec_free_reg(reg_cache, rd);
+	}
+
+	if (c.r.rs || unload_rd)
+		lightrec_free_reg(reg_cache, rs);
 }
 
 static void rec_meta_EXTC_EXTS(struct lightrec_cstate *state,
