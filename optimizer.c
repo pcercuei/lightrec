@@ -288,7 +288,7 @@ static bool reg_is_dead(const struct opcode *list, unsigned int offset, u8 reg)
 {
 	unsigned int i;
 
-	if (op_flag_sync(list[offset].flags))
+	if (op_flag_sync(list[offset].flags) || is_delay_slot(list, offset))
 		return false;
 
 	for (i = offset + 1; ; i++) {
