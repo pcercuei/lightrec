@@ -967,11 +967,8 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 			}
 			break;
 		case OP_ANDI:
-			if ((op->i.imm == 0xff
-			     && bits_are_known_zero(v, op->i.rs, ~0xff))
-			    || (op->i.imm == 0xffff
-				&& bits_are_known_zero(v, op->i.rs, ~0xffff))) {
-				pr_debug("Found useless ANDI 0xff/0xffff\n");
+			if (bits_are_known_zero(v, op->i.rs, ~op->i.imm)) {
+				pr_debug("Found useless ANDI 0x%x\n", op->i.imm);
 
 				if (op->i.rs == op->i.rt) {
 					op->opcode = 0;
