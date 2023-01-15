@@ -1190,8 +1190,7 @@ static int lightrec_switch_delay_slots(struct lightrec_state *state, struct bloc
 		    op.opcode == 0 || next_op.opcode == 0)
 			continue;
 
-		if (i && has_delay_slot(block->opcode_list[i - 1].c) &&
-		    !op_flag_no_ds(block->opcode_list[i - 1].flags))
+		if (is_delay_slot(block->opcode_list, i))
 			continue;
 
 		if (op_flag_sync(next->flags))
@@ -1370,6 +1369,13 @@ bool has_delay_slot(union code op)
 	default:
 		return false;
 	}
+}
+
+bool is_delay_slot(const struct opcode *list, unsigned int offset)
+{
+	return offset > 0
+		&& !op_flag_no_ds(list[offset - 1].flags)
+		&& has_delay_slot(list[offset - 1].c);
 }
 
 bool should_emulate(const struct opcode *list)
@@ -1885,7 +1891,7 @@ static int lightrec_flag_mults_divs(struct lightrec_state *state, struct block *
 		}
 
 		/* Don't support opcodes in delay slots */
-		if ((i && has_delay_slot(block->opcode_list[i - 1].c)) ||
+		if (is_delay_slot(block->opcode_list, i) ||
 		    op_flag_no_ds(list->flags)) {
 			continue;
 		}
