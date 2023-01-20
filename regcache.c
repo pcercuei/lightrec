@@ -24,7 +24,7 @@ enum reg_priority {
 struct native_register {
 	bool used, output, extend, extended,
 	     zero_extend, zero_extended, locked;
-	s8 emulated_register;
+	s16 emulated_register;
 	intptr_t value;
 	enum reg_priority prio;
 };
@@ -61,7 +61,7 @@ static inline bool lightrec_reg_is_zero(u8 jit_reg)
 	return false;
 }
 
-static inline s8 lightrec_get_hardwired_reg(u8 reg)
+static inline s8 lightrec_get_hardwired_reg(u16 reg)
 {
 #if defined(__mips__) || defined(__alpha__) || defined(__riscv)
 	if (reg == 0)
@@ -159,7 +159,7 @@ static struct native_register * alloc_temp(struct regcache *cache)
 }
 
 static struct native_register * find_mapped_reg(struct regcache *cache,
-						u8 reg, bool out)
+						u16 reg, bool out)
 {
 	unsigned int i;
 
@@ -175,7 +175,7 @@ static struct native_register * find_mapped_reg(struct regcache *cache,
 }
 
 static struct native_register * alloc_in_out(struct regcache *cache,
-					     u8 reg, bool out)
+					     u16 reg, bool out)
 {
 	struct native_register *elm, *nreg = NULL;
 	enum reg_priority best = REG_NB_PRIORITIES;
@@ -313,7 +313,7 @@ void lightrec_temp_set_value(struct regcache *cache, u8 jit_reg, intptr_t value)
 }
 
 u8 lightrec_alloc_reg_out(struct regcache *cache, jit_state_t *_jit,
-			  u8 reg, u8 flags)
+			  u16 reg, u8 flags)
 {
 	struct native_register *nreg;
 	u8 jit_reg;
@@ -347,7 +347,7 @@ u8 lightrec_alloc_reg_out(struct regcache *cache, jit_state_t *_jit,
 }
 
 u8 lightrec_alloc_reg_in(struct regcache *cache, jit_state_t *_jit,
-			 u8 reg, u8 flags)
+			 u16 reg, u8 flags)
 {
 	struct native_register *nreg;
 	u8 jit_reg;
@@ -417,7 +417,7 @@ u8 lightrec_alloc_reg_in(struct regcache *cache, jit_state_t *_jit,
 }
 
 u8 lightrec_request_reg_in(struct regcache *cache, jit_state_t *_jit,
-			   u8 reg, u8 jit_reg)
+			   u16 reg, u8 jit_reg)
 {
 	struct native_register *nreg;
 	u16 offset;
@@ -535,7 +535,7 @@ void lightrec_clean_reg(struct regcache *cache, jit_state_t *_jit, u8 jit_reg)
 }
 
 void lightrec_clean_reg_if_loaded(struct regcache *cache, jit_state_t *_jit,
-				  u8 reg, bool unload)
+				  u16 reg, bool unload)
 {
 	struct native_register *nreg;
 	u8 jit_reg;
@@ -551,7 +551,7 @@ void lightrec_clean_reg_if_loaded(struct regcache *cache, jit_state_t *_jit,
 	}
 }
 
-void lightrec_discard_reg_if_loaded(struct regcache *cache, u8 reg)
+void lightrec_discard_reg_if_loaded(struct regcache *cache, u16 reg)
 {
 	struct native_register *nreg;
 
