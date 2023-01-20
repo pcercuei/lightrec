@@ -462,7 +462,7 @@ static void lightrec_mfc_cb(struct lightrec_state *state, union code op)
 	u32 rt = lightrec_mfc(state, op);
 
 	if (op.i.op == OP_SWC2)
-		state->regs.cp2_temp_reg = rt;
+		state->cp2_temp_reg = rt;
 	else if (op.r.rt)
 		state->regs.gpr[op.r.rt] = rt;
 }
@@ -603,7 +603,7 @@ static void lightrec_mtc_cb(struct lightrec_state *state, u32 arg)
 	u8 reg;
 
 	if (op.i.op == OP_LWC2) {
-		data = state->regs.cp2_temp_reg;
+		data = state->cp2_temp_reg;
 		reg = op.i.rt;
 	} else {
 		data = state->regs.gpr[op.r.rt];

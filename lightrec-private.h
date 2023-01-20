@@ -81,7 +81,7 @@
 
 #define REG_LO 32
 #define REG_HI 33
-#define REG_CP2_TEMP (offsetof(struct lightrec_state, regs.cp2_temp_reg) / sizeof(u32))
+#define REG_CP2_TEMP (offsetof(struct lightrec_state, cp2_temp_reg) / sizeof(u32))
 
 /* Definition of jit_state_t (avoids inclusion of <lightning.h>) */
 struct jit_node;
@@ -153,8 +153,9 @@ struct lightrec_cstate {
 
 struct lightrec_state {
 	struct lightrec_registers regs;
-	uintptr_t wrapper_regs[NUM_TEMPS];
+	u32 cp2_temp_reg;
 	u32 next_pc;
+	uintptr_t wrapper_regs[NUM_TEMPS];
 	u32 current_cycle;
 	u32 target_cycle;
 	u32 exit_flags;

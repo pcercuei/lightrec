@@ -93,7 +93,6 @@ struct lightrec_ops {
 
 struct lightrec_registers {
 	u32 gpr[34];
-	u32 cp2_temp_reg;
 	u32 cp0[32];
 	u32 cp2d[32];
 	u32 cp2c[32];
