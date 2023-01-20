@@ -1022,6 +1022,7 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 	jit_frame(256);
 
 	jit_getarg(LIGHTREC_REG_STATE, jit_arg());
+	jit_getarg(JIT_V0, jit_arg());
 	jit_getarg(JIT_V1, jit_arg());
 	jit_getarg_i(LIGHTREC_REG_CYCLE, jit_arg());
 
@@ -1123,6 +1124,10 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 	} else {
 		jit_movr(LIGHTREC_REG_CYCLE, JIT_V0);
 	}
+
+	/* Reset JIT_V0 to the next PC */
+	jit_ldxi_ui(JIT_V0, LIGHTREC_REG_STATE,
+		    offsetof(struct lightrec_state, next_pc));
 
 	/* If we get non-NULL, loop */
 	jit_patch_at(jit_bnei(JIT_V1, 0), loop);
@@ -1408,6 +1413,8 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 	block->_jit = _jit;
 
 	lightrec_regcache_reset(cstate->reg_cache);
+	lightrec_preload_pc(cstate->reg_cache);
+
 	cstate->cycles = 0;
 	cstate->nb_local_branches = 0;
 	cstate->nb_targets = 0;
@@ -1612,7 +1619,7 @@ static void lightrec_print_info(struct lightrec_state *state)
 
 u32 lightrec_execute(struct lightrec_state *state, u32 pc, u32 target_cycle)
 {
-	s32 (*func)(struct lightrec_state *, void *, s32) = (void *)state->dispatcher->function;
+	s32 (*func)(struct lightrec_state *, u32, void *, s32) = (void *)state->dispatcher->function;
 	void *block_trace;
 	s32 cycles_delta;
 
@@ -1629,7 +1636,8 @@ u32 lightrec_execute(struct lightrec_state *state, u32 pc, u32 target_cycle)
 	if (block_trace) {
 		cycles_delta = state->target_cycle - state->current_cycle;
 
-		cycles_delta = (*func)(state, block_trace, cycles_delta);
+		cycles_delta = (*func)(state, state->next_pc,
+				       block_trace, cycles_delta);
 
 		state->current_cycle = state->target_cycle - cycles_delta;
 	}

@@ -11,6 +11,8 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#define REG_PC (offsetof(struct lightrec_state, next_pc) / sizeof(u32))
+
 enum reg_priority {
 	REG_IS_TEMP,
 	REG_IS_TEMP_VALUE,
@@ -582,6 +584,17 @@ void lightrec_regcache_leave_branch(struct regcache *cache,
 void lightrec_regcache_reset(struct regcache *cache)
 {
 	memset(&cache->lightrec_regs, 0, sizeof(cache->lightrec_regs));
+}
+
+void lightrec_preload_pc(struct regcache *cache)
+{
+	struct native_register *nreg;
+
+	/* The block's PC is loaded in JIT_V0 at the start of the block */
+	nreg = lightning_reg_to_lightrec(cache, JIT_V0);
+	nreg->emulated_register = REG_PC;
+	nreg->prio = REG_IS_LOADED;
+	nreg->zero_extended = true;
 }
 
 struct regcache * lightrec_regcache_init(struct lightrec_state *state)
