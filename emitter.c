@@ -69,12 +69,10 @@ static void lightrec_emit_end_of_block(struct lightrec_cstate *state,
 	if (link)
 		update_ra_register(reg_cache, _jit, ra_reg, block->pc, link);
 
-	if (reg_new_pc < 0) {
-		reg_new_pc = lightrec_alloc_reg(reg_cache, _jit, JIT_V0);
-		lightrec_lock_reg(reg_cache, _jit, reg_new_pc);
-
-		jit_movi(reg_new_pc, imm);
-	}
+	if (reg_new_pc < 0)
+		lightrec_load_next_pc_imm(reg_cache, _jit, block->pc, imm);
+	else
+		lightrec_load_next_pc(reg_cache, _jit, reg_new_pc);
 
 	if (has_delay_slot(op->c) &&
 	    !op_flag_no_ds(op->flags) && !op_flag_local_branch(op->flags)) {
@@ -87,8 +85,6 @@ static void lightrec_emit_end_of_block(struct lightrec_cstate *state,
 
 	/* Clean the remaining registers */
 	lightrec_clean_regs(reg_cache, _jit);
-
-	jit_movr(JIT_V0, reg_new_pc);
 
 	if (cycles && update_cycles) {
 		jit_subi(LIGHTREC_REG_CYCLE, LIGHTREC_REG_CYCLE, cycles);
@@ -113,34 +109,20 @@ void lightrec_emit_eob(struct lightrec_cstate *state,
 	lightrec_jump_to_eob(state, _jit);
 }
 
-static u8 get_jr_jalr_reg(struct lightrec_cstate *state, const struct block *block, u16 offset)
-{
-	struct regcache *reg_cache = state->reg_cache;
-	jit_state_t *_jit = block->_jit;
-	const struct opcode *op = &block->opcode_list[offset];
-	u8 rs;
-
-	rs = lightrec_request_reg_in(reg_cache, _jit, op->r.rs, JIT_V0);
-	lightrec_lock_reg(reg_cache, _jit, rs);
-
-	return rs;
-}
-
 static void rec_special_JR(struct lightrec_cstate *state, const struct block *block, u16 offset)
 {
-	u8 rs = get_jr_jalr_reg(state, block, offset);
+	union code c = block->opcode_list[offset].c;
 
 	_jit_name(block->_jit, __func__);
-	lightrec_emit_end_of_block(state, block, offset, rs, 0, 31, 0, true);
+	lightrec_emit_end_of_block(state, block, offset, c.r.rs, 0, 31, 0, true);
 }
 
 static void rec_special_JALR(struct lightrec_cstate *state, const struct block *block, u16 offset)
 {
-	u8 rs = get_jr_jalr_reg(state, block, offset);
 	union code c = block->opcode_list[offset].c;
 
 	_jit_name(block->_jit, __func__);
-	lightrec_emit_end_of_block(state, block, offset, rs, 0, c.r.rd,
+	lightrec_emit_end_of_block(state, block, offset, c.r.rs, 0, c.r.rd,
 				   get_branch_pc(block, offset, 2), true);
 }
 
