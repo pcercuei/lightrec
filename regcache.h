@@ -50,6 +50,7 @@ u8 lightrec_request_reg_in(struct regcache *cache, jit_state_t *_jit,
 
 void lightrec_load_imm(struct regcache *cache,
 		       jit_state_t *_jit, u8 jit_reg, u32 pc, u32 imm);
+void lightrec_load_next_pc(struct regcache *cache, jit_state_t *_jit, u8 reg);
 
 s8 lightrec_get_reg_with_value(struct regcache *cache, intptr_t value);
 void lightrec_temp_set_value(struct regcache *cache, u8 jit_reg, intptr_t value);

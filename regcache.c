@@ -463,6 +463,55 @@ void lightrec_load_imm(struct regcache *cache,
 		jit_movi(jit_reg, imm);
 }
 
+void lightrec_load_next_pc(struct regcache *cache, jit_state_t *_jit, u8 reg)
+{
+	struct native_register *nreg_v0, *nreg;
+	u16 offset;
+	u8 jit_reg;
+
+	/* Invalidate JIT_V0 if it is not mapped to 'reg' */
+	nreg_v0 = lightning_reg_to_lightrec(cache, JIT_V0);
+	if (nreg_v0->prio >= REG_IS_LOADED && nreg_v0->emulated_register != reg)
+		lightrec_unload_nreg(cache, _jit, nreg_v0, JIT_V0);
+
+	nreg = find_mapped_reg(cache, reg, false);
+	if (!nreg) {
+		/* Not mapped - load the value from the register cache */
+
+		offset = offsetof(struct lightrec_state, regs.gpr) + (reg << 2);
+		jit_ldxi_ui(JIT_V0, LIGHTREC_REG_STATE, offset);
+
+		nreg_v0->prio = REG_IS_LOADED;
+		nreg_v0->emulated_register = reg;
+
+	} else if (nreg == nreg_v0) {
+		/* The target register 'reg' is mapped to JIT_V0 */
+
+		if (!nreg->zero_extended)
+			jit_extr_ui(JIT_V0, JIT_V0);
+
+	} else {
+		/* The target register 'reg' is mapped elsewhere. In that case,
+		 * move the register's value to JIT_V0 and re-map it in the
+		 * register cache. We can then safely discard the original
+		 * mapped register (even if it was dirty). */
+
+		jit_reg = lightrec_reg_to_lightning(cache, nreg);
+		if (nreg->zero_extended)
+			jit_movr(JIT_V0, jit_reg);
+		else
+			jit_extr_ui(JIT_V0, jit_reg);
+
+		*nreg_v0 = *nreg;
+		lightrec_discard_nreg(nreg);
+	}
+
+	lightrec_clean_reg(cache, _jit, JIT_V0);
+
+	nreg_v0->zero_extended = true;
+	nreg_v0->locked = true;
+}
+
 static void free_reg(struct native_register *nreg)
 {
 	/* Set output registers as dirty */
