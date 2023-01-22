@@ -148,7 +148,7 @@ static struct native_register * alloc_temp(struct regcache *cache)
 	for (i = ARRAY_SIZE(cache->lightrec_regs); i; i--) {
 		elm = &cache->lightrec_regs[i - 1];
 
-		if (!elm->used && elm->prio < best) {
+		if (!elm->used && !elm->locked && elm->prio < best) {
 			nreg = elm;
 			best = elm->prio;
 
@@ -193,7 +193,7 @@ static struct native_register * alloc_in_out(struct regcache *cache,
 	for (i = 0; i < ARRAY_SIZE(cache->lightrec_regs); i++) {
 		elm = &cache->lightrec_regs[i];
 
-		if (!elm->used && elm->prio < best) {
+		if (!elm->used && !elm->locked && elm->prio < best) {
 			nreg = elm;
 			best = elm->prio;
 
@@ -240,7 +240,7 @@ void lightrec_unload_reg(struct regcache *cache, jit_state_t *_jit, u8 jit_reg)
 }
 
 /* lightrec_lock_reg: the register will be cleaned if dirty, then locked.
- * A locked register cannot only be used as input, not output. */
+ * A locked register can only be used as input, not output. */
 void lightrec_lock_reg(struct regcache *cache, jit_state_t *_jit, u8 jit_reg)
 {
 	struct native_register *reg;
