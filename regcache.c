@@ -463,6 +463,26 @@ void lightrec_load_imm(struct regcache *cache,
 		jit_movi(jit_reg, imm);
 }
 
+void lightrec_load_next_pc_imm(struct regcache *cache,
+			       jit_state_t *_jit, u32 pc, u32 imm)
+{
+	struct native_register *nreg = lightning_reg_to_lightrec(cache, JIT_V0);
+
+	if (reg_pc_is_mapped(cache)) {
+		/* JIT_V0 contains next PC - so we can overwrite it */
+		lightrec_load_imm(cache, _jit, JIT_V0, pc, imm);
+	} else {
+		/* JIT_V0 contains something else - invalidate it */
+		lightrec_unload_reg(cache, _jit, JIT_V0);
+
+		jit_movi(JIT_V0, imm);
+	}
+
+	nreg->prio = REG_IS_LOADED;
+	nreg->emulated_register = -1;
+	nreg->locked = true;
+}
+
 void lightrec_load_next_pc(struct regcache *cache, jit_state_t *_jit, u8 reg)
 {
 	struct native_register *nreg_v0, *nreg;
