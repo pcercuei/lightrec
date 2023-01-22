@@ -339,4 +339,14 @@ static inline u8 block_clear_flags(struct block *block, u8 mask)
 #endif
 }
 
+static inline _Bool can_sign_extend(s32 value, u8 order)
+{
+      return (u32)(value >> order - 1) + 1 < 2;
+}
+
+static inline _Bool can_zero_extend(u32 value, u8 order)
+{
+      return (value >> order) == 0;
+}
+
 #endif /* __LIGHTREC_PRIVATE_H__ */

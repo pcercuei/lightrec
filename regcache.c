@@ -447,6 +447,22 @@ u8 lightrec_request_reg_in(struct regcache *cache, jit_state_t *_jit,
 	return jit_reg;
 }
 
+static bool reg_pc_is_mapped(struct regcache *cache)
+{
+	struct native_register *nreg = lightning_reg_to_lightrec(cache, JIT_V0);
+
+	return nreg->prio == REG_IS_LOADED && nreg->emulated_register == REG_PC;
+}
+
+void lightrec_load_imm(struct regcache *cache,
+		       jit_state_t *_jit, u8 jit_reg, u32 pc, u32 imm)
+{
+	if (reg_pc_is_mapped(cache) && can_sign_extend(imm - pc, 16))
+		jit_addi(jit_reg, JIT_V0, (s32)(imm - pc));
+	else
+		jit_movi(jit_reg, imm);
+}
+
 static void free_reg(struct native_register *nreg)
 {
 	/* Set output registers as dirty */
