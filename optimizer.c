@@ -1872,8 +1872,7 @@ static int lightrec_flag_mults_divs(struct lightrec_state *state, struct block *
 				/* If we are dividing by a non-zero constant, don't
 				 * emit the div-by-zero check. */
 				if (lightrec_always_skip_div_check() ||
-				    (is_known(v, list->c.r.rt)
-				     && v[list->c.r.rt].value)) {
+				    (v[list->r.rt].known & v[list->r.rt].value)) {
 					list->flags |= LIGHTREC_NO_DIV_CHECK;
 				}
 				fallthrough;
