@@ -43,6 +43,16 @@ lightrec_jump_to_eob(struct lightrec_cstate *state, jit_state_t *_jit)
 	jit_patch_abs(jit_jmpi(), state->state->eob_wrapper_func);
 }
 
+static void update_ra_register(struct regcache *reg_cache, jit_state_t *_jit,
+			       u8 ra_reg, u32 pc, u32 link)
+{
+	u8 link_reg;
+
+	link_reg = lightrec_alloc_reg_out(reg_cache, _jit, ra_reg, 0);
+	lightrec_load_imm(reg_cache, _jit, link_reg, pc, link);
+	lightrec_free_reg(reg_cache, link_reg);
+}
+
 static void lightrec_emit_end_of_block(struct lightrec_cstate *state,
 				       const struct block *block, u16 offset,
 				       s8 reg_new_pc, u32 imm, u8 ra_reg,
@@ -56,12 +66,8 @@ static void lightrec_emit_end_of_block(struct lightrec_cstate *state,
 
 	jit_note(__FILE__, __LINE__);
 
-	if (link) {
-		/* Update the $ra register */
-		u8 link_reg = lightrec_alloc_reg_out(reg_cache, _jit, ra_reg, 0);
-		jit_movi(link_reg, link);
-		lightrec_free_reg(reg_cache, link_reg);
-	}
+	if (link)
+		update_ra_register(reg_cache, _jit, ra_reg, block->pc, link);
 
 	if (reg_new_pc < 0) {
 		reg_new_pc = lightrec_alloc_reg(reg_cache, _jit, JIT_V0);
@@ -100,7 +106,8 @@ void lightrec_emit_eob(struct lightrec_cstate *state,
 
 	lightrec_clean_regs(reg_cache, _jit);
 
-	jit_movi(JIT_V0, block->pc + (offset << 2));
+	lightrec_load_imm(reg_cache, _jit, JIT_V0, block->pc,
+			  block->pc + (offset << 2));
 	jit_subi(LIGHTREC_REG_CYCLE, LIGHTREC_REG_CYCLE, state->cycles);
 
 	lightrec_jump_to_eob(state, _jit);
@@ -204,12 +211,12 @@ static void rec_b(struct lightrec_cstate *state, const struct block *block, u16 
 	const struct opcode *op = &block->opcode_list[offset],
 			    *next = &block->opcode_list[offset + 1];
 	jit_node_t *addr;
-	u8 link_reg, rs, rt;
 	bool is_forward = (s16)op->i.imm >= -1;
 	int op_cycles = lightrec_cycles_of_opcode(op->c);
 	u32 target_offset, cycles = state->cycles + op_cycles;
 	bool no_indirection = false;
 	u32 next_pc;
+	u8 rs, rt;
 
 	jit_note(__FILE__, __LINE__);
 
@@ -253,12 +260,8 @@ static void rec_b(struct lightrec_cstate *state, const struct block *block, u16 
 		if (!op_flag_no_ds(op->flags) && next->opcode)
 			lightrec_rec_opcode(state, block, offset + 1);
 
-		if (link) {
-			/* Update the $ra register */
-			link_reg = lightrec_alloc_reg_out(reg_cache, _jit, 31, 0);
-			jit_movi(link_reg, link);
-			lightrec_free_reg(reg_cache, link_reg);
-		}
+		if (link)
+			update_ra_register(reg_cache, _jit, 31, block->pc, link);
 
 		/* Clean remaining registers */
 		lightrec_clean_regs(reg_cache, _jit);
@@ -292,13 +295,8 @@ static void rec_b(struct lightrec_cstate *state, const struct block *block, u16 
 
 		lightrec_regcache_leave_branch(reg_cache, regs_backup);
 
-		if (bz && link) {
-			/* Update the $ra register */
-			link_reg = lightrec_alloc_reg_out(reg_cache, _jit,
-							  31, REG_EXT);
-			jit_movi(link_reg, (s32)link);
-			lightrec_free_reg(reg_cache, link_reg);
-		}
+		if (bz && link)
+			update_ra_register(reg_cache, _jit, 31, block->pc, link);
 
 		if (!op_flag_no_ds(op->flags) && next->opcode)
 			lightrec_rec_opcode(state, block, offset + 1);
