@@ -66,13 +66,20 @@ static void lightrec_emit_end_of_block(struct lightrec_cstate *state,
 
 	jit_note(__FILE__, __LINE__);
 
-	if (link)
+	if (link && ra_reg != reg_new_pc)
 		update_ra_register(reg_cache, _jit, ra_reg, block->pc, link);
 
 	if (reg_new_pc < 0)
 		lightrec_load_next_pc_imm(reg_cache, _jit, block->pc, imm);
 	else
 		lightrec_load_next_pc(reg_cache, _jit, reg_new_pc);
+
+	if (link && ra_reg == reg_new_pc) {
+		/* Handle the special case: JALR $r0, $r0
+		 * In that case the target PC should be the old value of the
+		 * register. */
+		update_ra_register(reg_cache, _jit, ra_reg, block->pc, link);
+	}
 
 	if (has_delay_slot(op->c) &&
 	    !op_flag_no_ds(op->flags) && !op_flag_local_branch(op->flags)) {
