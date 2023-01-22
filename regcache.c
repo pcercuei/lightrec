@@ -239,21 +239,6 @@ void lightrec_unload_reg(struct regcache *cache, jit_state_t *_jit, u8 jit_reg)
 			lightning_reg_to_lightrec(cache, jit_reg), jit_reg);
 }
 
-/* lightrec_lock_reg: the register will be cleaned if dirty, then locked.
- * A locked register can only be used as input, not output. */
-void lightrec_lock_reg(struct regcache *cache, jit_state_t *_jit, u8 jit_reg)
-{
-	struct native_register *reg;
-
-	if (lightrec_reg_is_zero(jit_reg))
-		return;
-
-	reg = lightning_reg_to_lightrec(cache, jit_reg);
-	lightrec_clean_reg(cache, _jit, jit_reg);
-
-	reg->locked = true;
-}
-
 u8 lightrec_alloc_reg(struct regcache *cache, jit_state_t *_jit, u8 jit_reg)
 {
 	struct native_register *reg;
@@ -414,35 +399,6 @@ u8 lightrec_alloc_reg_in(struct regcache *cache, jit_state_t *_jit,
 		nreg->extended = false;
 		jit_extr_ui(jit_reg, jit_reg);
 	}
-
-	return jit_reg;
-}
-
-u8 lightrec_request_reg_in(struct regcache *cache, jit_state_t *_jit,
-			   u16 reg, u8 jit_reg)
-{
-	struct native_register *nreg;
-	u16 offset;
-
-	nreg = find_mapped_reg(cache, reg, false);
-	if (nreg) {
-		jit_reg = lightrec_reg_to_lightning(cache, nreg);
-		nreg->used = true;
-		return jit_reg;
-	}
-
-	nreg = lightning_reg_to_lightrec(cache, jit_reg);
-	lightrec_unload_nreg(cache, _jit, nreg, jit_reg);
-
-	/* Load previous value from register cache */
-	offset = offsetof(struct lightrec_state, regs.gpr) + (reg << 2);
-	jit_ldxi_i(jit_reg, LIGHTREC_REG_STATE, offset);
-
-	nreg->extended = true;
-	nreg->zero_extended = false;
-	nreg->used = true;
-	nreg->emulated_register = reg;
-	nreg->prio = REG_IS_LOADED;
 
 	return jit_reg;
 }

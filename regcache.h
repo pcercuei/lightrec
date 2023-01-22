@@ -45,9 +45,6 @@ u8 lightrec_alloc_reg_out(struct regcache *cache, jit_state_t *_jit,
 u8 lightrec_alloc_reg_in(struct regcache *cache, jit_state_t *_jit,
 			 u16 reg, u8 flags);
 
-u8 lightrec_request_reg_in(struct regcache *cache, jit_state_t *_jit,
-			   u16 reg, u8 jit_reg);
-
 void lightrec_load_imm(struct regcache *cache,
 		       jit_state_t *_jit, u8 jit_reg, u32 pc, u32 imm);
 void lightrec_load_next_pc(struct regcache *cache, jit_state_t *_jit, u8 reg);
@@ -63,7 +60,6 @@ void lightrec_set_reg_out_flags(struct regcache *cache, u8 jit_reg, u8 flags);
 void lightrec_regcache_reset(struct regcache *cache);
 void lightrec_preload_pc(struct regcache *cache);
 
-void lightrec_lock_reg(struct regcache *cache, jit_state_t *_jit, u8 jit_reg);
 void lightrec_free_reg(struct regcache *cache, u8 jit_reg);
 void lightrec_free_regs(struct regcache *cache);
 void lightrec_clean_reg(struct regcache *cache, jit_state_t *_jit, u8 jit_reg);
