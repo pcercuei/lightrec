@@ -947,11 +947,11 @@ static void rec_alu_div(struct lightrec_cstate *state,
 
 		if (!op_flag_no_lo(flags)) {
 			if (is_signed) {
-				jit_lti(lo, rs, 0);
+				jit_ltr(lo, rs, rt);
 				jit_lshi(lo, lo, 1);
 				jit_subi(lo, lo, 1);
 			} else {
-				jit_movi(lo, 0xffffffff);
+				jit_subi(lo, rt, 1);
 			}
 		}
 
