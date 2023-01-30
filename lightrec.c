@@ -859,6 +859,9 @@ static void * lightrec_emit_code(struct lightrec_state *state,
 
 	*size = (unsigned int) new_code_size;
 
+	if (state->ops.code_inv)
+		state->ops.code_inv(code, new_code_size);
+
 	return code;
 }
 
