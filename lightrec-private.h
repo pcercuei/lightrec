@@ -202,6 +202,9 @@ struct lightrec_state {
 	void *code_lut[];
 };
 
+#define lightrec_offset(ptr) \
+	offsetof(struct lightrec_state, ptr)
+
 u32 lightrec_rw(struct lightrec_state *state, union code op, u32 addr,
 		u32 data, u32 *flags, struct block *block, u16 offset);
 
