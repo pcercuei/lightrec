@@ -1337,9 +1337,10 @@ static void rec_store_direct(struct lightrec_cstate *cstate, const struct block 
 	struct regcache *reg_cache = cstate->reg_cache;
 	union code c = block->opcode_list[offset].c;
 	jit_state_t *_jit = block->_jit;
-	jit_node_t *to_end;
+	jit_node_t *to_not_ram, *to_end;
 	bool swc2 = c.i.op == OP_SWC2;
-	u8 tmp, tmp2, tmp3, rs, rt, in_reg = swc2 ? REG_CP2_TEMP : c.i.rt;
+	u8 tmp, tmp2, tmp3, masked_reg, rs, rt;
+	u8 in_reg = swc2 ? REG_CP2_TEMP : c.i.rt;
 
 	jit_note(__FILE__, __LINE__);
 
@@ -1358,14 +1359,20 @@ static void rec_store_direct(struct lightrec_cstate *cstate, const struct block 
 	lightrec_free_reg(reg_cache, rs);
 	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
 
-	jit_lti_u(tmp, tmp2, ram_size);
-	jit_movnr(tmp, tmp2, tmp);
+	if (state->offset_ram != state->offset_scratch) {
+		to_not_ram = jit_bgti(tmp2, ram_size);
+		masked_reg = tmp2;
+	} else {
+		jit_lti_u(tmp, tmp2, ram_size);
+		jit_movnr(tmp, tmp2, tmp);
+		masked_reg = tmp;
+	}
 
 	/* Compute the offset to the code LUT */
 	if (c.i.op == OP_SW)
-		jit_andi(tmp, tmp, RAM_SIZE - 1);
+		jit_andi(tmp, masked_reg, RAM_SIZE - 1);
 	else
-		jit_andi(tmp, tmp, (RAM_SIZE - 1) & ~3);
+		jit_andi(tmp, masked_reg, (RAM_SIZE - 1) & ~3);
 
 	if (!lut_is_32bit(state))
 		jit_lshi(tmp, tmp, 1);
@@ -1381,6 +1388,7 @@ static void rec_store_direct(struct lightrec_cstate *cstate, const struct block 
 		jit_movi(tmp, state->offset_ram);
 
 		to_end = jit_b();
+		jit_patch(to_not_ram);
 	}
 
 	if (state->offset_ram || state->offset_scratch)
