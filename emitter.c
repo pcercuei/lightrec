@@ -1405,7 +1405,7 @@ static void rec_store_direct(struct lightrec_cstate *cstate, const struct block 
 
 	rt = lightrec_alloc_reg_in(reg_cache, _jit, in_reg, 0);
 
-	if (is_big_endian() && swap_code && c.i.rt) {
+	if (is_big_endian() && swap_code && in_reg) {
 		tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
 
 		jit_new_node_ww(swap_code, tmp, rt);
