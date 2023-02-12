@@ -1047,12 +1047,12 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 
 		jit_prepare();
 		jit_pushargr(LIGHTREC_REG_STATE);
+
 		jit_finishi(lightrec_memset);
+		jit_retval(LIGHTREC_REG_CYCLE);
 
 		jit_ldxi_ui(JIT_V0, LIGHTREC_REG_STATE,
 			    offsetof(struct lightrec_state, regs.gpr[31]));
-
-		jit_retval(LIGHTREC_REG_CYCLE);
 		jit_subr(LIGHTREC_REG_CYCLE, JIT_V1, LIGHTREC_REG_CYCLE);
 	}
 
