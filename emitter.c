@@ -2192,7 +2192,6 @@ static void rec_cp2_do_mtc2(struct lightrec_cstate *state,
 {
 	struct regcache *reg_cache = state->reg_cache;
 	jit_state_t *_jit = block->_jit;
-	jit_node_t *loop, *to_loop;
 	u8 rt, tmp, tmp2, flags = 0;
 
 	_jit_name(block->_jit, __func__);
@@ -2245,30 +2244,20 @@ static void rec_cp2_do_mtc2(struct lightrec_cstate *state,
 		break;
 	case 30:
 		tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
-		tmp2 = lightrec_alloc_reg_temp(reg_cache, _jit);
 
 		/* if (rt < 0) rt = ~rt; */
 		jit_rshi(tmp, rt, 31);
 		jit_xorr(tmp, rt, tmp);
 
-		/* We know the sign bit is 0. Left-shift by 1 to start the algorithm */
-		jit_lshi(tmp, tmp, 1);
-		jit_movi(tmp2, 33);
+		/* Count leading zeros */
+		jit_clzr(tmp, tmp);
+		if (__WORDSIZE != 32)
+			jit_subi(tmp, tmp, __WORDSIZE - 32);
 
-		/* Decrement tmp2 and right-shift the value by 1 until it equals zero */
-		loop = jit_label();
-		jit_subi(tmp2, tmp2, 1);
-		jit_rshi_u(tmp, tmp, 1);
-		to_loop = jit_bnei(tmp, 0);
-
-		jit_patch_at(to_loop, loop);
-
-		jit_stxi_i(cp2d_i_offset(31), LIGHTREC_REG_STATE, tmp2);
-		jit_stxi_i(cp2d_i_offset(30), LIGHTREC_REG_STATE, rt);
+		jit_stxi_i(cp2d_i_offset(31), LIGHTREC_REG_STATE, tmp);
 
 		lightrec_free_reg(reg_cache, tmp);
-		lightrec_free_reg(reg_cache, tmp2);
-		break;
+		fallthrough;
 	default:
 		jit_stxi_i(cp2d_i_offset(reg), LIGHTREC_REG_STATE, rt);
 		break;
