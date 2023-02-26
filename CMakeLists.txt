@@ -69,8 +69,7 @@ option(OPT_DETECT_IMPOSSIBLE_BRANCHES "(optimization) Detect impossible branches
 option(OPT_TRANSFORM_OPS "(optimization) Transform opcodes" ON)
 option(OPT_LOCAL_BRANCHES "(optimization) Detect local branches" ON)
 option(OPT_SWITCH_DELAY_SLOTS "(optimization) Switch delay slots" ON)
-option(OPT_FLAG_STORES "(optimization) Flag stores that don't require invalidation" ON)
-option(OPT_FLAG_IO "(optimization) Flag I/O opcodes whose target is known" ON)
+option(OPT_FLAG_IO "(optimization) Flag I/O opcodes when the target can be detected" ON)
 option(OPT_FLAG_MULT_DIV "(optimization) Flag MULT/DIV that only use one of HI/LO" ON)
 option(OPT_EARLY_UNLOAD "(optimization) Unload registers early" ON)
 

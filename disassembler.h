@@ -278,13 +278,12 @@ static inline _Bool op_flag_sync(u32 flags)
 
 static inline _Bool op_flag_smc(u32 flags)
 {
-	return OPT_FLAG_STORES && (flags & LIGHTREC_SMC);
+	return OPT_FLAG_IO && (flags & LIGHTREC_SMC);
 }
 
 static inline _Bool op_flag_no_invalidate(u32 flags)
 {
-	return (OPT_FLAG_IO || OPT_FLAG_STORES) &&
-		(flags & LIGHTREC_NO_INVALIDATE);
+	return OPT_FLAG_IO && (flags & LIGHTREC_NO_INVALIDATE);
 }
 
 static inline _Bool op_flag_no_mask(u32 flags)

@@ -1559,31 +1559,27 @@ static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 		case OP_SB:
 		case OP_SH:
 		case OP_SW:
-			if (OPT_FLAG_STORES) {
-				/* Mark all store operations that target $sp or $gp
-				 * as not requiring code invalidation. This is based
-				 * on the heuristic that stores using one of these
-				 * registers as address will never hit a code page. */
-				if (list->i.rs >= 28 && list->i.rs <= 29 &&
-				    !state->maps[PSX_MAP_KERNEL_USER_RAM].ops) {
-					pr_debug("Flaging opcode 0x%08x as not "
-						 "requiring invalidation\n",
-						 list->opcode);
-					list->flags |= LIGHTREC_NO_INVALIDATE;
-					list->flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_DIRECT);
-				}
+			/* Mark all store operations that target $sp or $gp
+			 * as not requiring code invalidation. This is based
+			 * on the heuristic that stores using one of these
+			 * registers as address will never hit a code page. */
+			if (list->i.rs >= 28 && list->i.rs <= 29 &&
+			    !state->maps[PSX_MAP_KERNEL_USER_RAM].ops) {
+				pr_debug("Flaging opcode 0x%08x as not requiring invalidation\n",
+					 list->opcode);
+				list->flags |= LIGHTREC_NO_INVALIDATE;
+				list->flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_DIRECT);
+			}
 
-				/* Detect writes whose destination address is inside the
-				 * current block, using constant propagation. When these
-				 * occur, we mark the blocks as not compilable. */
-				if (is_known(v, list->i.rs) &&
-				    kunseg(v[list->i.rs].value) >= kunseg(block->pc) &&
-				    kunseg(v[list->i.rs].value) < (kunseg(block->pc) +
-								   block->nb_ops * 4)) {
-					pr_debug("Self-modifying block detected\n");
-					block_set_flags(block, BLOCK_NEVER_COMPILE);
-					list->flags |= LIGHTREC_SMC;
-				}
+			/* Detect writes whose destination address is inside the
+			 * current block, using constant propagation. When these
+			 * occur, we mark the blocks as not compilable. */
+			if (is_known(v, list->i.rs) &&
+			    kunseg(v[list->i.rs].value) >= kunseg(block->pc) &&
+			    kunseg(v[list->i.rs].value) < (kunseg(block->pc) + block->nb_ops * 4)) {
+				pr_debug("Self-modifying block detected\n");
+				block_set_flags(block, BLOCK_NEVER_COMPILE);
+				list->flags |= LIGHTREC_SMC;
 			}
 			fallthrough;
 		case OP_SWL:
@@ -1597,8 +1593,7 @@ static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 		case OP_LWL:
 		case OP_LWR:
 		case OP_LWC2:
-			if (OPT_FLAG_IO &&
-			    (v[list->i.rs].known | v[list->i.rs].sign)) {
+			if (v[list->i.rs].known | v[list->i.rs].sign) {
 				psx_map = lightrec_get_constprop_map(state, v,
 								     list->i.rs,
 								     (s16) list->i.imm);
@@ -2083,7 +2078,7 @@ static int (*lightrec_optimizers[])(struct lightrec_state *state, struct block *
 	IF_OPT(OPT_LOCAL_BRANCHES, &lightrec_local_branches),
 	IF_OPT(OPT_TRANSFORM_OPS, &lightrec_transform_ops),
 	IF_OPT(OPT_SWITCH_DELAY_SLOTS, &lightrec_switch_delay_slots),
-	IF_OPT(OPT_FLAG_IO || OPT_FLAG_STORES, &lightrec_flag_io),
+	IF_OPT(OPT_FLAG_IO, &lightrec_flag_io),
 	IF_OPT(OPT_FLAG_MULT_DIV, &lightrec_flag_mults_divs),
 	IF_OPT(OPT_EARLY_UNLOAD, &lightrec_early_unload),
 };
