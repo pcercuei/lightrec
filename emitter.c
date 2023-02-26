@@ -2406,7 +2406,7 @@ static void rec_meta_MOV(struct lightrec_cstate *state,
 		lightrec_discard_reg_if_loaded(reg_cache, c.r.rd);
 
 		jit_stxi_i(offsetof(struct lightrec_state, regs.gpr)
-			   + c.r.rd << 2, LIGHTREC_REG_STATE, rs);
+			   + (c.r.rd << 2), LIGHTREC_REG_STATE, rs);
 
 		lightrec_free_reg(reg_cache, rs);
 	} else {
