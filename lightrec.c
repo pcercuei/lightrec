@@ -1330,8 +1330,12 @@ static bool lightrec_block_is_fully_tagged(const struct block *block)
 	for (i = 0; i < block->nb_ops; i++) {
 		op = &block->opcode_list[i];
 
-		/* Verify that all load/stores of the opcode list
-		 * Check all loads/stores of the opcode list and mark the
+		/* If we have one branch that must be emulated, we cannot trash
+		 * the opcode list. */
+		if (should_emulate(op))
+			return false;
+
+		/* Check all loads/stores of the opcode list and mark the
 		 * block as fully compiled if they all have been tagged. */
 		switch (op->c.i.op) {
 		case OP_LB:
