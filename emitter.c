@@ -35,12 +35,18 @@ static void unknown_opcode(struct lightrec_cstate *state, const struct block *bl
 }
 
 static void
-lightrec_jump_to_eob(struct lightrec_cstate *state, jit_state_t *_jit)
+lightrec_jump_to_fn(jit_state_t *_jit, void (*fn)(void))
 {
 	/* Prevent jit_jmpi() from using our cycles register as a temporary */
 	jit_live(LIGHTREC_REG_CYCLE);
 
-	jit_patch_abs(jit_jmpi(), state->state->eob_wrapper_func);
+	jit_patch_abs(jit_jmpi(), fn);
+}
+
+static void
+lightrec_jump_to_eob(struct lightrec_cstate *state, jit_state_t *_jit)
+{
+	lightrec_jump_to_fn(_jit, state->state->eob_wrapper_func);
 }
 
 static void update_ra_register(struct regcache *reg_cache, jit_state_t *_jit,
@@ -99,6 +105,24 @@ static void lightrec_emit_end_of_block(struct lightrec_cstate *state,
 	}
 
 	lightrec_jump_to_eob(state, _jit);
+}
+
+void lightrec_emit_jump_to_interpreter(struct lightrec_cstate *state,
+				       const struct block *block, u16 offset)
+{
+	struct regcache *reg_cache = state->reg_cache;
+	jit_state_t *_jit = block->_jit;
+
+	lightrec_clean_regs(reg_cache, _jit);
+
+	/* Call the interpreter with the block's address in JIT_V1 and the
+	 * PC (which might have an offset) in JIT_V0. */
+	lightrec_load_imm(reg_cache, _jit, JIT_V0, block->pc,
+			  block->pc + (offset << 2));
+	jit_movi(JIT_V1, (uintptr_t)block);
+
+	jit_subi(LIGHTREC_REG_CYCLE, LIGHTREC_REG_CYCLE, state->cycles);
+	lightrec_jump_to_fn(_jit, state->state->interpreter_func);
 }
 
 void lightrec_emit_eob(struct lightrec_cstate *state,

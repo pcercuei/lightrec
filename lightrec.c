@@ -1012,7 +1012,7 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 {
 	struct block *block;
 	jit_state_t *_jit;
-	jit_node_t *to_end, *loop, *addr, *addr2, *addr3;
+	jit_node_t *to_end, *loop, *addr, *addr2, *addr3, *addr4, *jmp;
 	unsigned int i;
 	u32 offset;
 
@@ -1060,7 +1060,42 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 		jit_ldxi_ui(JIT_V0, LIGHTREC_REG_STATE,
 			    offsetof(struct lightrec_state, regs.gpr[31]));
 		jit_subr(LIGHTREC_REG_CYCLE, JIT_V1, LIGHTREC_REG_CYCLE);
+
+		if (OPT_DETECT_IMPOSSIBLE_BRANCHES)
+			jmp = jit_b();
 	}
+
+	if (OPT_DETECT_IMPOSSIBLE_BRANCHES) {
+		/* Blocks will jump here when they reach a branch that should
+		 * be executed with the interpreter, passing the branch's PC
+		 * in JIT_V0 and the address of the block in JIT_V1. */
+		addr4 = jit_indirect();
+
+		/* update state->current_cycle */
+		jit_ldxi_i(JIT_R2, LIGHTREC_REG_STATE,
+			   offsetof(struct lightrec_state, target_cycle));
+		jit_subr(JIT_R1, JIT_R2, LIGHTREC_REG_CYCLE);
+		jit_stxi_i(offsetof(struct lightrec_state, current_cycle),
+			   LIGHTREC_REG_STATE, JIT_R1);
+
+		jit_prepare();
+		jit_pushargr(LIGHTREC_REG_STATE);
+		jit_pushargr(JIT_V1);
+		jit_pushargr(JIT_V0);
+		jit_finishi(lightrec_emulate_block);
+
+		jit_retval(JIT_V0);
+
+		/* Recalc the delta */
+		jit_ldxi_i(JIT_R1, LIGHTREC_REG_STATE,
+			   offsetof(struct lightrec_state, current_cycle));
+		jit_ldxi_i(JIT_R2, LIGHTREC_REG_STATE,
+			   offsetof(struct lightrec_state, target_cycle));
+		jit_subr(LIGHTREC_REG_CYCLE, JIT_R2, JIT_R1);
+	}
+
+	if (OPT_REPLACE_MEMSET && OPT_DETECT_IMPOSSIBLE_BRANCHES)
+		jit_patch(jmp);
 
 	/* The block will jump here, with the number of cycles remaining in
 	 * LIGHTREC_REG_CYCLE */
@@ -1159,6 +1194,8 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 		goto err_free_block;
 
 	state->eob_wrapper_func = jit_address(addr2);
+	if (OPT_DETECT_IMPOSSIBLE_BRANCHES)
+		state->interpreter_func = jit_address(addr4);
 	if (OPT_REPLACE_MEMSET)
 		state->memset_func = jit_address(addr3);
 	state->get_next_block = jit_address(addr);
@@ -1449,7 +1486,7 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 			pr_debug("Branch at offset 0x%x will be emulated\n",
 				 i << 2);
 
-			lightrec_emit_eob(cstate, block, i);
+			lightrec_emit_jump_to_interpreter(cstate, block, i);
 			skip_next = !op_flag_no_ds(elm->flags);
 		} else {
 			lightrec_rec_opcode(cstate, block, i);
