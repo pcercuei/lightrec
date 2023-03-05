@@ -237,8 +237,8 @@ lightrec_get_map(struct lightrec_state *state, void **host, u32 kaddr)
 	return map;
 }
 
-u32 lightrec_rw(struct lightrec_state *state, union code op,
-		u32 addr, u32 data, u32 *flags, struct block *block)
+u32 lightrec_rw(struct lightrec_state *state, union code op, u32 addr,
+		u32 data, u32 *flags, struct block *block, u16 offset)
 {
 	const struct lightrec_mem_map *map;
 	const struct lightrec_mem_map_ops *ops;
@@ -332,10 +332,10 @@ u32 lightrec_rw(struct lightrec_state *state, union code op,
 
 static void lightrec_rw_helper(struct lightrec_state *state,
 			       union code op, u32 *flags,
-			       struct block *block)
+			       struct block *block, u16 offset)
 {
 	u32 ret = lightrec_rw(state, op, state->regs.gpr[op.i.rs],
-			      state->regs.gpr[op.i.rt], flags, block);
+			      state->regs.gpr[op.i.rt], flags, block, offset);
 
 	switch (op.i.op) {
 	case OP_LB:
@@ -355,7 +355,7 @@ static void lightrec_rw_helper(struct lightrec_state *state,
 
 static void lightrec_rw_cb(struct lightrec_state *state, u32 arg)
 {
-	lightrec_rw_helper(state, (union code) arg, NULL, NULL);
+	lightrec_rw_helper(state, (union code) arg, NULL, NULL, 0);
 }
 
 static void lightrec_rw_generic_cb(struct lightrec_state *state, u32 arg)
@@ -374,7 +374,7 @@ static void lightrec_rw_generic_cb(struct lightrec_state *state, u32 arg)
 	}
 
 	op = &block->opcode_list[offset];
-	lightrec_rw_helper(state, op->c, &op->flags, block);
+	lightrec_rw_helper(state, op->c, &op->flags, block, offset);
 }
 
 static u32 clamp_s32(s32 val, s32 min, s32 max)

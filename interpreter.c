@@ -241,6 +241,7 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 			new_op.c = op_next;
 			new_op.flags = 0;
 			inter2.op = &new_op;
+			inter2.offset = 0;
 
 			/* Execute the first opcode of the next block */
 			lightrec_int_op(&inter2);
@@ -259,6 +260,7 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 	inter2.block = inter->block;
 	inter2.op = op;
 	inter2.cycles = inter->cycles;
+	inter2.offset = inter->offset + 1;
 
 	if (dummy_ld)
 		new_rt = reg_cache[op->r.rt];
@@ -602,7 +604,7 @@ static u32 int_io(struct interpreter *inter, bool is_load)
 
 	val = lightrec_rw(inter->state, inter->op->c,
 			  reg_cache[op->rs], reg_cache[op->rt],
-			  flags, inter->block);
+			  flags, inter->block, inter->offset);
 
 	if (is_load && op->rt)
 		reg_cache[op->rt] = val;
@@ -625,7 +627,7 @@ static u32 int_store(struct interpreter *inter)
 	lightrec_rw(inter->state, inter->op->c,
 		    inter->state->regs.gpr[inter->op->i.rs],
 		    inter->state->regs.gpr[inter->op->i.rt],
-		    &inter->op->flags, inter->block);
+		    &inter->op->flags, inter->block, inter->offset);
 
 	next_pc = int_get_ds_pc(inter, 1);
 
