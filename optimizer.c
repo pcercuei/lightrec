@@ -842,9 +842,14 @@ static void lightrec_reset_syncs(struct block *block)
 	for (i = 0; i < block->nb_ops; i++) {
 		op = &list[i];
 
-		if (op_flag_local_branch(op->flags) && has_delay_slot(op->c)) {
-			offset = i + 1 - op_flag_no_ds(op->flags) + (s16)op->i.imm;
-			list[offset].flags |= LIGHTREC_SYNC;
+		if (has_delay_slot(op->c)) {
+			if (op_flag_local_branch(op->flags)) {
+				offset = i + 1 - op_flag_no_ds(op->flags) + (s16)op->i.imm;
+				list[offset].flags |= LIGHTREC_SYNC;
+			}
+
+			if (op_flag_emulate_branch(op->flags) && i + 2 < block->nb_ops)
+				list[i + 2].flags |= LIGHTREC_SYNC;
 		}
 	}
 }
@@ -1254,6 +1259,14 @@ static int lightrec_detect_impossible_branches(struct lightrec_state *state,
 		}
 
 		op->flags |= LIGHTREC_EMULATE_BRANCH;
+
+		if (OPT_LOCAL_BRANCHES && i + 2 < block->nb_ops) {
+			/* The interpreter will only emulate the branch, then
+			 * return to the compiled code. Add a SYNC after the
+			 * branch + delay slot in the case where the branch
+			 * was not taken. */
+			list[i + 2].flags |= LIGHTREC_SYNC;
+		}
 	}
 
 	return ret;
