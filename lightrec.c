@@ -1334,11 +1334,6 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 
 	pr_debug("Block size: %hu opcodes\n", block->nb_ops);
 
-	/* If the first opcode is an 'impossible' branch, never compile the
-	 * block */
-	if (should_emulate(block->opcode_list))
-		block_flags |= BLOCK_NEVER_COMPILE;
-
 	fully_tagged = lightrec_block_is_fully_tagged(block);
 	if (fully_tagged)
 		block_flags |= BLOCK_FULLY_TAGGED;
