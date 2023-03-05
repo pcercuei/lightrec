@@ -1511,6 +1511,37 @@ static int lightrec_early_unload(struct lightrec_state *state, struct block *blo
 	return 0;
 }
 
+void lightrec_branch_set_safe(struct block *block, u16 offset)
+{
+	const struct opcode *op;
+	struct opcode *prev;
+
+	if (!offset)
+		return;
+
+	op = &block->opcode_list[offset];
+	prev = &block->opcode_list[offset - 1];
+
+	if (should_emulate(prev)) {
+		switch (LIGHTREC_FLAGS_GET_IO_MODE(op->flags)) {
+		case LIGHTREC_IO_UNKNOWN:
+		case LIGHTREC_IO_HW:
+		case LIGHTREC_IO_DIRECT_HW:
+			break;
+		default:
+			pr_debug("Load target hits mapped memory, "
+				 "\"impossible\" branch is safe.\n");
+			prev->flags &= ~LIGHTREC_EMULATE_BRANCH;
+			prev->flags |= LIGHTREC_SAFE_BRANCH;
+
+			/* Reset the SYNC meta-opcodes to remove the one that
+			 * follows the delay slot */
+			lightrec_reset_syncs(block);
+			break;
+		}
+	}
+}
+
 static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 {
 	struct opcode *list;
@@ -1539,6 +1570,8 @@ static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 					 list->opcode);
 				list->flags |= LIGHTREC_NO_INVALIDATE;
 				list->flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_DIRECT);
+
+				lightrec_branch_set_safe(block, i);
 			}
 
 			/* Detect writes whose destination address is inside the
@@ -1591,12 +1624,16 @@ static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 					list->flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_RAM);
 					if (no_mask && state->mirrors_mapped)
 						list->flags |= LIGHTREC_NO_MASK;
+
+					lightrec_branch_set_safe(block, i);
 					break;
 				case PSX_MAP_BIOS:
 					pr_debug("Flaging opcode %u as BIOS access\n", i);
 					list->flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_BIOS);
 					if (no_mask)
 						list->flags |= LIGHTREC_NO_MASK;
+
+					lightrec_branch_set_safe(block, i);
 					break;
 				case PSX_MAP_SCRATCH_PAD:
 					pr_debug("Flaging opcode %u as scratchpad access\n", i);
@@ -1607,6 +1644,8 @@ static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 					/* Consider that we're never going to run code from
 					 * the scratchpad. */
 					list->flags |= LIGHTREC_NO_INVALIDATE;
+
+					lightrec_branch_set_safe(block, i);
 					break;
 				case PSX_MAP_HW_REGISTERS:
 					if (state->ops.hw_direct &&
