@@ -843,7 +843,7 @@ static void lightrec_reset_syncs(struct block *block)
 		op = &list[i];
 
 		if (op_flag_local_branch(op->flags) && has_delay_slot(op->c)) {
-			offset = i + 1 + (s16)op->i.imm;
+			offset = i + 1 - op_flag_no_ds(op->flags) + (s16)op->i.imm;
 			list[offset].flags |= LIGHTREC_SYNC;
 		}
 	}
