@@ -595,11 +595,14 @@ static u32 int_io(struct interpreter *inter, bool is_load)
 {
 	struct opcode_i *op = &inter->op->i;
 	u32 *reg_cache = inter->state->regs.gpr;
-	u32 val;
+	u32 val, *flags = NULL;
+
+	if (inter->block)
+		flags = &inter->op->flags;
 
 	val = lightrec_rw(inter->state, inter->op->c,
 			  reg_cache[op->rs], reg_cache[op->rt],
-			  &inter->op->flags, inter->block);
+			  flags, inter->block);
 
 	if (is_load && op->rt)
 		reg_cache[op->rt] = val;

@@ -243,6 +243,8 @@ u32 lightrec_rw(struct lightrec_state *state, union code op,
 	const struct lightrec_mem_map *map;
 	const struct lightrec_mem_map_ops *ops;
 	u32 opcode = op.opcode;
+	bool was_tagged = true;
+	u16 old_flags;
 	void *host;
 
 	addr = kunseg(addr + (s16) op.i.imm);
@@ -253,6 +255,8 @@ u32 lightrec_rw(struct lightrec_state *state, union code op,
 		return 0;
 	}
 
+	if (flags)
+		was_tagged = LIGHTREC_FLAGS_GET_IO_MODE(*flags);
 
 	if (likely(!map->ops)) {
 		if (flags && !LIGHTREC_FLAGS_GET_IO_MODE(*flags)) {
@@ -273,6 +277,17 @@ u32 lightrec_rw(struct lightrec_state *state, union code op,
 			*flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_HW);
 
 		ops = map->ops;
+	}
+
+	if (!was_tagged) {
+		old_flags = block_set_flags(block, BLOCK_SHOULD_RECOMPILE);
+
+		if (!(old_flags & BLOCK_SHOULD_RECOMPILE)) {
+			pr_debug("Opcode of block at PC 0x%08x has been tagged"
+				 " - flag for recompilation\n", block->pc);
+
+			lut_write(state, lut_offset(block->pc), NULL);
+		}
 	}
 
 	switch (op.i.op) {
@@ -347,9 +362,7 @@ static void lightrec_rw_generic_cb(struct lightrec_state *state, u32 arg)
 {
 	struct block *block;
 	struct opcode *op;
-	bool was_tagged;
 	u16 offset = (u16)arg;
-	u16 old_flags;
 
 	block = lightrec_find_block_from_lut(state->block_cache,
 					     arg >> 16, state->next_pc);
@@ -361,20 +374,7 @@ static void lightrec_rw_generic_cb(struct lightrec_state *state, u32 arg)
 	}
 
 	op = &block->opcode_list[offset];
-	was_tagged = LIGHTREC_FLAGS_GET_IO_MODE(op->flags);
-
 	lightrec_rw_helper(state, op->c, &op->flags, block);
-
-	if (!was_tagged) {
-		old_flags = block_set_flags(block, BLOCK_SHOULD_RECOMPILE);
-
-		if (!(old_flags & BLOCK_SHOULD_RECOMPILE)) {
-			pr_debug("Opcode of block at PC 0x%08x has been tagged"
-				 " - flag for recompilation\n", block->pc);
-
-			lut_write(state, lut_offset(block->pc), NULL);
-		}
-	}
 }
 
 static u32 clamp_s32(s32 val, s32 min, s32 max)
