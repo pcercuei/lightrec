@@ -42,6 +42,7 @@
 /* Flags for branches */
 #define LIGHTREC_EMULATE_BRANCH	BIT(2)
 #define LIGHTREC_LOCAL_BRANCH	BIT(3)
+#define LIGHTREC_SAFE_BRANCH	BIT(4)
 
 /* Flags for div/mult opcodes */
 #define LIGHTREC_NO_LO		BIT(2)
@@ -295,6 +296,11 @@ static inline _Bool op_flag_emulate_branch(u32 flags)
 {
 	return OPT_DETECT_IMPOSSIBLE_BRANCHES &&
 		(flags & LIGHTREC_EMULATE_BRANCH);
+}
+
+static inline _Bool op_flag_safe_branch(u32 flags)
+{
+	return OPT_DETECT_IMPOSSIBLE_BRANCHES && (flags & LIGHTREC_SAFE_BRANCH);
 }
 
 static inline _Bool op_flag_local_branch(u32 flags)
