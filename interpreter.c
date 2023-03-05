@@ -351,11 +351,6 @@ static u32 int_jumpr(struct interpreter *inter, u8 link_reg)
 	u32 old_pc = int_get_branch_pc(inter);
 	u32 next_pc = state->regs.gpr[inter->op->r.rs];
 
-	if (op_flag_emulate_branch(inter->op->flags) && inter->offset) {
-		inter->cycles -= lightrec_cycles_of_opcode(inter->op->c);
-		return old_pc;
-	}
-
 	if (link_reg)
 		state->regs.gpr[link_reg] = old_pc + 8;
 
@@ -390,11 +385,6 @@ static u32 int_branch(struct interpreter *inter, u32 pc,
 		      union code code, bool branch)
 {
 	u32 next_pc = pc + 4 + ((s16)code.i.imm << 2);
-
-	if (op_flag_emulate_branch(inter->op->flags) && inter->offset) {
-		inter->cycles -= lightrec_cycles_of_opcode(inter->op->c);
-		return pc;
-	}
 
 	update_cycles_before_branch(inter);
 
