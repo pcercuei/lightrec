@@ -243,10 +243,11 @@ static void lightrec_propagate_slt(u32 rs, u32 rd, bool is_signed,
 	}
 }
 
-void lightrec_consts_propagate(const struct opcode *list,
+void lightrec_consts_propagate(const struct block *block,
 			       unsigned int idx,
 			       struct constprop_data *v)
 {
+	const struct opcode *list = block->opcode_list;
 	union code c;
 	u32 imm;
 
@@ -449,6 +450,13 @@ void lightrec_consts_propagate(const struct opcode *list,
 			v[c.r.rd].known = 0;
 			v[c.r.rd].sign = 0;
 			break;
+
+		case OP_SPECIAL_JALR:
+			v[c.r.rd].known = 0xffffffff;
+			v[c.r.rd].sign = 0;
+			v[c.r.rd].value = block->pc + (idx + 2 << 2);
+			break;
+
 		default:
 			break;
 		}
@@ -675,6 +683,12 @@ void lightrec_consts_propagate(const struct opcode *list,
 			v[c.i.rt].known = v[c.i.rs].known & 0x7fff;
 			v[c.i.rt].sign = 0xffff8000;
 		}
+		break;
+
+	case OP_JAL:
+		v[31].known = 0xffffffff;
+		v[31].sign = 0;
+		v[31].value = block->pc + (idx + 2 << 2);
 		break;
 
 	default:

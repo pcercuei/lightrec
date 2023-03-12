@@ -865,7 +865,7 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 	for (i = 0; i < block->nb_ops; i++) {
 		op = &list[i];
 
-		lightrec_consts_propagate(list, i, v);
+		lightrec_consts_propagate(block, i, v);
 
 		lightrec_patch_known_zero(op, v);
 
@@ -1554,7 +1554,7 @@ static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 	for (i = 0; i < block->nb_ops; i++) {
 		list = &block->opcode_list[i];
 
-		lightrec_consts_propagate(block->opcode_list, i, v);
+		lightrec_consts_propagate(block, i, v);
 
 		switch (list->i.op) {
 		case OP_SB:
@@ -1866,7 +1866,7 @@ static int lightrec_flag_mults_divs(struct lightrec_state *state, struct block *
 	for (i = 0; i < block->nb_ops - 1; i++) {
 		list = &block->opcode_list[i];
 
-		lightrec_consts_propagate(block->opcode_list, i, v);
+		lightrec_consts_propagate(block, i, v);
 
 		switch (list->i.op) {
 		case OP_SPECIAL:
