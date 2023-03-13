@@ -174,6 +174,7 @@ struct lightrec_state {
 	void (*get_next_block)(void);
 	struct lightrec_ops ops;
 	unsigned int nb_precompile;
+	unsigned int nb_compile;
 	unsigned int nb_maps;
 	const struct lightrec_mem_map *maps;
 	uintptr_t offset_ram, offset_bios, offset_scratch, offset_io;

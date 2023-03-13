@@ -1353,7 +1353,7 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 		addr = state->get_next_block;
 	lut_write(state, lut_offset(pc), addr);
 
-	pr_debug("Recompile count: %u\n", state->nb_precompile++);
+	pr_debug("Blocks created: %u\n", ++state->nb_precompile);
 
 	return block;
 }
@@ -1660,6 +1660,8 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 
 		lightrec_unregister(MEM_FOR_CODE, old_code_size);
 	}
+
+	pr_debug("Blocks compiled: %u\n", ++state->nb_compile);
 
 	return 0;
 }
