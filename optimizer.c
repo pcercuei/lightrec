@@ -1569,9 +1569,6 @@ static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 				pr_debug("Flaging opcode 0x%08x as not requiring invalidation\n",
 					 list->opcode);
 				list->flags |= LIGHTREC_NO_INVALIDATE;
-				list->flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_DIRECT);
-
-				lightrec_branch_set_safe(block, i);
 			}
 
 			/* Detect writes whose destination address is inside the
@@ -1668,6 +1665,17 @@ static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 					break;
 				}
 			}
+
+			if (!LIGHTREC_FLAGS_GET_IO_MODE(list->flags)
+			    && list->i.rs >= 28 && list->i.rs <= 29
+			    && !state->maps[PSX_MAP_KERNEL_USER_RAM].ops) {
+				/* Assume that all I/O operations that target
+				 * $sp or $gp will always only target a mapped
+				 * memory (RAM, BIOS, scratchpad). */
+				list->flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_DIRECT);
+				lightrec_branch_set_safe(block, i);
+			}
+
 			fallthrough;
 		default:
 			break;
