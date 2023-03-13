@@ -1292,6 +1292,7 @@ static void rec_store_direct_no_invalidate(struct lightrec_cstate *cstate,
 	jit_state_t *_jit = block->_jit;
 	jit_node_t *to_not_ram, *to_end;
 	bool swc2 = c.i.op == OP_SWC2;
+	bool offset_ram_or_scratch = state->offset_ram || state->offset_scratch;
 	u8 tmp, tmp2, rs, rt, in_reg = swc2 ? REG_CP2_TEMP : c.i.rt;
 	s16 imm;
 
@@ -1299,7 +1300,7 @@ static void rec_store_direct_no_invalidate(struct lightrec_cstate *cstate,
 	rs = lightrec_alloc_reg_in(reg_cache, _jit, c.i.rs, 0);
 	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
 
-	if (state->offset_ram || state->offset_scratch)
+	if (offset_ram_or_scratch)
 		tmp2 = lightrec_alloc_reg_temp(reg_cache, _jit);
 
 	/* Convert to KUNSEG and avoid RAM mirrors */
@@ -1331,7 +1332,7 @@ static void rec_store_direct_no_invalidate(struct lightrec_cstate *cstate,
 		jit_movi(tmp2, state->offset_ram);
 	}
 
-	if (state->offset_ram || state->offset_scratch) {
+	if (offset_ram_or_scratch) {
 		jit_addr(tmp, tmp, tmp2);
 		lightrec_free_reg(reg_cache, tmp2);
 	}
