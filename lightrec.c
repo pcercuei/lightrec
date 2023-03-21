@@ -262,14 +262,10 @@ u32 lightrec_rw(struct lightrec_state *state, union code op, u32 addr,
 		if (flags && !LIGHTREC_FLAGS_GET_IO_MODE(*flags)) {
 			/* Force parallel port accesses as HW accesses, because
 			 * the direct-I/O emitters can't differenciate it. */
-			if (unlikely(map == &state->maps[PSX_MAP_PARALLEL_PORT])) {
+			if (unlikely(map == &state->maps[PSX_MAP_PARALLEL_PORT]))
 				*flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_HW);
-			} else {
+			else
 				*flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_DIRECT);
-
-				if (!was_tagged)
-					lightrec_branch_set_safe(block, offset);
-			}
 		}
 
 		ops = &lightrec_default_ops;

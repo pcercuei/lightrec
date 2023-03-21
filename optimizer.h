@@ -22,8 +22,6 @@ _Bool is_syscall(union code c);
 
 _Bool should_emulate(const struct opcode *op);
 
-void lightrec_branch_set_safe(struct block *block, u16 offset);
-
 int lightrec_optimize(struct lightrec_state *state, struct block *block);
 
 #endif /* __OPTIMIZER_H__ */
