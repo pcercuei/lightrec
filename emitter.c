@@ -1852,6 +1852,15 @@ static void rec_break_syscall(struct lightrec_cstate *state,
 	jit_stxi_i(offsetof(struct lightrec_state, exit_flags),
 		   LIGHTREC_REG_STATE, tmp);
 
+	jit_ldxi_i(tmp, LIGHTREC_REG_STATE,
+		   offsetof(struct lightrec_state, target_cycle));
+	jit_subr(tmp, tmp, LIGHTREC_REG_CYCLE);
+	jit_movi(LIGHTREC_REG_CYCLE, 0);
+	jit_stxi_i(offsetof(struct lightrec_state, target_cycle),
+		   LIGHTREC_REG_STATE, tmp);
+	jit_stxi_i(offsetof(struct lightrec_state, current_cycle),
+		   LIGHTREC_REG_STATE, tmp);
+
 	lightrec_free_reg(reg_cache, tmp);
 
 	/* TODO: the return address should be "pc - 4" if we're a delay slot */
