@@ -712,9 +712,9 @@ static u32 int_syscall_break(struct interpreter *inter)
 {
 
 	if (inter->op->r.op == OP_SPECIAL_BREAK)
-		inter->state->exit_flags |= LIGHTREC_EXIT_BREAK;
+		lightrec_set_exit_flags(inter->state, LIGHTREC_EXIT_BREAK);
 	else
-		inter->state->exit_flags |= LIGHTREC_EXIT_SYSCALL;
+		lightrec_set_exit_flags(inter->state, LIGHTREC_EXIT_SYSCALL);
 
 	return int_get_ds_pc(inter, 0);
 }
