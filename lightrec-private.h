@@ -286,7 +286,7 @@ int lightrec_compile_block(struct lightrec_cstate *cstate, struct block *block);
 void lightrec_free_opcode_list(struct lightrec_state *state,
 			       struct opcode *list);
 
-unsigned int lightrec_cycles_of_opcode(union code code);
+__cnst unsigned int lightrec_cycles_of_opcode(union code code);
 
 static inline u8 get_mult_div_lo(union code c)
 {
