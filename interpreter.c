@@ -1008,6 +1008,17 @@ static u32 int_META_MULT2(struct interpreter *inter)
 	return jump_next(inter);
 }
 
+static u32 int_META_COM(struct interpreter *inter)
+{
+	u32 *reg_cache = inter->state->regs.gpr;
+	union code c = inter->op->c;
+
+	if (likely(c.m.rd))
+		reg_cache[c.m.rd] = ~reg_cache[c.m.rs];
+
+	return jump_next(inter);
+}
+
 static const lightrec_int_func_t int_standard[64] = {
 	SET_DEFAULT_ELM(int_standard, int_unimplemented),
 	[OP_SPECIAL]		= int_SPECIAL,
@@ -1110,6 +1121,7 @@ static const lightrec_int_func_t int_meta[64] = {
 	[OP_META_MOV]		= int_META_MOV,
 	[OP_META_EXTC]		= int_META_EXTC,
 	[OP_META_EXTS]		= int_META_EXTS,
+	[OP_META_COM]		= int_META_COM,
 };
 
 static u32 int_SPECIAL(struct interpreter *inter)
