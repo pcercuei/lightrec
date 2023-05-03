@@ -687,6 +687,12 @@ void lightrec_consts_propagate(const struct block *block,
 				v[c.m.rd].sign = 0xffff8000;
 			}
 			break;
+
+		case OP_META_COM:
+			v[c.m.rd].known = v[c.m.rs].known;
+			v[c.m.rd].value = ~v[c.m.rs].value;
+			v[c.m.rd].sign = v[c.m.rs].sign;
+			break;
 		default:
 			break;
 		}

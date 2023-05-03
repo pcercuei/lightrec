@@ -198,6 +198,8 @@ enum meta_opcodes {
 
 	OP_META_EXTC		= 0x01,
 	OP_META_EXTS		= 0x02,
+
+	OP_META_COM		= 0x03,
 };
 
 struct opcode_r {

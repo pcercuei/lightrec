@@ -124,6 +124,7 @@ static const char * const meta_opcodes[] = {
 	[OP_META_MOV]		= "move    ",
 	[OP_META_EXTC]		= "extc    ",
 	[OP_META_EXTS]		= "exts    ",
+	[OP_META_COM]		= "com     ",
 };
 
 static const char * const mult2_opcodes[] = {
