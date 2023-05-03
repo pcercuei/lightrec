@@ -2547,6 +2547,29 @@ static void rec_meta_MULT2(struct lightrec_cstate *state,
 	jit_note(__FILE__, __LINE__);
 }
 
+static void rec_meta_COM(struct lightrec_cstate *state,
+			 const struct block *block, u16 offset)
+{
+	struct regcache *reg_cache = state->reg_cache;
+	union code c = block->opcode_list[offset].c;
+	jit_state_t *_jit = block->_jit;
+	u8 rd, rs, flags;
+
+	jit_note(__FILE__, __LINE__);
+	rs = lightrec_alloc_reg_in(reg_cache, _jit, c.m.rs, 0);
+	rd = lightrec_alloc_reg_out(reg_cache, _jit, c.m.rd, 0);
+
+	flags = lightrec_get_reg_in_flags(reg_cache, rs);
+
+	lightrec_set_reg_out_flags(reg_cache, rd,
+				   flags & REG_EXT);
+
+	jit_comr(rd, rs);
+
+	lightrec_free_reg(reg_cache, rs);
+	lightrec_free_reg(reg_cache, rd);
+}
+
 static const lightrec_rec_func_t rec_standard[64] = {
 	SET_DEFAULT_ELM(rec_standard, unknown_opcode),
 	[OP_SPECIAL]		= rec_SPECIAL,
@@ -2649,6 +2672,7 @@ static const lightrec_rec_func_t rec_meta[64] = {
 	[OP_META_MOV]		= rec_meta_MOV,
 	[OP_META_EXTC]		= rec_meta_EXTC_EXTS,
 	[OP_META_EXTS]		= rec_meta_EXTC_EXTS,
+	[OP_META_COM]		= rec_meta_COM,
 };
 
 static void rec_SPECIAL(struct lightrec_cstate *state,
