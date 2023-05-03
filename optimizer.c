@@ -1087,6 +1087,15 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 
 				op->r.op = ctz32(v[op->r.rt].value);
 				break;
+			case OP_SPECIAL_NOR:
+				if (op->r.rs == 0 || op->r.rt == 0) {
+					pr_debug("Convert NOR $zero to COM\n");
+					op->i.op = OP_META;
+					op->m.op = OP_META_COM;
+					if (!op->m.rs)
+						op->m.rs = op->r.rt;
+				}
+				break;
 			case OP_SPECIAL_OR:
 			case OP_SPECIAL_ADD:
 			case OP_SPECIAL_ADDU:
