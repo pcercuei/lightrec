@@ -16,6 +16,7 @@ struct interpreter;
 static u32 int_CP0(struct interpreter *inter);
 static u32 int_CP2(struct interpreter *inter);
 static u32 int_SPECIAL(struct interpreter *inter);
+static u32 int_META(struct interpreter *inter);
 static u32 int_REGIMM(struct interpreter *inter);
 static u32 int_branch(struct interpreter *inter, u32 pc,
 		      union code code, bool branch);
@@ -950,7 +951,7 @@ static u32 int_special_SLTU(struct interpreter *inter)
 static u32 int_META_MOV(struct interpreter *inter)
 {
 	u32 *reg_cache = inter->state->regs.gpr;
-	struct opcode_r *op = &inter->op->r;
+	struct opcode_m *op = &inter->op->m;
 
 	if (likely(op->rd))
 		reg_cache[op->rd] = reg_cache[op->rs];
@@ -961,10 +962,10 @@ static u32 int_META_MOV(struct interpreter *inter)
 static u32 int_META_EXTC(struct interpreter *inter)
 {
 	u32 *reg_cache = inter->state->regs.gpr;
-	struct opcode_i *op = &inter->op->i;
+	struct opcode_m *op = &inter->op->m;
 
-	if (likely(op->rt))
-		reg_cache[op->rt] = (u32)(s32)(s8)reg_cache[op->rs];
+	if (likely(op->rd))
+		reg_cache[op->rd] = (u32)(s32)(s8)reg_cache[op->rs];
 
 	return jump_next(inter);
 }
@@ -972,10 +973,10 @@ static u32 int_META_EXTC(struct interpreter *inter)
 static u32 int_META_EXTS(struct interpreter *inter)
 {
 	u32 *reg_cache = inter->state->regs.gpr;
-	struct opcode_i *op = &inter->op->i;
+	struct opcode_m *op = &inter->op->m;
 
-	if (likely(op->rt))
-		reg_cache[op->rt] = (u32)(s32)(s16)reg_cache[op->rs];
+	if (likely(op->rd))
+		reg_cache[op->rd] = (u32)(s32)(s16)reg_cache[op->rs];
 
 	return jump_next(inter);
 }
@@ -1042,9 +1043,7 @@ static const lightrec_int_func_t int_standard[64] = {
 	[OP_LWC2]		= int_LWC2,
 	[OP_SWC2]		= int_store,
 
-	[OP_META_MOV]		= int_META_MOV,
-	[OP_META_EXTC]		= int_META_EXTC,
-	[OP_META_EXTS]		= int_META_EXTS,
+	[OP_META]		= int_META,
 	[OP_META_MULT2]		= int_META_MULT2,
 	[OP_META_MULTU2]	= int_META_MULT2,
 };
@@ -1106,6 +1105,13 @@ static const lightrec_int_func_t int_cp2_basic[64] = {
 	[OP_CP2_BASIC_CTC2]	= int_ctc,
 };
 
+static const lightrec_int_func_t int_meta[64] = {
+	SET_DEFAULT_ELM(int_meta, int_unimplemented),
+	[OP_META_MOV]		= int_META_MOV,
+	[OP_META_EXTC]		= int_META_EXTC,
+	[OP_META_EXTS]		= int_META_EXTS,
+};
+
 static u32 int_SPECIAL(struct interpreter *inter)
 {
 	lightrec_int_func_t f = int_special[inter->op->r.op];
@@ -1145,6 +1151,16 @@ static u32 int_CP2(struct interpreter *inter)
 	}
 
 	return int_CP(inter);
+}
+
+static u32 int_META(struct interpreter *inter)
+{
+	lightrec_int_func_t f = int_meta[inter->op->m.op];
+
+	if (!HAS_DEFAULT_ELM && unlikely(!f))
+		return int_unimplemented(inter);
+
+	return execute(f, inter);
 }
 
 static u32 lightrec_emulate_block_list(struct lightrec_state *state,

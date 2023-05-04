@@ -660,31 +660,37 @@ void lightrec_consts_propagate(const struct block *block,
 		v[c.i.rt].known = 0;
 		v[c.i.rt].sign = 0;
 		break;
-	case OP_META_MOV:
-		v[c.r.rd] = v[c.r.rs];
-		break;
-	case OP_META_EXTC:
-		v[c.i.rt].value = (s32)(s8)v[c.i.rs].value;
-		if (v[c.i.rs].known & BIT(7)) {
-			v[c.i.rt].known = v[c.i.rs].known | 0xffffff00;
-			v[c.i.rt].sign = 0;
-		} else {
-			v[c.i.rt].known = v[c.i.rs].known & 0x7f;
-			v[c.i.rt].sign = 0xffffff80;
+	case OP_META:
+		switch (c.m.op) {
+		case OP_META_MOV:
+			v[c.m.rd] = v[c.m.rs];
+			break;
+
+		case OP_META_EXTC:
+			v[c.m.rd].value = (s32)(s8)v[c.m.rs].value;
+			if (v[c.m.rs].known & BIT(7)) {
+				v[c.m.rd].known = v[c.m.rs].known | 0xffffff00;
+				v[c.m.rd].sign = 0;
+			} else {
+				v[c.m.rd].known = v[c.m.rs].known & 0x7f;
+				v[c.m.rd].sign = 0xffffff80;
+			}
+			break;
+
+		case OP_META_EXTS:
+			v[c.m.rd].value = (s32)(s16)v[c.m.rs].value;
+			if (v[c.m.rs].known & BIT(15)) {
+				v[c.m.rd].known = v[c.m.rs].known | 0xffff0000;
+				v[c.m.rd].sign = 0;
+			} else {
+				v[c.m.rd].known = v[c.m.rs].known & 0x7fff;
+				v[c.m.rd].sign = 0xffff8000;
+			}
+			break;
+		default:
+			break;
 		}
 		break;
-
-	case OP_META_EXTS:
-		v[c.i.rt].value = (s32)(s16)v[c.i.rs].value;
-		if (v[c.i.rs].known & BIT(15)) {
-			v[c.i.rt].known = v[c.i.rs].known | 0xffff0000;
-			v[c.i.rt].sign = 0;
-		} else {
-			v[c.i.rt].known = v[c.i.rs].known & 0x7fff;
-			v[c.i.rt].sign = 0xffff8000;
-		}
-		break;
-
 	case OP_JAL:
 		v[31].known = 0xffffffff;
 		v[31].sign = 0;

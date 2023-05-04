@@ -21,6 +21,7 @@ static void rec_SPECIAL(struct lightrec_cstate *state, const struct block *block
 static void rec_REGIMM(struct lightrec_cstate *state, const struct block *block, u16 offset);
 static void rec_CP0(struct lightrec_cstate *state, const struct block *block, u16 offset);
 static void rec_CP2(struct lightrec_cstate *state, const struct block *block, u16 offset);
+static void rec_META(struct lightrec_cstate *state, const struct block *block, u16 offset);
 static void rec_cp2_do_mtc2(struct lightrec_cstate *state,
 			    const struct block *block, u16 offset, u8 reg, u8 in_reg);
 static void rec_cp2_do_mfc2(struct lightrec_cstate *state,
@@ -2429,7 +2430,7 @@ static void rec_meta_MOV(struct lightrec_cstate *state,
 		&& LIGHTREC_FLAGS_GET_RD(op->flags) == LIGHTREC_REG_UNLOAD;
 
 	if (c.r.rs || unload_rd)
-		rs = lightrec_alloc_reg_in(reg_cache, _jit, c.r.rs, 0);
+		rs = lightrec_alloc_reg_in(reg_cache, _jit, c.m.rs, 0);
 
 	if (unload_rd) {
 		/* If the destination register will be unloaded right after the
@@ -2437,16 +2438,16 @@ static void rec_meta_MOV(struct lightrec_cstate *state,
 		 * register - we can just store the source register directly to
 		 * the register cache, at the offset corresponding to the
 		 * destination register. */
-		lightrec_discard_reg_if_loaded(reg_cache, c.r.rd);
+		lightrec_discard_reg_if_loaded(reg_cache, c.m.rd);
 
 		jit_stxi_i(offsetof(struct lightrec_state, regs.gpr)
-			   + (c.r.rd << 2), LIGHTREC_REG_STATE, rs);
+			   + (c.m.rd << 2), LIGHTREC_REG_STATE, rs);
 
 		lightrec_free_reg(reg_cache, rs);
 	} else {
-		rd = lightrec_alloc_reg_out(reg_cache, _jit, c.r.rd, REG_EXT);
+		rd = lightrec_alloc_reg_out(reg_cache, _jit, c.m.rd, REG_EXT);
 
-		if (c.r.rs == 0)
+		if (c.m.rs == 0)
 			jit_movi(rd, 0);
 		else
 			jit_extr_i(rd, rs);
@@ -2465,21 +2466,21 @@ static void rec_meta_EXTC_EXTS(struct lightrec_cstate *state,
 	struct regcache *reg_cache = state->reg_cache;
 	union code c = block->opcode_list[offset].c;
 	jit_state_t *_jit = block->_jit;
-	u8 rs, rt;
+	u8 rs, rd;
 
 	_jit_name(block->_jit, __func__);
 	jit_note(__FILE__, __LINE__);
 
-	rs = lightrec_alloc_reg_in(reg_cache, _jit, c.i.rs, 0);
-	rt = lightrec_alloc_reg_out(reg_cache, _jit, c.i.rt, REG_EXT);
+	rs = lightrec_alloc_reg_in(reg_cache, _jit, c.m.rs, 0);
+	rd = lightrec_alloc_reg_out(reg_cache, _jit, c.m.rd, REG_EXT);
 
-	if (c.i.op == OP_META_EXTC)
-		jit_extr_c(rt, rs);
+	if (c.m.op == OP_META_EXTC)
+		jit_extr_c(rd, rs);
 	else
-		jit_extr_s(rt, rs);
+		jit_extr_s(rd, rs);
 
 	lightrec_free_reg(reg_cache, rs);
-	lightrec_free_reg(reg_cache, rt);
+	lightrec_free_reg(reg_cache, rd);
 }
 
 static void rec_meta_MULT2(struct lightrec_cstate *state,
@@ -2581,9 +2582,7 @@ static const lightrec_rec_func_t rec_standard[64] = {
 	[OP_LWC2]		= rec_LW,
 	[OP_SWC2]		= rec_SW,
 
-	[OP_META_MOV]		= rec_meta_MOV,
-	[OP_META_EXTC]		= rec_meta_EXTC_EXTS,
-	[OP_META_EXTS]		= rec_meta_EXTC_EXTS,
+	[OP_META]		= rec_META,
 	[OP_META_MULT2]		= rec_meta_MULT2,
 	[OP_META_MULTU2]	= rec_meta_MULT2,
 };
@@ -2645,6 +2644,13 @@ static const lightrec_rec_func_t rec_cp2_basic[64] = {
 	[OP_CP2_BASIC_CTC2]	= rec_cp2_basic_CTC2,
 };
 
+static const lightrec_rec_func_t rec_meta[64] = {
+	SET_DEFAULT_ELM(rec_meta, unknown_opcode),
+	[OP_META_MOV]		= rec_meta_MOV,
+	[OP_META_EXTC]		= rec_meta_EXTC_EXTS,
+	[OP_META_EXTS]		= rec_meta_EXTC_EXTS,
+};
+
 static void rec_SPECIAL(struct lightrec_cstate *state,
 			const struct block *block, u16 offset)
 {
@@ -2696,6 +2702,18 @@ static void rec_CP2(struct lightrec_cstate *state,
 	}
 
 	rec_CP(state, block, offset);
+}
+
+static void rec_META(struct lightrec_cstate *state,
+		     const struct block *block, u16 offset)
+{
+	union code c = block->opcode_list[offset].c;
+	lightrec_rec_func_t f = rec_meta[c.m.op];
+
+	if (!HAS_DEFAULT_ELM && unlikely(!f))
+		unknown_opcode(state, block, offset);
+	else
+		(*f)(state, block, offset);
 }
 
 void lightrec_rec_opcode(struct lightrec_cstate *state,

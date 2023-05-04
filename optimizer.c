@@ -115,6 +115,8 @@ static u64 opcode_read_mask(union code op)
 	case OP_SW:
 	case OP_SWR:
 		return BIT(op.i.rs) | BIT(op.i.rt);
+	case OP_META:
+		return BIT(op.m.rs);
 	default:
 		return BIT(op.i.rs);
 	}
@@ -145,6 +147,8 @@ static u64 opcode_write_mask(union code op)
 	case OP_META_MULT2:
 	case OP_META_MULTU2:
 		return mult_div_write_mask(op);
+	case OP_META:
+		return BIT(op.m.rd);
 	case OP_SPECIAL:
 		switch (op.r.op) {
 		case OP_SPECIAL_JR:
@@ -182,8 +186,6 @@ static u64 opcode_write_mask(union code op)
 	case OP_LBU:
 	case OP_LHU:
 	case OP_LWR:
-	case OP_META_EXTC:
-	case OP_META_EXTS:
 		return BIT(op.i.rt);
 	case OP_JAL:
 		return BIT(31);
@@ -214,8 +216,6 @@ static u64 opcode_write_mask(union code op)
 		default:
 			return 0;
 		}
-	case OP_META_MOV:
-		return BIT(op.r.rd);
 	default:
 		return 0;
 	}
@@ -592,9 +592,10 @@ static void lightrec_optimize_sll_sra(struct opcode *list, unsigned int offset,
 				ldop->i.rt = next->r.rd;
 				to_change->opcode = 0;
 			} else {
-				to_change->i.op = OP_META_MOV;
-				to_change->r.rd = next->r.rd;
-				to_change->r.rs = ldop->i.rt;
+				to_change->i.op = OP_META;
+				to_change->m.op = OP_META_MOV;
+				to_change->m.rd = next->r.rd;
+				to_change->m.rs = ldop->i.rt;
 			}
 
 			if (to_nop->r.imm == 24)
@@ -611,18 +612,9 @@ static void lightrec_optimize_sll_sra(struct opcode *list, unsigned int offset,
 		pr_debug("Convert SLL/SRA #%u to EXT%c\n",
 			 curr->r.imm, curr->r.imm == 24 ? 'C' : 'S');
 
-		if (to_change == curr) {
-			to_change->i.rs = curr->r.rt;
-			to_change->i.rt = next->r.rd;
-		} else {
-			to_change->i.rt = next->r.rd;
-			to_change->i.rs = curr->r.rt;
-		}
-
-		if (to_nop->r.imm == 24)
-			to_change->i.op = OP_META_EXTC;
-		else
-			to_change->i.op = OP_META_EXTS;
+		to_change->m.rs = curr->r.rt;
+		to_change->m.op = to_nop->r.imm == 24 ? OP_META_EXTC : OP_META_EXTS;
+		to_change->i.op = OP_META;
 	}
 
 	to_nop->opcode = 0;
@@ -796,13 +788,11 @@ static void lightrec_patch_known_zero(struct opcode *op,
 	case OP_ANDI:
 	case OP_ORI:
 	case OP_XORI:
-	case OP_META_MOV:
-	case OP_META_EXTC:
-	case OP_META_EXTS:
 	case OP_META_MULT2:
 	case OP_META_MULTU2:
-		if (is_known_zero(v, op->i.rs))
-			op->i.rs = 0;
+	case OP_META:
+		if (is_known_zero(v, op->m.rs))
+			op->m.rs = 0;
 		break;
 	case OP_SB:
 	case OP_SH:
@@ -968,8 +958,9 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 		case OP_ADDIU:
 			if (op->i.imm == 0) {
 				pr_debug("Convert ORI/ADDI/ADDIU #0 to MOV\n");
-				op->i.op = OP_META_MOV;
-				op->r.rd = op->i.rt;
+				op->m.rd = op->i.rt;
+				op->m.op = OP_META_MOV;
+				op->i.op = OP_META;
 			}
 			break;
 		case OP_ANDI:
@@ -979,8 +970,9 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 				if (op->i.rs == op->i.rt) {
 					op->opcode = 0;
 				} else {
-					op->i.op = OP_META_MOV;
-					op->r.rd = op->i.rt;
+					op->m.rd = op->i.rt;
+					op->m.op = OP_META_MOV;
+					op->i.op = OP_META;
 				}
 			}
 			break;
@@ -1028,8 +1020,9 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 			case OP_SPECIAL_SRA:
 				if (op->r.imm == 0) {
 					pr_debug("Convert SRA #0 to MOV\n");
-					op->i.op = OP_META_MOV;
-					op->r.rs = op->r.rt;
+					op->m.rs = op->r.rt;
+					op->m.op = OP_META_MOV;
+					op->i.op = OP_META;
 					break;
 				}
 				break;
@@ -1046,8 +1039,9 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 			case OP_SPECIAL_SLL:
 				if (op->r.imm == 0) {
 					pr_debug("Convert SLL #0 to MOV\n");
-					op->i.op = OP_META_MOV;
-					op->r.rs = op->r.rt;
+					op->m.rs = op->r.rt;
+					op->m.op = OP_META_MOV;
+					op->i.op = OP_META;
 				}
 
 				lightrec_optimize_sll_sra(block->opcode_list, i, v);
@@ -1065,8 +1059,9 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 			case OP_SPECIAL_SRL:
 				if (op->r.imm == 0) {
 					pr_debug("Convert SRL #0 to MOV\n");
-					op->i.op = OP_META_MOV;
-					op->r.rs = op->r.rt;
+					op->m.rs = op->r.rt;
+					op->m.op = OP_META_MOV;
+					op->i.op = OP_META;
 				}
 				break;
 
@@ -1097,15 +1092,17 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 			case OP_SPECIAL_ADDU:
 				if (op->r.rs == 0) {
 					pr_debug("Convert OR/ADD $zero to MOV\n");
-					op->i.op = OP_META_MOV;
-					op->r.rs = op->r.rt;
+					op->m.rs = op->r.rt;
+					op->m.op = OP_META_MOV;
+					op->i.op = OP_META;
 				}
 				fallthrough;
 			case OP_SPECIAL_SUB:
 			case OP_SPECIAL_SUBU:
 				if (op->r.rt == 0) {
 					pr_debug("Convert OR/ADD/SUB $zero to MOV\n");
-					op->i.op = OP_META_MOV;
+					op->m.op = OP_META_MOV;
+					op->i.op = OP_META;
 				}
 				fallthrough;
 			default:
@@ -1358,7 +1355,7 @@ static bool op_writes_rd(union code c)
 {
 	switch (c.i.op) {
 	case OP_SPECIAL:
-	case OP_META_MOV:
+	case OP_META:
 		return true;
 	default:
 		return false;
