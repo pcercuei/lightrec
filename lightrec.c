@@ -809,6 +809,8 @@ static void lightrec_free_code(struct lightrec_state *state, void *ptr)
 		lightrec_code_alloc_unlock(state);
 }
 
+static char lightning_code_data[0x8000];
+
 static void * lightrec_emit_code(struct lightrec_state *state,
 				 const struct block *block,
 				 jit_state_t *_jit, unsigned int *size)
@@ -819,7 +821,9 @@ static void * lightrec_emit_code(struct lightrec_state *state,
 
 	jit_realize();
 
-	if (!ENABLE_DISASSEMBLER)
+	if (ENABLE_DISASSEMBLER)
+		jit_set_data(lightning_code_data, sizeof(lightning_code_data), 0);
+	else
 		jit_set_data(NULL, 0, JIT_DISABLE_DATA | JIT_DISABLE_NOTE);
 
 	if (has_code_buffer) {
