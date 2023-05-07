@@ -1318,6 +1318,43 @@ static int lightrec_handle_load_delays(struct lightrec_state *state,
 	return 0;
 }
 
+static int lightrec_swap_load_delays(struct lightrec_state *state,
+				     struct block *block)
+{
+	unsigned int i;
+	union code c, next;
+	bool in_ds = false, skip_next = false;
+	struct opcode op;
+
+	if (block->nb_ops < 2)
+		return 0;
+
+	for (i = 0; i < block->nb_ops - 2; i++) {
+		c = block->opcode_list[i].c;
+
+		if (skip_next) {
+			skip_next = false;
+		} else if (!in_ds && opcode_is_load(c) && c.i.op != OP_LWC2) {
+			next = block->opcode_list[i + 1].c;
+
+			if (opcode_reads_register(next, c.i.rt)
+			    && !opcode_writes_register(next, c.i.rs)) {
+				pr_debug("Swapping opcodes at offset 0x%x to "
+					 "respect load delay\n", i << 2);
+
+				op = block->opcode_list[i];
+				block->opcode_list[i] = block->opcode_list[i + 1];
+				block->opcode_list[i + 1] = op;
+				skip_next = true;
+			}
+		}
+
+		in_ds = has_delay_slot(c);
+	}
+
+	return 0;
+}
+
 static int lightrec_local_branches(struct lightrec_state *state, struct block *block)
 {
 	const struct opcode *ds;
@@ -2111,6 +2148,7 @@ static int (*lightrec_optimizers[])(struct lightrec_state *state, struct block *
 	IF_OPT(OPT_REPLACE_MEMSET, &lightrec_replace_memset),
 	IF_OPT(OPT_DETECT_IMPOSSIBLE_BRANCHES, &lightrec_detect_impossible_branches),
 	IF_OPT(OPT_HANDLE_LOAD_DELAYS, &lightrec_handle_load_delays),
+	IF_OPT(OPT_HANDLE_LOAD_DELAYS, &lightrec_swap_load_delays),
 	IF_OPT(OPT_TRANSFORM_OPS, &lightrec_transform_branches),
 	IF_OPT(OPT_LOCAL_BRANCHES, &lightrec_local_branches),
 	IF_OPT(OPT_TRANSFORM_OPS, &lightrec_transform_ops),
