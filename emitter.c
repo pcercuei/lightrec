@@ -1227,7 +1227,7 @@ static void rec_store_memory(struct lightrec_cstate *cstate,
 		if (addr_reg == rs && c.i.rs == 0) {
 			addr_reg = LIGHTREC_REG_STATE;
 		} else {
-			jit_addr(tmp, addr_reg, LIGHTREC_REG_STATE);
+			jit_add_state(tmp, addr_reg);
 			addr_reg = tmp;
 		}
 
@@ -1402,7 +1402,7 @@ static void rec_store_direct(struct lightrec_cstate *cstate, const struct block 
 
 	if (!lut_is_32bit(state))
 		jit_lshi(tmp, tmp, 1);
-	jit_addr(tmp, LIGHTREC_REG_STATE, tmp);
+	jit_add_state(tmp, tmp);
 
 	/* Write NULL to the code LUT to invalidate any block that's there */
 	if (lut_is_32bit(state))

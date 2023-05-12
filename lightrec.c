@@ -1122,7 +1122,7 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 	/* If possible, use the code LUT */
 	if (!lut_is_32bit(state))
 		jit_lshi(JIT_V1, JIT_V1, 1);
-	jit_addr(JIT_V1, JIT_V1, LIGHTREC_REG_STATE);
+	jit_add_state(JIT_V1, JIT_V1);
 
 	offset = offsetof(struct lightrec_state, code_lut);
 	if (lut_is_32bit(state))

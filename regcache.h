@@ -8,8 +8,13 @@
 
 #include "lightning-wrapper.h"
 
-#define NUM_REGS (JIT_V_NUM - 1)
-#define LIGHTREC_REG_STATE (JIT_V(JIT_V_NUM - 1))
+#if defined(__sh__)
+#  define NUM_REGS JIT_V_NUM
+#  define LIGHTREC_REG_STATE _GBR
+#else
+#  define NUM_REGS (JIT_V_NUM - 1)
+#  define LIGHTREC_REG_STATE (JIT_V(JIT_V_NUM - 1))
+#endif
 
 #if defined(__powerpc__)
 #  define NUM_TEMPS JIT_R_NUM
