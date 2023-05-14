@@ -1168,7 +1168,7 @@ static void rec_store_memory(struct lightrec_cstate *cstate,
 		((imm & 0x3) || simm + lut_offt != (s16)(simm + lut_offt))));
 	bool need_tmp = !no_mask || addr_offset || add_imm || invalidate;
 	bool swc2 = c.i.op == OP_SWC2;
-	u8 in_reg = swc2 ? REG_CP2_TEMP : c.i.rt;
+	u8 in_reg = swc2 ? REG_TEMP : c.i.rt;
 
 	rt = lightrec_alloc_reg_in(reg_cache, _jit, in_reg, 0);
 	rs = lightrec_alloc_reg_in(reg_cache, _jit, c.i.rs, 0);
@@ -1294,7 +1294,7 @@ static void rec_store_direct_no_invalidate(struct lightrec_cstate *cstate,
 	jit_node_t *to_not_ram, *to_end;
 	bool swc2 = c.i.op == OP_SWC2;
 	bool offset_ram_or_scratch = state->offset_ram || state->offset_scratch;
-	u8 tmp, tmp2, rs, rt, in_reg = swc2 ? REG_CP2_TEMP : c.i.rt;
+	u8 tmp, tmp2, rs, rt, in_reg = swc2 ? REG_TEMP : c.i.rt;
 	s16 imm;
 
 	jit_note(__FILE__, __LINE__);
@@ -1366,7 +1366,7 @@ static void rec_store_direct(struct lightrec_cstate *cstate, const struct block 
 	jit_node_t *to_not_ram, *to_end;
 	bool swc2 = c.i.op == OP_SWC2;
 	u8 tmp, tmp2, tmp3, masked_reg, rs, rt;
-	u8 in_reg = swc2 ? REG_CP2_TEMP : c.i.rt;
+	u8 in_reg = swc2 ? REG_TEMP : c.i.rt;
 
 	jit_note(__FILE__, __LINE__);
 
@@ -1463,7 +1463,7 @@ static void rec_store(struct lightrec_cstate *state,
 		case LIGHTREC_IO_SCRATCH:
 		case LIGHTREC_IO_DIRECT:
 		case LIGHTREC_IO_DIRECT_HW:
-			rec_cp2_do_mfc2(state, block, offset, c.i.rt, REG_CP2_TEMP);
+			rec_cp2_do_mfc2(state, block, offset, c.i.rt, REG_TEMP);
 			break;
 		default:
 			break;
@@ -1495,7 +1495,7 @@ static void rec_store(struct lightrec_cstate *state,
 	}
 
 	if (is_swc2)
-		lightrec_discard_reg_if_loaded(state->reg_cache, REG_CP2_TEMP);
+		lightrec_discard_reg_if_loaded(state->reg_cache, REG_TEMP);
 }
 
 static void rec_SB(struct lightrec_cstate *state,
@@ -1552,7 +1552,7 @@ static void rec_load_memory(struct lightrec_cstate *cstate,
 	s16 imm;
 
 	if (c.i.op == OP_LWC2)
-		out_reg = REG_CP2_TEMP;
+		out_reg = REG_TEMP;
 	else if (c.i.rt)
 		out_reg = c.i.rt;
 	else
@@ -1652,7 +1652,7 @@ static void rec_load_direct(struct lightrec_cstate *cstate,
 	s16 imm;
 
 	if (c.i.op == OP_LWC2)
-		out_reg = REG_CP2_TEMP;
+		out_reg = REG_TEMP;
 	else if (c.i.rt)
 		out_reg = c.i.rt;
 	else
@@ -1780,8 +1780,8 @@ static void rec_load(struct lightrec_cstate *state, const struct block *block,
 	}
 
 	if (op->i.op == OP_LWC2) {
-		rec_cp2_do_mtc2(state, block, offset, op->i.rt, REG_CP2_TEMP);
-		lightrec_discard_reg_if_loaded(state->reg_cache, REG_CP2_TEMP);
+		rec_cp2_do_mtc2(state, block, offset, op->i.rt, REG_TEMP);
+		lightrec_discard_reg_if_loaded(state->reg_cache, REG_TEMP);
 	}
 }
 
