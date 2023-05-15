@@ -1907,6 +1907,7 @@ static void rec_mtc(struct lightrec_cstate *state, const struct block *block, u1
 	jit_note(__FILE__, __LINE__);
 	lightrec_clean_reg_if_loaded(reg_cache, _jit, c.i.rs, false);
 	lightrec_clean_reg_if_loaded(reg_cache, _jit, c.i.rt, false);
+	lightrec_clean_reg_if_loaded(reg_cache, _jit, REG_TEMP, false);
 
 	call_to_c_wrapper(state, block, c.opcode, C_WRAPPER_MTC);
 
