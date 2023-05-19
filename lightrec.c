@@ -1581,6 +1581,9 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 	if (!_jit)
 		return -ENOMEM;
 
+	if (OPT_DETECT_BUSYWAIT && !block_has_flag(block, BLOCK_NO_OPCODE_LIST))
+		lightrec_detect_busywait(block);
+
 	oldjit = block->_jit;
 	old_fn = block->function;
 	old_code_size = block->code_size;
