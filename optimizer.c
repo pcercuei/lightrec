@@ -1485,6 +1485,76 @@ static int lightrec_swap_load_delays(struct lightrec_state *state,
 	return 0;
 }
 
+static bool lightrec_detect_idle_range(struct block *block, u16 min, u16 max)
+{
+	struct opcode *list = block->opcode_list;
+	u64 read_mask = 0;
+	u64 write_mask = 0;
+	unsigned int i;
+
+	for (i = min; i <= max; i++) {
+		read_mask |= ~write_mask & opcode_read_mask(list[i].c);
+		write_mask |= opcode_write_mask(list[i].c);
+
+		if ((i > min && op_flag_sync(list[i].flags))
+		    || is_unconditional_jump(list[i].c)
+		    || is_syscall(list[i].c)
+		    || opcode_is_store(list[i].c)
+		    || list[i].c.i.op == OP_CP0
+		    || list[i].c.i.op == OP_CP2) {
+			return false;
+		}
+
+		if (opcode_is_io(list[i].c)) {
+			switch (LIGHTREC_FLAGS_GET_IO_MODE(list[i].flags)) {
+			case LIGHTREC_IO_DIRECT:
+			case LIGHTREC_IO_RAM:
+			case LIGHTREC_IO_BIOS:
+			case LIGHTREC_IO_SCRATCH:
+			case LIGHTREC_IO_DIRECT_HW:
+				continue;
+			default:
+				return false;
+			}
+		}
+	}
+
+	if (read_mask & write_mask) {
+		/* The block of code writes registers used as input in the code.
+		 * Therefore it cannot be optimized. */
+		return false;
+	}
+
+	pr_debug("Found idle loop at PC 0x%08x (0x%x -> 0x%x)\n",
+		 block->pc, min << 2, max << 2);
+	return true;
+}
+
+int lightrec_detect_idle(struct block *block)
+{
+	struct opcode *op;
+	unsigned int i;
+	s32 offset;
+	u16 idx;
+
+	for (i = 0; i < block->nb_ops; i++) {
+		op = &block->opcode_list[i];
+
+		if (op_flag_local_branch(op->flags) && has_delay_slot(op->c)) {
+			idx = i + !op_flag_no_ds(op->flags);
+
+			offset = idx + (s16)op->c.i.imm;
+			if (offset >= i)
+				continue;
+
+			if (lightrec_detect_idle_range(block, offset, idx))
+				block->opcode_list[i].flags |= LIGHTREC_IDLE_LOOP;
+		}
+	}
+
+	return 0;
+}
+
 static int lightrec_local_branches(struct lightrec_state *state, struct block *block)
 {
 	const struct opcode *ds;

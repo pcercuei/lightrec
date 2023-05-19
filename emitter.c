@@ -314,21 +314,27 @@ static void rec_b(struct lightrec_cstate *state, const struct block *block, u16 
 		/* Clean remaining registers */
 		lightrec_clean_regs(reg_cache, _jit);
 
-		target_offset = offset + 1 + (s16)op->i.imm
-			- !!op_flag_no_ds(op->flags);
-		pr_debug("Adding local branch to offset 0x%"PRIx32"\n",
-			 target_offset << 2);
-		branch = &state->local_branches[
-			state->nb_local_branches++];
+		if (op_flag_idle_loop(op->flags)) {
+			/* We have an idle loop that branched - we can skip
+			 * all the way to the next IRQ event. */
+			jit_movi(LIGHTREC_REG_CYCLE, 0);
+		} else {
+			target_offset = offset + 1 + (s16)op->i.imm
+				- !!op_flag_no_ds(op->flags);
+			pr_debug("Adding local branch to offset 0x%"PRIx32"\n",
+				 target_offset << 2);
+			branch = &state->local_branches[
+				state->nb_local_branches++];
 
-		branch->target = target_offset;
+			branch->target = target_offset;
 
-		if (no_indirection)
-			branch->branch = jit_new_node_pww(code2, NULL, rs, rt);
-		else if (is_forward)
-			branch->branch = jit_b();
-		else
-			branch->branch = jit_bgti(LIGHTREC_REG_CYCLE, 0);
+			if (no_indirection)
+				branch->branch = jit_new_node_pww(code2, NULL, rs, rt);
+			else if (is_forward)
+				branch->branch = jit_b();
+			else
+				branch->branch = jit_bgti(LIGHTREC_REG_CYCLE, 0);
+		}
 	}
 
 	if (!op_flag_local_branch(op->flags) || !is_forward) {

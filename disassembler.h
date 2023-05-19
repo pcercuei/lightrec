@@ -44,6 +44,7 @@
 /* Flags for branches */
 #define LIGHTREC_EMULATE_BRANCH	BIT(3)
 #define LIGHTREC_LOCAL_BRANCH	BIT(4)
+#define LIGHTREC_IDLE_LOOP	BIT(5)
 
 /* Flags for div/mult opcodes */
 #define LIGHTREC_NO_LO		BIT(3)
@@ -358,5 +359,11 @@ static inline _Bool op_flag_no_div_check(u32 flags)
 {
 	return OPT_FLAG_MULT_DIV && (flags & LIGHTREC_NO_DIV_CHECK);
 }
+
+static inline _Bool op_flag_idle_loop(u32 flags)
+{
+	return OPT_DETECT_IDLE && (flags & LIGHTREC_IDLE_LOOP);
+}
+
 
 #endif /* __DISASSEMBLER_H__ */

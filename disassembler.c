@@ -161,6 +161,7 @@ static const char * const opcode_io_modes[] = {
 static const char * const opcode_branch_flags[] = {
 	"emulate branch",
 	"local branch",
+	"idle loop",
 };
 
 static const char * const opcode_multdiv_flags[] = {
