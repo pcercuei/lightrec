@@ -126,8 +126,8 @@ void lightrec_emit_jump_to_interpreter(struct lightrec_cstate *state,
 	lightrec_jump_to_fn(_jit, state->state->interpreter_func);
 }
 
-void lightrec_emit_eob(struct lightrec_cstate *state,
-		       const struct block *block, u16 offset)
+static void lightrec_emit_eob(struct lightrec_cstate *state,
+			      const struct block *block, u16 offset)
 {
 	struct regcache *reg_cache = state->reg_cache;
 	jit_state_t *_jit = block->_jit;
