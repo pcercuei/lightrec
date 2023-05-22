@@ -170,6 +170,7 @@ struct lightrec_state {
 	void *tlsf;
 	void (*eob_wrapper_func)(void);
 	void (*interpreter_func)(void);
+	void (*ds_check_func)(void);
 	void (*memset_func)(void);
 	void (*get_next_block)(void);
 	struct lightrec_ops ops;

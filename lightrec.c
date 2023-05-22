@@ -1012,6 +1012,29 @@ static u32 lightrec_memset(struct lightrec_state *state)
 	return 8 + 5 * (length  + 3 / 4);
 }
 
+static u32 lightrec_check_load_delay(struct lightrec_state *state, u32 pc, u8 reg)
+{
+	struct block *block;
+	union code first_op;
+
+	first_op = lightrec_read_opcode(state, pc);
+
+	if (likely(!opcode_reads_register(first_op, reg))) {
+		state->regs.gpr[reg] = state->temp_reg;
+	} else {
+		block = lightrec_get_block(state, pc);
+		if (unlikely(!block)) {
+			pr_err("Unable to get block at PC 0x%08x\n", pc);
+			lightrec_set_exit_flags(state, LIGHTREC_EXIT_SEGFAULT);
+			pc = 0;
+		} else {
+			pc = lightrec_handle_load_delay(state, block, pc, reg);
+		}
+	}
+
+	return pc;
+}
+
 static void update_cycle_counter_before_c(jit_state_t *_jit)
 {
 	/* update state->current_cycle */
@@ -1036,7 +1059,7 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 {
 	struct block *block;
 	jit_state_t *_jit;
-	jit_node_t *to_end, *loop, *addr, *addr2, *addr3, *addr4, *jmp;
+	jit_node_t *to_end, *loop, *addr, *addr2, *addr3, *addr4, *addr5, *jmp, *jmp2;
 	unsigned int i;
 	u32 offset;
 
@@ -1106,6 +1129,31 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 		jit_retval(JIT_V0);
 
 		update_cycle_counter_after_c(_jit);
+
+		jmp2 = jit_b();
+
+		/* Blocks will jump here when they reach a branch with a load
+		 * opcode in its delay slot. The delay slot has already been
+		 * executed; the load value is in (state->temp_reg), and the
+		 * register number is in JIT_V1.
+		 * Jump to a C function which will evaluate the branch target's
+		 * first opcode, to make sure that it does not read the register
+		 * in question; and if it does, handle it accordingly. */
+		addr5 = jit_indirect();
+
+		update_cycle_counter_before_c(_jit);
+
+		jit_prepare();
+		jit_pushargr(LIGHTREC_REG_STATE);
+		jit_pushargr(JIT_V0);
+		jit_pushargr(JIT_V1);
+		jit_finishi(lightrec_check_load_delay);
+
+		jit_retval(JIT_V0);
+
+		update_cycle_counter_after_c(_jit);
+
+		jit_patch(jmp2);
 	}
 
 	if (OPT_REPLACE_MEMSET && OPT_DETECT_IMPOSSIBLE_BRANCHES)
@@ -1200,8 +1248,10 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 		goto err_free_block;
 
 	state->eob_wrapper_func = jit_address(addr2);
-	if (OPT_DETECT_IMPOSSIBLE_BRANCHES)
+	if (OPT_DETECT_IMPOSSIBLE_BRANCHES) {
 		state->interpreter_func = jit_address(addr4);
+		state->ds_check_func = jit_address(addr5);
+	}
 	if (OPT_REPLACE_MEMSET)
 		state->memset_func = jit_address(addr3);
 	state->get_next_block = jit_address(addr);
