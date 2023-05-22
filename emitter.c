@@ -68,7 +68,7 @@ static void lightrec_emit_end_of_block(struct lightrec_cstate *state,
 	struct regcache *reg_cache = state->reg_cache;
 	jit_state_t *_jit = block->_jit;
 	const struct opcode *op = &block->opcode_list[offset],
-			    *next = &block->opcode_list[offset + 1];
+			    *ds = get_delay_slot(block->opcode_list, offset);
 	u32 cycles = state->cycles + lightrec_cycles_of_opcode(op->c);
 
 	jit_note(__FILE__, __LINE__);
@@ -90,10 +90,10 @@ static void lightrec_emit_end_of_block(struct lightrec_cstate *state,
 
 	if (has_delay_slot(op->c) &&
 	    !op_flag_no_ds(op->flags) && !op_flag_local_branch(op->flags)) {
-		cycles += lightrec_cycles_of_opcode(next->c);
+		cycles += lightrec_cycles_of_opcode(ds->c);
 
 		/* Recompile the delay slot */
-		if (next->c.opcode)
+		if (ds->c.opcode)
 			lightrec_rec_opcode(state, block, offset + 1);
 	}
 
@@ -223,7 +223,7 @@ static void rec_b(struct lightrec_cstate *state, const struct block *block, u16 
 	jit_state_t *_jit = block->_jit;
 	struct lightrec_branch *branch;
 	const struct opcode *op = &block->opcode_list[offset],
-			    *next = &block->opcode_list[offset + 1];
+			    *ds = get_delay_slot(block->opcode_list, offset);
 	jit_node_t *addr;
 	bool is_forward = (s16)op->i.imm >= -1;
 	int op_cycles = lightrec_cycles_of_opcode(op->c);
@@ -235,7 +235,7 @@ static void rec_b(struct lightrec_cstate *state, const struct block *block, u16 
 	jit_note(__FILE__, __LINE__);
 
 	if (!op_flag_no_ds(op->flags))
-		cycles += lightrec_cycles_of_opcode(next->c);
+		cycles += lightrec_cycles_of_opcode(ds->c);
 
 	state->cycles = -op_cycles;
 
@@ -249,7 +249,7 @@ static void rec_b(struct lightrec_cstate *state, const struct block *block, u16 
 			lightrec_do_early_unload(state, block, offset);
 
 		if (op_flag_local_branch(op->flags) &&
-		    (op_flag_no_ds(op->flags) || !next->opcode) &&
+		    (op_flag_no_ds(op->flags) || !ds->opcode) &&
 		    is_forward && !lightrec_has_dirty_regs(reg_cache))
 			no_indirection = true;
 
@@ -271,7 +271,7 @@ static void rec_b(struct lightrec_cstate *state, const struct block *block, u16 
 
 	if (op_flag_local_branch(op->flags)) {
 		/* Recompile the delay slot */
-		if (!op_flag_no_ds(op->flags) && next->opcode)
+		if (!op_flag_no_ds(op->flags) && ds->opcode)
 			lightrec_rec_opcode(state, block, offset + 1);
 
 		if (link)
@@ -312,7 +312,7 @@ static void rec_b(struct lightrec_cstate *state, const struct block *block, u16 
 		if (bz && link)
 			update_ra_register(reg_cache, _jit, 31, block->pc, link);
 
-		if (!op_flag_no_ds(op->flags) && next->opcode)
+		if (!op_flag_no_ds(op->flags) && ds->opcode)
 			lightrec_rec_opcode(state, block, offset + 1);
 	}
 }

@@ -350,4 +350,10 @@ static inline _Bool can_zero_extend(u32 value, u8 order)
       return (value >> order) == 0;
 }
 
+static inline const struct opcode *
+get_delay_slot(const struct opcode *list, u16 i)
+{
+	return op_flag_no_ds(list[i].flags) ? &list[i - 1] : &list[i + 1];
+}
+
 #endif /* __LIGHTREC_PRIVATE_H__ */
