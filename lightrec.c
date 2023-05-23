@@ -1481,18 +1481,6 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 			continue;
 		}
 
-		if (op_flag_safe_branch(elm->flags)
-		    && has_delay_slot(elm->c)
-		    && i + 2 < block->nb_ops) {
-			/* This branch had the "must emulate" flag before, which
-			 * was removed as runtime profiling decided that it was
-			 * safe. The SYNC flag after the branch + delay slot
-			 * might have been cleared; so we need to clear the
-			 * code LUT at that address since it might not be an
-			 * entry point anymore. */
-			lut_write(state, lut_offset(block->pc) + i + 2, NULL);
-		}
-
 		if (should_emulate(elm)) {
 			pr_debug("Branch at offset 0x%x will be emulated\n",
 				 i << 2);
