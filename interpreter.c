@@ -1211,3 +1211,75 @@ u32 lightrec_emulate_block(struct lightrec_state *state, struct block *block, u3
 
 	return 0;
 }
+
+static u32 branch_get_next_pc(struct lightrec_state *state, union code c, u32 pc)
+{
+	switch (c.i.op) {
+	case OP_SPECIAL:
+		/* JR / JALR */
+		return state->regs.gpr[c.r.rs];
+	case OP_J:
+	case OP_JAL:
+		return (pc & 0xf0000000) | (c.j.imm << 2);
+	default:
+		/* Branch opcodes */
+		return pc + 4 + ((s16)c.i.imm << 2);
+	}
+}
+
+u32 lightrec_handle_load_delay(struct lightrec_state *state,
+			       struct block *block, u32 pc, u32 reg)
+{
+	union code c = lightrec_read_opcode(state, pc);
+	struct opcode op[2] = {
+		{
+			.c = c,
+			.flags = 0,
+		},
+		{
+			.flags = 0,
+		},
+	};
+	struct interpreter inter = {
+		.block = block,
+		.state = state,
+		.offset = 0,
+		.op = op,
+		.cycles = 0,
+	};
+	bool branch_taken;
+	u32 reg_mask;
+
+	if (has_delay_slot(c)) {
+		op[1].c = lightrec_read_opcode(state, pc + 4);
+
+		branch_taken = is_branch_taken(state->regs.gpr, c);
+
+		/* Branch was evaluated, we can write the load opcode's target
+		 * register now. */
+		state->regs.gpr[reg] = state->temp_reg;
+
+		/* Handle JALR / regimm opcodes setting $ra (or any other
+		 * register in the case of JALR) */
+		reg_mask = (u32)opcode_write_mask(c);
+		if (reg_mask)
+			state->regs.gpr[ctz32(reg_mask)] = pc + 8;
+
+		/* Handle delay slot of the branch opcode */
+		pc = branch_get_next_pc(state, c, pc);
+		pc = int_delay_slot(&inter, pc, branch_taken);
+	} else {
+		/* Make sure we only run one instruction */
+		inter.delay_slot = true;
+
+		lightrec_int_op(&inter);
+		pc += 4;
+
+		if (!opcode_writes_register(c, reg))
+			state->regs.gpr[reg] = state->temp_reg;
+	}
+
+	state->current_cycle += inter.cycles;
+
+	return pc;
+}

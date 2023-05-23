@@ -141,7 +141,7 @@ static u64 mult_div_write_mask(union code op)
 	return flags;
 }
 
-static u64 opcode_write_mask(union code op)
+u64 opcode_write_mask(union code op)
 {
 	switch (op.i.op) {
 	case OP_META_MULT2:
