@@ -1012,6 +1012,26 @@ static u32 lightrec_memset(struct lightrec_state *state)
 	return 8 + 5 * (length  + 3 / 4);
 }
 
+static void update_cycle_counter_before_c(jit_state_t *_jit)
+{
+	/* update state->current_cycle */
+	jit_ldxi_i(JIT_R2, LIGHTREC_REG_STATE,
+		   offsetof(struct lightrec_state, target_cycle));
+	jit_subr(JIT_R1, JIT_R2, LIGHTREC_REG_CYCLE);
+	jit_stxi_i(offsetof(struct lightrec_state, current_cycle),
+		   LIGHTREC_REG_STATE, JIT_R1);
+}
+
+static void update_cycle_counter_after_c(jit_state_t *_jit)
+{
+	/* Recalc the delta */
+	jit_ldxi_i(JIT_R1, LIGHTREC_REG_STATE,
+		   offsetof(struct lightrec_state, current_cycle));
+	jit_ldxi_i(JIT_R2, LIGHTREC_REG_STATE,
+		   offsetof(struct lightrec_state, target_cycle));
+	jit_subr(LIGHTREC_REG_CYCLE, JIT_R2, JIT_R1);
+}
+
 static struct block * generate_dispatcher(struct lightrec_state *state)
 {
 	struct block *block;
@@ -1075,12 +1095,7 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 		 * in JIT_V0 and the address of the block in JIT_V1. */
 		addr4 = jit_indirect();
 
-		/* update state->current_cycle */
-		jit_ldxi_i(JIT_R2, LIGHTREC_REG_STATE,
-			   offsetof(struct lightrec_state, target_cycle));
-		jit_subr(JIT_R1, JIT_R2, LIGHTREC_REG_CYCLE);
-		jit_stxi_i(offsetof(struct lightrec_state, current_cycle),
-			   LIGHTREC_REG_STATE, JIT_R1);
+		update_cycle_counter_before_c(_jit);
 
 		jit_prepare();
 		jit_pushargr(LIGHTREC_REG_STATE);
@@ -1090,12 +1105,7 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 
 		jit_retval(JIT_V0);
 
-		/* Recalc the delta */
-		jit_ldxi_i(JIT_R1, LIGHTREC_REG_STATE,
-			   offsetof(struct lightrec_state, current_cycle));
-		jit_ldxi_i(JIT_R2, LIGHTREC_REG_STATE,
-			   offsetof(struct lightrec_state, target_cycle));
-		jit_subr(LIGHTREC_REG_CYCLE, JIT_R2, JIT_R1);
+		update_cycle_counter_after_c(_jit);
 	}
 
 	if (OPT_REPLACE_MEMSET && OPT_DETECT_IMPOSSIBLE_BRANCHES)
@@ -1142,11 +1152,7 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 
 	if (ENABLE_FIRST_PASS || OPT_DETECT_IMPOSSIBLE_BRANCHES) {
 		/* We may call the interpreter - update state->current_cycle */
-		jit_ldxi_i(JIT_R2, LIGHTREC_REG_STATE,
-			   offsetof(struct lightrec_state, target_cycle));
-		jit_subr(JIT_V1, JIT_R2, LIGHTREC_REG_CYCLE);
-		jit_stxi_i(offsetof(struct lightrec_state, current_cycle),
-			   LIGHTREC_REG_STATE, JIT_V1);
+		update_cycle_counter_before_c(_jit);
 	}
 
 	jit_prepare();
@@ -1164,11 +1170,7 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 	if (ENABLE_FIRST_PASS || OPT_DETECT_IMPOSSIBLE_BRANCHES) {
 		/* The interpreter may have updated state->current_cycle and
 		 * state->target_cycle - recalc the delta */
-		jit_ldxi_i(JIT_R1, LIGHTREC_REG_STATE,
-			   offsetof(struct lightrec_state, current_cycle));
-		jit_ldxi_i(JIT_R2, LIGHTREC_REG_STATE,
-			   offsetof(struct lightrec_state, target_cycle));
-		jit_subr(LIGHTREC_REG_CYCLE, JIT_R2, JIT_R1);
+		update_cycle_counter_after_c(_jit);
 	} else {
 		jit_movr(LIGHTREC_REG_CYCLE, JIT_V0);
 	}
