@@ -1208,6 +1208,9 @@ static int lightrec_switch_delay_slots(struct lightrec_state *state, struct bloc
 		if (op_flag_sync(next->flags))
 			continue;
 
+		if (op_flag_load_delay(next->flags) && opcode_is_load(next_op))
+			continue;
+
 		if (!lightrec_can_switch_delay_slot(list->c, next_op))
 			continue;
 
@@ -1231,15 +1234,13 @@ static int lightrec_detect_impossible_branches(struct lightrec_state *state,
 	struct opcode *op, *list = block->opcode_list, *next = &list[0];
 	unsigned int i;
 	int ret = 0;
-	s16 offset;
 
 	for (i = 0; i < block->nb_ops - 1; i++) {
 		op = next;
 		next = &list[i + 1];
 
 		if (!has_delay_slot(op->c) ||
-		    (!load_in_delay_slot(next->c) &&
-		     !has_delay_slot(next->c) &&
+		    (!has_delay_slot(next->c) &&
 		     !(next->i.op == OP_CP0 && next->r.rs == OP_CP0_RFE)))
 			continue;
 
@@ -1247,20 +1248,6 @@ static int lightrec_detect_impossible_branches(struct lightrec_state *state,
 			/* The delay slot is the exact same opcode as the branch
 			 * opcode: this is effectively a NOP */
 			next->c.opcode = 0;
-			continue;
-		}
-
-		offset = i + 1 + (s16)op->i.imm;
-		if (load_in_delay_slot(next->c) &&
-		    (offset >= 0 && offset < block->nb_ops) &&
-		    !opcode_reads_register(list[offset].c, next->c.i.rt)) {
-			/* The 'impossible' branch is a local branch - we can
-			 * verify here that the first opcode of the target does
-			 * not use the target register of the delay slot */
-
-			pr_debug("Branch at offset 0x%x has load delay slot, "
-				 "but is local and dest opcode does not read "
-				 "dest register\n", i << 2);
 			continue;
 		}
 
@@ -1298,8 +1285,42 @@ static bool is_local_branch(const struct block *block, unsigned int idx)
 	}
 }
 
+static int lightrec_handle_load_delays(struct lightrec_state *state,
+				       struct block *block)
+{
+	struct opcode *op, *list = block->opcode_list;
+	unsigned int i;
+
+	for (i = 0; i < block->nb_ops; i++) {
+		op = &list[i];
+
+		if (!opcode_is_load(op->c) || !op->c.i.rt)
+			continue;
+
+		if (!is_delay_slot(list, i)) {
+			/* Only handle load delays in delay slots.
+			 * PSX games never abused load delay slots otherwise. */
+			continue;
+		}
+
+		if (is_local_branch(block, i - 1)
+		    && !opcode_reads_register(list[i + (s16)op->c.i.imm].c, op->c.i.rt)) {
+			/* The target opcode of the branch is inside
+			 * the block, and it does not read the register
+			 * written to by the load opcode; we can ignore
+			 * the load delay. */
+			continue;
+		}
+
+		op->flags |= LIGHTREC_LOAD_DELAY;
+	}
+
+	return 0;
+}
+
 static int lightrec_local_branches(struct lightrec_state *state, struct block *block)
 {
+	const struct opcode *ds;
 	struct opcode *list;
 	unsigned int i;
 	s32 offset;
@@ -1313,6 +1334,12 @@ static int lightrec_local_branches(struct lightrec_state *state, struct block *b
 		offset = i + 1 + (s16)list->c.i.imm;
 
 		pr_debug("Found local branch to offset 0x%x\n", offset << 2);
+
+		ds = get_delay_slot(block->opcode_list, i);
+		if (op_flag_load_delay(ds->flags) && opcode_is_load(ds->c)) {
+			pr_debug("Branch delay slot has a load delay - skip\n");
+			continue;
+		}
 
 		if (should_emulate(&block->opcode_list[offset])) {
 			pr_debug("Branch target must be emulated - skip\n");
@@ -1431,7 +1458,7 @@ static int lightrec_early_unload(struct lightrec_state *state, struct block *blo
 	struct opcode *op;
 	s16 last_r[34], last_w[34], last_sync = 0, next_sync = 0;
 	u64 mask_r, mask_w, dirty = 0, loaded = 0;
-	u8 reg;
+	u8 reg, load_delay_reg = 0;
 
 	memset(last_r, 0xff, sizeof(last_r));
 	memset(last_w, 0xff, sizeof(last_w));
@@ -1451,6 +1478,13 @@ static int lightrec_early_unload(struct lightrec_state *state, struct block *blo
 
 	for (i = 0; i < block->nb_ops; i++) {
 		op = &block->opcode_list[i];
+
+		if (OPT_HANDLE_LOAD_DELAYS && load_delay_reg) {
+			/* Handle delayed register write from load opcodes in
+			 * delay slots */
+			last_w[load_delay_reg] = i;
+			load_delay_reg = 0;
+		}
 
 		if (op_flag_sync(op->flags) || should_emulate(op)) {
 			/* The next opcode has the SYNC flag set, or is a branch
@@ -1472,6 +1506,15 @@ static int lightrec_early_unload(struct lightrec_state *state, struct block *blo
 
 		mask_r = opcode_read_mask(op->c);
 		mask_w = opcode_write_mask(op->c);
+
+		if (op_flag_load_delay(op->flags) && opcode_is_load(op->c)) {
+			/* If we have a load opcode in a delay slot, its target
+			 * register is actually not written there but at a
+			 * later point, in the dispatcher. Prevent the algorithm
+			 * from discarding its previous value. */
+			load_delay_reg = op->c.i.rt;
+			mask_w &= ~BIT(op->c.i.rt);
+		}
 
 		for (reg = 0; reg < 34; reg++) {
 			if (mask_r & BIT(reg)) {
@@ -2067,6 +2110,7 @@ static int (*lightrec_optimizers[])(struct lightrec_state *state, struct block *
 	IF_OPT(OPT_REMOVE_DIV_BY_ZERO_SEQ, &lightrec_remove_div_by_zero_check_sequence),
 	IF_OPT(OPT_REPLACE_MEMSET, &lightrec_replace_memset),
 	IF_OPT(OPT_DETECT_IMPOSSIBLE_BRANCHES, &lightrec_detect_impossible_branches),
+	IF_OPT(OPT_HANDLE_LOAD_DELAYS, &lightrec_handle_load_delays),
 	IF_OPT(OPT_TRANSFORM_OPS, &lightrec_transform_branches),
 	IF_OPT(OPT_LOCAL_BRANCHES, &lightrec_local_branches),
 	IF_OPT(OPT_TRANSFORM_OPS, &lightrec_transform_ops),
