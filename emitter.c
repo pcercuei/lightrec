@@ -50,6 +50,12 @@ lightrec_jump_to_eob(struct lightrec_cstate *state, jit_state_t *_jit)
 	lightrec_jump_to_fn(_jit, state->state->eob_wrapper_func);
 }
 
+static void
+lightrec_jump_to_ds_check(struct lightrec_cstate *state, jit_state_t *_jit)
+{
+	lightrec_jump_to_fn(_jit, state->state->ds_check_func);
+}
+
 static void update_ra_register(struct regcache *reg_cache, jit_state_t *_jit,
 			       u8 ra_reg, u32 pc, u32 link)
 {
@@ -105,7 +111,19 @@ static void lightrec_emit_end_of_block(struct lightrec_cstate *state,
 		pr_debug("EOB: %u cycles\n", cycles);
 	}
 
-	lightrec_jump_to_eob(state, _jit);
+	if (op_flag_load_delay(ds->flags)
+	    && opcode_is_load(ds->c) && !state->no_load_delay) {
+		/* If the delay slot is a load opcode, its target register
+		 * will be written after the first opcode of the target is
+		 * executed. Handle this by jumping to a special section of
+		 * the dispatcher. It expects the loaded value to be in
+		 * REG_TEMP, and the target register number to be in JIT_V1.*/
+		jit_movi(JIT_V1, ds->c.i.rt);
+
+		lightrec_jump_to_ds_check(state, _jit);
+	} else {
+		lightrec_jump_to_eob(state, _jit);
+	}
 }
 
 void lightrec_emit_jump_to_interpreter(struct lightrec_cstate *state,
@@ -271,8 +289,11 @@ static void rec_b(struct lightrec_cstate *state, const struct block *block, u16 
 
 	if (op_flag_local_branch(op->flags)) {
 		/* Recompile the delay slot */
-		if (!op_flag_no_ds(op->flags) && ds->opcode)
+		if (!op_flag_no_ds(op->flags) && ds->opcode) {
+			/* Never handle load delays with local branches. */
+			state->no_load_delay = true;
 			lightrec_rec_opcode(state, block, offset + 1);
+		}
 
 		if (link)
 			update_ra_register(reg_cache, _jit, 31, block->pc, link);
@@ -299,6 +320,7 @@ static void rec_b(struct lightrec_cstate *state, const struct block *block, u16 
 
 	if (!op_flag_local_branch(op->flags) || !is_forward) {
 		next_pc = get_branch_pc(block, offset, 1 + (s16)op->i.imm);
+		state->no_load_delay = op_flag_local_branch(op->flags);
 		lightrec_emit_end_of_block(state, block, offset, -1, next_pc,
 					   31, link, false);
 	}
@@ -312,8 +334,10 @@ static void rec_b(struct lightrec_cstate *state, const struct block *block, u16 
 		if (bz && link)
 			update_ra_register(reg_cache, _jit, 31, block->pc, link);
 
-		if (!op_flag_no_ds(op->flags) && ds->opcode)
+		if (!op_flag_no_ds(op->flags) && ds->opcode) {
+			state->no_load_delay = true;
 			lightrec_rec_opcode(state, block, offset + 1);
+		}
 	}
 }
 
@@ -1115,6 +1139,7 @@ static void rec_io(struct lightrec_cstate *state,
 	u32 flags = block->opcode_list[offset].flags;
 	bool is_tagged = LIGHTREC_FLAGS_GET_IO_MODE(flags);
 	u32 lut_entry;
+	u8 zero;
 
 	jit_note(__FILE__, __LINE__);
 
@@ -1124,6 +1149,16 @@ static void rec_io(struct lightrec_cstate *state,
 		lightrec_clean_reg_if_loaded(reg_cache, _jit, c.i.rt, true);
 	else if (load_rt)
 		lightrec_clean_reg_if_loaded(reg_cache, _jit, c.i.rt, false);
+
+	if (op_flag_load_delay(flags) && !state->no_load_delay) {
+		/* Clear state->in_delay_slot_n. This notifies the lightrec_rw
+		 * wrapper that it should write the REG_TEMP register instead of
+		 * the actual output register of the opcode. */
+		zero = lightrec_alloc_reg_in(reg_cache, _jit, 0, 0);
+		jit_stxi_c(offsetof(struct lightrec_state, in_delay_slot_n),
+			    LIGHTREC_REG_STATE, zero);
+		lightrec_free_reg(reg_cache, zero);
+	}
 
 	if (is_tagged) {
 		call_to_c_wrapper(state, block, c.opcode, C_WRAPPER_RW);
@@ -1545,13 +1580,14 @@ static void rec_load_memory(struct lightrec_cstate *cstate,
 {
 	struct regcache *reg_cache = cstate->reg_cache;
 	struct opcode *op = &block->opcode_list[offset];
+	bool load_delay = op_flag_load_delay(op->flags) && !cstate->no_load_delay;
 	jit_state_t *_jit = block->_jit;
 	u8 rs, rt, out_reg, addr_reg, flags = REG_EXT;
 	bool no_mask = op_flag_no_mask(op->flags);
 	union code c = op->c;
 	s16 imm;
 
-	if (c.i.op == OP_LWC2)
+	if (load_delay || c.i.op == OP_LWC2)
 		out_reg = REG_TEMP;
 	else if (c.i.rt)
 		out_reg = c.i.rt;
@@ -1645,13 +1681,15 @@ static void rec_load_direct(struct lightrec_cstate *cstate,
 {
 	struct lightrec_state *state = cstate->state;
 	struct regcache *reg_cache = cstate->reg_cache;
-	union code c = block->opcode_list[offset].c;
+	struct opcode *op = &block->opcode_list[offset];
+	bool load_delay = op_flag_load_delay(op->flags) && !cstate->no_load_delay;
 	jit_state_t *_jit = block->_jit;
 	jit_node_t *to_not_ram, *to_not_bios, *to_end, *to_end2;
 	u8 tmp, rs, rt, out_reg, addr_reg, flags = REG_EXT;
+	union code c = op->c;
 	s16 imm;
 
-	if (c.i.op == OP_LWC2)
+	if (load_delay || c.i.op == OP_LWC2)
 		out_reg = REG_TEMP;
 	else if (c.i.rt)
 		out_reg = c.i.rt;
@@ -2780,4 +2818,6 @@ void lightrec_rec_opcode(struct lightrec_cstate *state,
 
 		lightrec_do_early_unload(state, block, unload_offset);
 	}
+
+	state->no_load_delay = false;
 }

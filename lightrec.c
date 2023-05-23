@@ -345,8 +345,12 @@ static void lightrec_rw_helper(struct lightrec_state *state,
 	case OP_LWL:
 	case OP_LWR:
 	case OP_LW:
-		if (op.i.rt)
+		if (OPT_HANDLE_LOAD_DELAYS && unlikely(!state->in_delay_slot_n)) {
+			state->temp_reg = ret;
+			state->in_delay_slot_n = 0xff;
+		} else if (op.i.rt) {
 			state->regs.gpr[op.i.rt] = ret;
+		}
 		fallthrough;
 	default:
 		break;
@@ -1519,6 +1523,7 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 	cstate->cycles = 0;
 	cstate->nb_local_branches = 0;
 	cstate->nb_targets = 0;
+	cstate->no_load_delay = false;
 
 	jit_prolog();
 	jit_tramp(256);
@@ -1875,6 +1880,7 @@ struct lightrec_state * lightrec_init(char *argv0,
 
 	state->tlsf = tlsf;
 	state->with_32bit_lut = with_32bit_lut;
+	state->in_delay_slot_n = 0xff;
 
 	state->block_cache = lightrec_blockcache_init(state);
 	if (!state->block_cache)

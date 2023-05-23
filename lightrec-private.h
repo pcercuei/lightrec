@@ -149,6 +149,8 @@ struct lightrec_cstate {
 	unsigned int cycles;
 
 	struct regcache *reg_cache;
+
+	_Bool no_load_delay;
 };
 
 struct lightrec_state {
@@ -156,6 +158,7 @@ struct lightrec_state {
 	u32 temp_reg;
 	u32 next_pc;
 	uintptr_t wrapper_regs[NUM_TEMPS];
+	u8 in_delay_slot_n;
 	u32 current_cycle;
 	u32 target_cycle;
 	u32 exit_flags;
