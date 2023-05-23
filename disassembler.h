@@ -24,9 +24,10 @@
 #define LIGHTREC_SMC		BIT(2)
 #define LIGHTREC_NO_INVALIDATE	BIT(3)
 #define LIGHTREC_NO_MASK	BIT(4)
+#define LIGHTREC_LOAD_DELAY	BIT(5)
 
 /* I/O mode for load/store opcodes */
-#define LIGHTREC_IO_MODE_LSB	5
+#define LIGHTREC_IO_MODE_LSB	6
 #define LIGHTREC_IO_MODE(x)	((x) << LIGHTREC_IO_MODE_LSB)
 #define LIGHTREC_IO_UNKNOWN	0x0
 #define LIGHTREC_IO_DIRECT	0x1
@@ -315,6 +316,11 @@ static inline _Bool op_flag_no_invalidate(u32 flags)
 static inline _Bool op_flag_no_mask(u32 flags)
 {
 	return OPT_FLAG_IO && (flags & LIGHTREC_NO_MASK);
+}
+
+static inline _Bool op_flag_load_delay(u32 flags)
+{
+	return OPT_HANDLE_LOAD_DELAYS && (flags & LIGHTREC_LOAD_DELAY);
 }
 
 static inline _Bool op_flag_emulate_branch(u32 flags)

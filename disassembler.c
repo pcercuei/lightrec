@@ -140,6 +140,7 @@ static const char * const opcode_io_flags[] = {
 	"self-modifying code",
 	"no invalidation",
 	"no mask",
+	"load delay",
 };
 
 static const char * const opcode_io_modes[] = {
