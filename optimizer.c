@@ -1278,6 +1278,26 @@ static int lightrec_detect_impossible_branches(struct lightrec_state *state,
 	return ret;
 }
 
+static bool is_local_branch(const struct block *block, unsigned int idx)
+{
+	const struct opcode *op = &block->opcode_list[idx];
+	s32 offset;
+
+	switch (op->c.i.op) {
+	case OP_BEQ:
+	case OP_BNE:
+	case OP_BLEZ:
+	case OP_BGTZ:
+	case OP_REGIMM:
+		offset = idx + 1 + (s16)op->c.i.imm;
+		if (offset >= 0 && offset < block->nb_ops)
+			return true;
+		fallthrough;
+	default:
+		return false;
+	}
+}
+
 static int lightrec_local_branches(struct lightrec_state *state, struct block *block)
 {
 	struct opcode *list;
@@ -1287,22 +1307,10 @@ static int lightrec_local_branches(struct lightrec_state *state, struct block *b
 	for (i = 0; i < block->nb_ops; i++) {
 		list = &block->opcode_list[i];
 
-		if (should_emulate(list))
+		if (should_emulate(list) || !is_local_branch(block, i))
 			continue;
 
-		switch (list->i.op) {
-		case OP_BEQ:
-		case OP_BNE:
-		case OP_BLEZ:
-		case OP_BGTZ:
-		case OP_REGIMM:
-			offset = i + 1 + (s16)list->i.imm;
-			if (offset >= 0 && offset < block->nb_ops)
-				break;
-			fallthrough;
-		default:
-			continue;
-		}
+		offset = i + 1 + (s16)list->c.i.imm;
 
 		pr_debug("Found local branch to offset 0x%x\n", offset << 2);
 
