@@ -339,7 +339,7 @@ static bool reg_is_read_or_written(const struct opcode *list,
 	return reg_is_read(list, a, b, reg) || reg_is_written(list, a, b, reg);
 }
 
-static bool opcode_is_load(union code op)
+bool opcode_is_load(union code op)
 {
 	switch (op.i.op) {
 	case OP_LB:
