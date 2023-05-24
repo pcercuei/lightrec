@@ -249,7 +249,7 @@ void lightrec_consts_propagate(const struct block *block,
 {
 	const struct opcode *list = block->opcode_list;
 	union code c;
-	u32 imm;
+	u32 imm, flags;
 
 	if (idx == 0)
 		return;
@@ -264,8 +264,13 @@ void lightrec_consts_propagate(const struct block *block,
 		return;
 	}
 
-	if (idx > 1 && !op_flag_sync(list[idx - 1].flags)) {
-		c = list[idx - 2].c;
+	flags = list[idx - 1].flags;
+
+	if (idx > 1 && !op_flag_sync(flags)) {
+		if (op_flag_no_ds(flags))
+			c = list[idx - 1].c;
+		else
+			c = list[idx - 2].c;
 
 		switch (c.i.op) {
 		case OP_BNE:
