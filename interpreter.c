@@ -46,7 +46,7 @@ static inline u32 int_get_ds_pc(const struct interpreter *inter, s16 imm)
 
 static inline struct opcode *next_op(const struct interpreter *inter)
 {
-	return &inter->block->opcode_list[inter->offset + 1];
+	return &inter->op[1];
 }
 
 static inline u32 execute(lightrec_int_func_t func, struct interpreter *inter)
@@ -1248,12 +1248,13 @@ u32 lightrec_handle_load_delay(struct lightrec_state *state,
 		.cycles = 0,
 	};
 	bool branch_taken;
-	u32 reg_mask;
+	u32 reg_mask, next_pc;
 
 	if (has_delay_slot(c)) {
 		op[1].c = lightrec_read_opcode(state, pc + 4);
 
 		branch_taken = is_branch_taken(state->regs.gpr, c);
+		next_pc = branch_get_next_pc(state, c, pc);
 
 		/* Branch was evaluated, we can write the load opcode's target
 		 * register now. */
@@ -1266,8 +1267,7 @@ u32 lightrec_handle_load_delay(struct lightrec_state *state,
 			state->regs.gpr[ctz32(reg_mask)] = pc + 8;
 
 		/* Handle delay slot of the branch opcode */
-		pc = branch_get_next_pc(state, c, pc);
-		pc = int_delay_slot(&inter, pc, branch_taken);
+		pc = int_delay_slot(&inter, next_pc, branch_taken);
 	} else {
 		/* Make sure we only run one instruction */
 		inter.delay_slot = true;
