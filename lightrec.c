@@ -1112,7 +1112,7 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 			    offsetof(struct lightrec_state, regs.gpr[31]));
 		jit_subr(LIGHTREC_REG_CYCLE, JIT_V1, LIGHTREC_REG_CYCLE);
 
-		if (OPT_DETECT_IMPOSSIBLE_BRANCHES)
+		if (OPT_DETECT_IMPOSSIBLE_BRANCHES || OPT_HANDLE_LOAD_DELAYS)
 			jmp = jit_b();
 	}
 
@@ -1134,8 +1134,12 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 
 		update_cycle_counter_after_c(_jit);
 
-		jmp2 = jit_b();
+		if (OPT_HANDLE_LOAD_DELAYS)
+			jmp2 = jit_b();
 
+	}
+
+	if (OPT_HANDLE_LOAD_DELAYS) {
 		/* Blocks will jump here when they reach a branch with a load
 		 * opcode in its delay slot. The delay slot has already been
 		 * executed; the load value is in (state->temp_reg), and the
@@ -1157,11 +1161,14 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 
 		update_cycle_counter_after_c(_jit);
 
-		jit_patch(jmp2);
+		if (OPT_DETECT_IMPOSSIBLE_BRANCHES)
+			jit_patch(jmp2);
 	}
 
-	if (OPT_REPLACE_MEMSET && OPT_DETECT_IMPOSSIBLE_BRANCHES)
+	if (OPT_REPLACE_MEMSET
+	    && (OPT_DETECT_IMPOSSIBLE_BRANCHES || OPT_HANDLE_LOAD_DELAYS)) {
 		jit_patch(jmp);
+	}
 
 	/* The block will jump here, with the number of cycles remaining in
 	 * LIGHTREC_REG_CYCLE */
@@ -1252,10 +1259,10 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 		goto err_free_block;
 
 	state->eob_wrapper_func = jit_address(addr2);
-	if (OPT_DETECT_IMPOSSIBLE_BRANCHES) {
+	if (OPT_DETECT_IMPOSSIBLE_BRANCHES)
 		state->interpreter_func = jit_address(addr4);
+	if (OPT_HANDLE_LOAD_DELAYS)
 		state->ds_check_func = jit_address(addr5);
-	}
 	if (OPT_REPLACE_MEMSET)
 		state->memset_func = jit_address(addr3);
 	state->get_next_block = jit_address(addr);
