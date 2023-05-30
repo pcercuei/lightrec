@@ -339,6 +339,38 @@ static bool reg_is_read_or_written(const struct opcode *list,
 	return reg_is_read(list, a, b, reg) || reg_is_written(list, a, b, reg);
 }
 
+bool opcode_is_mfc(union code op)
+{
+	switch (op.i.op) {
+	case OP_CP0:
+		switch (op.r.rs) {
+		case OP_CP0_MFC0:
+		case OP_CP0_CFC0:
+			return true;
+		default:
+			break;
+		}
+
+		break;
+	case OP_CP2:
+		if (op.r.op == OP_CP2_BASIC) {
+			switch (op.r.rs) {
+			case OP_CP2_BASIC_MFC2:
+			case OP_CP2_BASIC_CFC2:
+				return true;
+			default:
+				break;
+			}
+		}
+
+		break;
+	default:
+		break;
+	}
+
+	return false;
+}
+
 bool opcode_is_load(union code op)
 {
 	switch (op.i.op) {
@@ -454,46 +486,6 @@ static bool is_nop(union code op)
 	default:
 		return false;
 	}
-}
-
-bool load_in_delay_slot(union code op)
-{
-	switch (op.i.op) {
-	case OP_CP0:
-		switch (op.r.rs) {
-		case OP_CP0_MFC0:
-		case OP_CP0_CFC0:
-			return true;
-		default:
-			break;
-		}
-
-		break;
-	case OP_CP2:
-		if (op.r.op == OP_CP2_BASIC) {
-			switch (op.r.rs) {
-			case OP_CP2_BASIC_MFC2:
-			case OP_CP2_BASIC_CFC2:
-				return true;
-			default:
-				break;
-			}
-		}
-
-		break;
-	case OP_LB:
-	case OP_LH:
-	case OP_LW:
-	case OP_LWL:
-	case OP_LWR:
-	case OP_LBU:
-	case OP_LHU:
-		return true;
-	default:
-		break;
-	}
-
-	return false;
 }
 
 static void lightrec_optimize_sll_sra(struct opcode *list, unsigned int offset,
@@ -1241,6 +1233,7 @@ static int lightrec_detect_impossible_branches(struct lightrec_state *state,
 
 		if (!has_delay_slot(op->c) ||
 		    (!has_delay_slot(next->c) &&
+		     !opcode_is_mfc(next->c) &&
 		     !(next->i.op == OP_CP0 && next->r.rs == OP_CP0_RFE)))
 			continue;
 

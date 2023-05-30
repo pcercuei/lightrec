@@ -187,7 +187,7 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 	 * interpreter in that case.
 	 * Same goes for when we have a branch in a delay slot of another
 	 * branch. */
-	load_in_ds = load_in_delay_slot(op->c);
+	load_in_ds = opcode_is_load(op->c) || opcode_is_mfc(op->c);
 	branch_in_ds = has_delay_slot(op->c);
 
 	if (branch) {
