@@ -813,7 +813,7 @@ static void lightrec_free_code(struct lightrec_state *state, void *ptr)
 		lightrec_code_alloc_unlock(state);
 }
 
-static char lightning_code_data[0x8000];
+static char lightning_code_data[0x80000];
 
 static void * lightrec_emit_code(struct lightrec_state *state,
 				 const struct block *block,
