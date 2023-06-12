@@ -1283,6 +1283,7 @@ static int lightrec_handle_load_delays(struct lightrec_state *state,
 {
 	struct opcode *op, *list = block->opcode_list;
 	unsigned int i;
+	s16 imm;
 
 	for (i = 0; i < block->nb_ops; i++) {
 		op = &list[i];
@@ -1296,13 +1297,16 @@ static int lightrec_handle_load_delays(struct lightrec_state *state,
 			continue;
 		}
 
-		if (is_local_branch(block, i - 1)
-		    && !opcode_reads_register(list[i + (s16)op->c.i.imm].c, op->c.i.rt)) {
-			/* The target opcode of the branch is inside
-			 * the block, and it does not read the register
-			 * written to by the load opcode; we can ignore
-			 * the load delay. */
-			continue;
+		if (is_local_branch(block, i - 1)) {
+			imm = (s16)list[i - 1].c.i.imm;
+
+			if (!opcode_reads_register(list[i + imm].c, op->c.i.rt)) {
+				/* The target opcode of the branch is inside
+				 * the block, and it does not read the register
+				 * written to by the load opcode; we can ignore
+				 * the load delay. */
+				continue;
+			}
 		}
 
 		op->flags |= LIGHTREC_LOAD_DELAY;
