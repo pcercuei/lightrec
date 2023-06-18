@@ -73,6 +73,7 @@ void lightrec_unload_reg(struct regcache *cache, jit_state_t *_jit, u8 jit_reg);
 void lightrec_storeback_regs(struct regcache *cache, jit_state_t *_jit);
 _Bool lightrec_has_dirty_regs(struct regcache *cache);
 
+_Bool lightrec_reg_is_loaded(struct regcache *cache, u16 reg);
 void lightrec_clean_reg_if_loaded(struct regcache *cache, jit_state_t *_jit,
 				  u16 reg, _Bool unload);
 void lightrec_discard_reg_if_loaded(struct regcache *cache, u16 reg);

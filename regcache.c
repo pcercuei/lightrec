@@ -577,6 +577,11 @@ void lightrec_clean_reg(struct regcache *cache, jit_state_t *_jit, u8 jit_reg)
 	}
 }
 
+bool lightrec_reg_is_loaded(struct regcache *cache, u16 reg)
+{
+	return !!find_mapped_reg(cache, reg, false);
+}
+
 void lightrec_clean_reg_if_loaded(struct regcache *cache, jit_state_t *_jit,
 				  u16 reg, bool unload)
 {
