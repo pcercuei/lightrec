@@ -243,7 +243,7 @@ static void rec_b(struct lightrec_cstate *state, const struct block *block, u16 
 	const struct opcode *op = &block->opcode_list[offset],
 			    *ds = get_delay_slot(block->opcode_list, offset);
 	jit_node_t *addr;
-	bool is_forward = (s16)op->i.imm >= -1;
+	bool is_forward = (s16)op->i.imm >= 0;
 	int op_cycles = lightrec_cycles_of_opcode(op->c);
 	u32 target_offset, cycles = state->cycles + op_cycles;
 	bool no_indirection = false;
