@@ -713,6 +713,7 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 		}
 
 		should_recompile = block_has_flag(block, BLOCK_SHOULD_RECOMPILE) &&
+			!block_has_flag(block, BLOCK_NEVER_COMPILE) &&
 			!block_has_flag(block, BLOCK_IS_DEAD);
 
 		if (unlikely(should_recompile)) {
