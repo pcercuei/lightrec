@@ -886,6 +886,15 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 	unsigned int i;
 	jit_node_t *addr[C_WRAPPERS_COUNT - 1];
 	jit_node_t *to_end[C_WRAPPERS_COUNT - 1];
+	u8 tmp = JIT_R1;
+
+#ifdef __sh__
+	/* On SH, GBR-relative loads target the r0 register.
+	 * Use it as the temporary register to factorize the move to
+	 * JIT_R1. */
+	if (LIGHTREC_REG_STATE == _GBR)
+		tmp = _R0;
+#endif
 
 	block = lightrec_malloc(state, MEM_FOR_IR, sizeof(*block));
 	if (!block)
@@ -904,17 +913,18 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 
 	/* Add entry points */
 	for (i = C_WRAPPERS_COUNT - 1; i > 0; i--) {
-		jit_ldxi(JIT_R1, LIGHTREC_REG_STATE,
+		jit_ldxi(tmp, LIGHTREC_REG_STATE,
 			 offsetof(struct lightrec_state, c_wrappers[i]));
 		to_end[i - 1] = jit_b();
 		addr[i - 1] = jit_indirect();
 	}
 
-	jit_ldxi(JIT_R1, LIGHTREC_REG_STATE,
+	jit_ldxi(tmp, LIGHTREC_REG_STATE,
 		 offsetof(struct lightrec_state, c_wrappers[0]));
 
 	for (i = 0; i < C_WRAPPERS_COUNT - 1; i++)
 		jit_patch(to_end[i]);
+	jit_movr(JIT_R1, tmp);
 
 	jit_epilog();
 	jit_prolog();
