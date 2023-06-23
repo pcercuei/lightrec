@@ -237,7 +237,7 @@ lightrec_get_map(struct lightrec_state *state, void **host, u32 kaddr)
 	return map;
 }
 
-u32 lightrec_rw(struct lightrec_state *state, union code op, u32 addr,
+u32 lightrec_rw(struct lightrec_state *state, union code op, u32 base,
 		u32 data, u32 *flags, struct block *block, u16 offset)
 {
 	const struct lightrec_mem_map *map;
@@ -245,9 +245,10 @@ u32 lightrec_rw(struct lightrec_state *state, union code op, u32 addr,
 	u32 opcode = op.opcode;
 	bool was_tagged = true;
 	u16 old_flags;
+	u32 addr;
 	void *host;
 
-	addr = kunseg(addr + (s16) op.i.imm);
+	addr = kunseg(base + (s16) op.i.imm);
 
 	map = lightrec_get_map(state, &host, addr);
 	if (!map) {
@@ -263,6 +264,12 @@ u32 lightrec_rw(struct lightrec_state *state, union code op, u32 addr,
 			/* Force parallel port accesses as HW accesses, because
 			 * the direct-I/O emitters can't differenciate it. */
 			if (unlikely(map == &state->maps[PSX_MAP_PARALLEL_PORT]))
+				*flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_HW);
+			/* If the base register is 0x0, be extra suspicious.
+			 * Some games (e.g. Sled Storm) actually do segmentation
+			 * faults by using uninitialized pointers, which are
+			 * later initialized to point to hardware registers. */
+			else if (op.i.rs && base == 0x0)
 				*flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_HW);
 			else
 				*flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_DIRECT);
