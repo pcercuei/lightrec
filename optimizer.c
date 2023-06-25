@@ -662,6 +662,12 @@ static void lightrec_modify_lui(struct block *block, unsigned int offset)
 			break;
 
 		if (opcode_writes_register(c, lui->i.rt)) {
+			if (c.i.op == OP_LWL || c.i.op == OP_LWR) {
+				/* LWL/LWR only partially write their target register;
+				 * therefore the LUI should not write a different value. */
+				break;
+			}
+
 			pr_debug("Convert LUI at offset 0x%x to kuseg\n",
 				 i - 1 << 2);
 			lui->i.imm = kunseg(lui->i.imm << 16) >> 16;
