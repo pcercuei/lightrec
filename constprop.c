@@ -657,7 +657,7 @@ void lightrec_consts_propagate(const struct block *block,
 				imm = imm ? GENMASK(31, 32 - imm) : 0;
 				v[c.i.rt].sign = 0;
 			}
-			v[c.i.rt].known &= ~imm;
+			v[c.i.rt].known &= imm;
 			break;
 		}
 		fallthrough;
