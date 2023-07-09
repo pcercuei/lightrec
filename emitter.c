@@ -1975,13 +1975,16 @@ rec_mfc0(struct lightrec_cstate *state, const struct block *block, u16 offset)
 	lightrec_free_reg(reg_cache, rt);
 }
 
-static bool block_in_bios(const struct lightrec_cstate *state,
-			  const struct block *block)
+static bool block_uses_icache(const struct lightrec_cstate *state,
+			      const struct block *block)
 {
-	const struct lightrec_mem_map *bios = &state->state->maps[PSX_MAP_BIOS];
+	const struct lightrec_mem_map *map = &state->state->maps[PSX_MAP_KERNEL_USER_RAM];
 	u32 pc = kunseg(block->pc);
 
-	return pc >= bios->pc && pc < bios->pc + bios->length;
+	if (pc < map->pc || pc >= map->pc + map->length)
+		return false;
+
+	return (block->pc >> 28) < 0xa;
 }
 
 static void
@@ -2007,10 +2010,11 @@ rec_mtc0(struct lightrec_cstate *state, const struct block *block, u16 offset)
 		break;
 	}
 
-	if (block_in_bios(state, block) && c.r.rd == 12) {
-		/* If we are running code from the BIOS, handle writes to the
-		 * Status register in C. BIOS code may toggle bit 16 which will
-		 * map/unmap the RAM, while game code cannot do that. */
+	if (!block_uses_icache(state, block) && c.r.rd == 12) {
+		/* If we are not running code from the RAM through kuseg or
+		 * kseg0, handle writes to the Status register in C; as the
+		 * code may toggle bit 16 which isolates the cache. Code
+		 * running from kuseg or kseg0 in RAM cannot do that. */
 		rec_mtc(state, block, offset);
 		return;
 	}
