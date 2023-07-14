@@ -1340,7 +1340,7 @@ static int lightrec_swap_load_delays(struct lightrec_state *state,
 		} else if (!in_ds && opcode_is_load(c) && c.i.op != OP_LWC2) {
 			next = block->opcode_list[i + 1].c;
 
-			if (c.i.op == OP_LWL && next.i.op == OP_LWR)
+			if (next.i.op == OP_LWL || next.i.op == OP_LWR)
 				continue;
 
 			if (opcode_reads_register(next, c.i.rt)
