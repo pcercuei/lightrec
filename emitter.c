@@ -1214,6 +1214,7 @@ static void rec_store_memory(struct lightrec_cstate *cstate,
 
 	if (add_imm) {
 		jit_addi(tmp, addr_reg, (s16)c.i.imm);
+		lightrec_free_reg(reg_cache, rs);
 		addr_reg = tmp;
 		imm = 0;
 	} else if (simm) {
