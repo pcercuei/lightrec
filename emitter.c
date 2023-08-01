@@ -124,6 +124,8 @@ static void lightrec_emit_end_of_block(struct lightrec_cstate *state,
 	} else {
 		lightrec_jump_to_eob(state, _jit);
 	}
+
+	lightrec_regcache_reset(reg_cache);
 }
 
 void lightrec_emit_jump_to_interpreter(struct lightrec_cstate *state,
