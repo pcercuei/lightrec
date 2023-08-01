@@ -657,7 +657,7 @@ void lightrec_regcache_reset(struct regcache *cache)
 	memset(&cache->lightrec_regs, 0, sizeof(cache->lightrec_regs));
 }
 
-void lightrec_preload_pc(struct regcache *cache)
+void lightrec_preload_pc(struct regcache *cache, jit_state_t *_jit)
 {
 	struct native_register *nreg;
 
@@ -666,6 +666,8 @@ void lightrec_preload_pc(struct regcache *cache)
 	nreg->emulated_register = REG_PC;
 	nreg->prio = REG_IS_LOADED;
 	nreg->zero_extended = true;
+
+	jit_live(JIT_V0);
 }
 
 struct regcache * lightrec_regcache_init(struct lightrec_state *state)
