@@ -1077,6 +1077,14 @@ static void update_cycle_counter_after_c(jit_state_t *_jit)
 	jit_subr(LIGHTREC_REG_CYCLE, JIT_R2, JIT_R1);
 }
 
+static void sync_next_pc(jit_state_t *_jit)
+{
+	if (lightrec_store_next_pc()) {
+		jit_ldxi_i(JIT_V0, LIGHTREC_REG_STATE,
+			   offsetof(struct lightrec_state, next_pc));
+	}
+}
+
 static struct block * generate_dispatcher(struct lightrec_state *state)
 {
 	struct block *block;
@@ -1140,6 +1148,7 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 		 * in JIT_V0 and the address of the block in JIT_V1. */
 		addr4 = jit_indirect();
 
+		sync_next_pc(_jit);
 		update_cycle_counter_before_c(_jit);
 
 		jit_prepare();
@@ -1167,6 +1176,7 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 		 * in question; and if it does, handle it accordingly. */
 		addr5 = jit_indirect();
 
+		sync_next_pc(_jit);
 		update_cycle_counter_before_c(_jit);
 
 		jit_prepare();
@@ -1178,19 +1188,21 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 		jit_retval(JIT_V0);
 
 		update_cycle_counter_after_c(_jit);
-
-		if (OPT_DETECT_IMPOSSIBLE_BRANCHES)
-			jit_patch(jmp2);
-	}
-
-	if (OPT_REPLACE_MEMSET
-	    && (OPT_DETECT_IMPOSSIBLE_BRANCHES || OPT_HANDLE_LOAD_DELAYS)) {
-		jit_patch(jmp);
 	}
 
 	/* The block will jump here, with the number of cycles remaining in
 	 * LIGHTREC_REG_CYCLE */
 	addr2 = jit_indirect();
+
+	sync_next_pc(_jit);
+
+	if (OPT_HANDLE_LOAD_DELAYS && OPT_DETECT_IMPOSSIBLE_BRANCHES)
+	      jit_patch(jmp2);
+
+	if (OPT_REPLACE_MEMSET
+	    && (OPT_DETECT_IMPOSSIBLE_BRANCHES || OPT_HANDLE_LOAD_DELAYS)) {
+		jit_patch(jmp);
+	}
 
 	/* Store back the next PC to the lightrec_state structure */
 	offset = offsetof(struct lightrec_state, curr_pc);
