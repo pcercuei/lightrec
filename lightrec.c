@@ -376,10 +376,10 @@ static void lightrec_rw_generic_cb(struct lightrec_state *state, u32 arg)
 	u16 offset = (u16)arg;
 
 	block = lightrec_find_block_from_lut(state->block_cache,
-					     arg >> 16, state->next_pc);
+					     arg >> 16, state->curr_pc);
 	if (unlikely(!block)) {
 		pr_err("rw_generic: No block found in LUT for PC 0x%x offset 0x%x\n",
-			 state->next_pc, offset);
+			 state->curr_pc, offset);
 		lightrec_set_exit_flags(state, LIGHTREC_EXIT_SEGFAULT);
 		return;
 	}
@@ -776,7 +776,7 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 	} while (state->exit_flags == LIGHTREC_EXIT_NORMAL
 		 && state->current_cycle < state->target_cycle);
 
-	state->next_pc = pc;
+	state->curr_pc = pc;
 	return func;
 }
 
@@ -1192,8 +1192,8 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 	 * LIGHTREC_REG_CYCLE */
 	addr2 = jit_indirect();
 
-	/* Store back the next_pc to the lightrec_state structure */
-	offset = offsetof(struct lightrec_state, next_pc);
+	/* Store back the next PC to the lightrec_state structure */
+	offset = offsetof(struct lightrec_state, curr_pc);
 	jit_stxi_i(offset, LIGHTREC_REG_STATE, JIT_V0);
 
 	/* Jump to end if state->target_cycle < state->current_cycle */
@@ -1254,7 +1254,7 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 
 	/* Reset JIT_V0 to the next PC */
 	jit_ldxi_ui(JIT_V0, LIGHTREC_REG_STATE,
-		    offsetof(struct lightrec_state, next_pc));
+		    offsetof(struct lightrec_state, curr_pc));
 
 	/* If we get non-NULL, loop */
 	jit_patch_at(jit_bnei(JIT_V1, 0), loop);
@@ -1763,13 +1763,13 @@ u32 lightrec_execute(struct lightrec_state *state, u32 pc, u32 target_cycle)
 		target_cycle = UINT_MAX;
 
 	state->target_cycle = target_cycle;
-	state->next_pc = pc;
+	state->curr_pc = pc;
 
 	block_trace = get_next_block_func(state, pc);
 	if (block_trace) {
 		cycles_delta = state->target_cycle - state->current_cycle;
 
-		cycles_delta = (*func)(state, state->next_pc,
+		cycles_delta = (*func)(state, state->curr_pc,
 				       block_trace, cycles_delta);
 
 		state->current_cycle = state->target_cycle - cycles_delta;
@@ -1781,7 +1781,7 @@ u32 lightrec_execute(struct lightrec_state *state, u32 pc, u32 target_cycle)
 	if (LOG_LEVEL >= INFO_L)
 		lightrec_print_info(state);
 
-	return state->next_pc;
+	return state->curr_pc;
 }
 
 u32 lightrec_run_interpreter(struct lightrec_state *state, u32 pc,

@@ -11,7 +11,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-#define REG_PC (offsetof(struct lightrec_state, next_pc) / sizeof(u32))
+#define REG_PC (offsetof(struct lightrec_state, curr_pc) / sizeof(u32))
 
 enum reg_priority {
 	REG_IS_TEMP,

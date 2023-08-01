@@ -156,7 +156,7 @@ struct lightrec_cstate {
 struct lightrec_state {
 	struct lightrec_registers regs;
 	u32 temp_reg;
-	u32 next_pc;
+	u32 curr_pc;
 	uintptr_t wrapper_regs[NUM_TEMPS];
 	u8 in_delay_slot_n;
 	u32 current_cycle;
