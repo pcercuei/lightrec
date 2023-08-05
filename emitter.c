@@ -1501,7 +1501,7 @@ static void rec_store(struct lightrec_cstate *state,
 	u32 flags = block->opcode_list[offset].flags;
 	u32 mode = LIGHTREC_FLAGS_GET_IO_MODE(flags);
 	bool no_invalidate = op_flag_no_invalidate(flags) ||
-		state->state->invalidate_from_dma_only;
+		(state->state->opt_flags & LIGHTREC_OPT_INV_DMA_ONLY);
 	union code c = block->opcode_list[offset].c;
 	bool is_swc2 = c.i.op == OP_SWC2;
 

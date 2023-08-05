@@ -40,7 +40,7 @@ static void lightrec_default_sb(struct lightrec_state *state, u32 opcode,
 {
 	*(u8 *)host = data;
 
-	if (!state->invalidate_from_dma_only)
+	if (!(state->opt_flags & LIGHTREC_OPT_INV_DMA_ONLY))
 		lightrec_invalidate(state, addr, 1);
 }
 
@@ -49,7 +49,7 @@ static void lightrec_default_sh(struct lightrec_state *state, u32 opcode,
 {
 	*(u16 *)host = HTOLE16(data);
 
-	if (!state->invalidate_from_dma_only)
+	if (!(state->opt_flags & LIGHTREC_OPT_INV_DMA_ONLY))
 		lightrec_invalidate(state, addr, 2);
 }
 
@@ -58,7 +58,7 @@ static void lightrec_default_sw(struct lightrec_state *state, u32 opcode,
 {
 	*(u32 *)host = HTOLE32(data);
 
-	if (!state->invalidate_from_dma_only)
+	if (!(state->opt_flags & LIGHTREC_OPT_INV_DMA_ONLY))
 		lightrec_invalidate(state, addr, 4);
 }
 
@@ -1027,7 +1027,7 @@ static u32 lightrec_memset(struct lightrec_state *state)
 		 kunseg_pc, (uintptr_t)host, length);
 	memset(host, 0, length);
 
-	if (!state->invalidate_from_dma_only)
+	if (!(state->opt_flags & LIGHTREC_OPT_INV_DMA_ONLY))
 		lightrec_invalidate_map(state, map, kunseg_pc, length);
 
 	/* Rough estimation of the number of cycles consumed */
@@ -2064,12 +2064,12 @@ void lightrec_invalidate_all(struct lightrec_state *state)
 	memset(state->code_lut, 0, lut_elm_size(state) * CODE_LUT_SIZE);
 }
 
-void lightrec_set_invalidate_mode(struct lightrec_state *state, bool dma_only)
+void lightrec_set_unsafe_opt_flags(struct lightrec_state *state, u32 flags)
 {
-	if (state->invalidate_from_dma_only != dma_only)
+	if ((flags ^ state->opt_flags) & LIGHTREC_OPT_INV_DMA_ONLY)
 		lightrec_invalidate_all(state);
 
-	state->invalidate_from_dma_only = dma_only;
+	state->opt_flags = flags;
 }
 
 void lightrec_set_exit_flags(struct lightrec_state *state, u32 flags)
