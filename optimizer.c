@@ -596,7 +596,7 @@ static void lightrec_optimize_sll_sra(struct opcode *list, unsigned int offset,
 				pr_debug("Convert LHU+SLL+SRA to LH\n");
 
 			v[ldop->i.rt].known = 0;
-			v[ldop->i.rt].sign = 0xffffff80 << 24 - curr->r.imm;
+			v[ldop->i.rt].sign = 0xffffff80 << (24 - curr->r.imm);
 		}
 	}
 
@@ -669,7 +669,7 @@ static void lightrec_modify_lui(struct block *block, unsigned int offset)
 			}
 
 			pr_debug("Convert LUI at offset 0x%x to kuseg\n",
-				 i - 1 << 2);
+				 (i - 1) << 2);
 			lui->i.imm = kunseg(lui->i.imm << 16) >> 16;
 			break;
 		}

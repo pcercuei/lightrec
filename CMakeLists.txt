@@ -87,7 +87,7 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 )
 
 if (CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
-	target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wno-parentheses)
+	target_compile_options(${PROJECT_NAME} PRIVATE -Wall)
 endif()
 if (CMAKE_C_COMPILER_ID STREQUAL "Clang")
 	target_compile_options(${PROJECT_NAME} PRIVATE -Wno-initializer-overrides)

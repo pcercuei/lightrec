@@ -524,7 +524,7 @@ static void lightrec_mtc0(struct lightrec_state *state, u8 reg, u32 data)
 		status = state->regs.cp0[12];
 
 		/* Handle software interrupts */
-		if (!!(status & cause & 0x300) & status)
+		if ((!!(status & cause & 0x300)) & status)
 			lightrec_set_exit_flags(state, LIGHTREC_EXIT_CHECK_INTERRUPT);
 
 		/* Handle hardware interrupts */

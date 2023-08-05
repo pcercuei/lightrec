@@ -51,7 +51,11 @@
 #define SET_DEFAULT_ELM(table, value) [0] = NULL
 #endif
 
-#define fallthrough do {} while (0) /* fall-through */
+#if __has_attribute(__fallthrough__)
+#	define fallthrough	__attribute__((__fallthrough__))
+#else
+#	define fallthrough	do {} while (0)  /* fallthrough */
+#endif
 
 #define container_of(ptr, type, member) \
 	((type *)((void *)(ptr) - offsetof(type, member)))
@@ -265,7 +269,7 @@ static inline u32 get_ds_pc(const struct block *block, u16 offset, s16 imm)
 
 	offset += op_flag_no_ds(flags);
 
-	return block->pc + (offset + imm << 2);
+	return block->pc + ((offset + imm) << 2);
 }
 
 static inline u32 get_branch_pc(const struct block *block, u16 offset, s16 imm)
@@ -274,7 +278,7 @@ static inline u32 get_branch_pc(const struct block *block, u16 offset, s16 imm)
 
 	offset -= op_flag_no_ds(flags);
 
-	return block->pc + (offset + imm << 2);
+	return block->pc + ((offset + imm) << 2);
 }
 
 void lightrec_mtc(struct lightrec_state *state, union code op, u8 reg, u32 data);
@@ -347,7 +351,7 @@ static inline u8 block_clear_flags(struct block *block, u8 mask)
 
 static inline _Bool can_sign_extend(s32 value, u8 order)
 {
-      return (u32)(value >> order - 1) + 1 < 2;
+      return ((u32)(value >> (order - 1)) + 1) < 2;
 }
 
 static inline _Bool can_zero_extend(u32 value, u8 order)
