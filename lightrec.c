@@ -1080,8 +1080,8 @@ static void update_cycle_counter_after_c(jit_state_t *_jit)
 static void sync_next_pc(jit_state_t *_jit)
 {
 	if (lightrec_store_next_pc()) {
-		jit_ldxi_i(JIT_V0, LIGHTREC_REG_STATE,
-			   offsetof(struct lightrec_state, next_pc));
+		jit_ldxi_ui(JIT_V0, LIGHTREC_REG_STATE,
+			    offsetof(struct lightrec_state, next_pc));
 	}
 }
 
