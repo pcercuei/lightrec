@@ -1555,7 +1555,9 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 	block->_jit = _jit;
 
 	lightrec_regcache_reset(cstate->reg_cache);
-	lightrec_preload_pc(cstate->reg_cache, _jit);
+
+	if (OPT_PRELOAD_PC && (block->flags & BLOCK_PRELOAD_PC))
+		lightrec_preload_pc(cstate->reg_cache, _jit);
 
 	cstate->cycles = 0;
 	cstate->nb_local_branches = 0;

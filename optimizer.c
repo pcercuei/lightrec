@@ -2157,6 +2157,66 @@ static int lightrec_replace_memset(struct lightrec_state *state, struct block *b
 	return 0;
 }
 
+static int lightrec_test_preload_pc(struct lightrec_state *state, struct block *block)
+{
+	unsigned int i;
+	union code c;
+	u32 flags;
+
+	for (i = 0; i < block->nb_ops; i++) {
+		c = block->opcode_list[i].c;
+		flags = block->opcode_list[i].flags;
+
+		if (op_flag_sync(flags))
+			break;
+
+		switch (c.i.op) {
+		case OP_J:
+		case OP_JAL:
+			block->flags |= BLOCK_PRELOAD_PC;
+			return 0;
+
+		case OP_REGIMM:
+			switch (c.r.rt) {
+			case OP_REGIMM_BLTZAL:
+			case OP_REGIMM_BGEZAL:
+				block->flags |= BLOCK_PRELOAD_PC;
+				return 0;
+			default:
+				break;
+			}
+			fallthrough;
+		case OP_BEQ:
+		case OP_BNE:
+		case OP_BLEZ:
+		case OP_BGTZ:
+			if (!op_flag_local_branch(flags)) {
+				block->flags |= BLOCK_PRELOAD_PC;
+				return 0;
+			}
+
+		case OP_SPECIAL:
+			switch (c.r.op) {
+			case OP_SPECIAL_JALR:
+				if (c.r.rd) {
+					block->flags |= BLOCK_PRELOAD_PC;
+					return 0;
+				}
+				break;
+			case OP_SPECIAL_SYSCALL:
+			case OP_SPECIAL_BREAK:
+				block->flags |= BLOCK_PRELOAD_PC;
+				return 0;
+			default:
+				break;
+			}
+			break;
+		}
+	}
+
+	return 0;
+}
+
 static int (*lightrec_optimizers[])(struct lightrec_state *state, struct block *) = {
 	IF_OPT(OPT_REMOVE_DIV_BY_ZERO_SEQ, &lightrec_remove_div_by_zero_check_sequence),
 	IF_OPT(OPT_REPLACE_MEMSET, &lightrec_replace_memset),
@@ -2170,6 +2230,7 @@ static int (*lightrec_optimizers[])(struct lightrec_state *state, struct block *
 	IF_OPT(OPT_FLAG_IO, &lightrec_flag_io),
 	IF_OPT(OPT_FLAG_MULT_DIV, &lightrec_flag_mults_divs),
 	IF_OPT(OPT_EARLY_UNLOAD, &lightrec_early_unload),
+	IF_OPT(OPT_PRELOAD_PC, &lightrec_test_preload_pc),
 };
 
 int lightrec_optimize(struct lightrec_state *state, struct block *block)

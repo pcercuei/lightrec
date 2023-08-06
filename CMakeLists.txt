@@ -73,6 +73,7 @@ option(OPT_SWITCH_DELAY_SLOTS "(optimization) Switch delay slots" ON)
 option(OPT_FLAG_IO "(optimization) Flag I/O opcodes when the target can be detected" ON)
 option(OPT_FLAG_MULT_DIV "(optimization) Flag MULT/DIV that only use one of HI/LO" ON)
 option(OPT_EARLY_UNLOAD "(optimization) Unload registers early" ON)
+option(OPT_PRELOAD_PC "(optimization) Preload PC value into register" ON)
 
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
