@@ -66,6 +66,7 @@ struct lightrec_mem_map;
 
 /* Unsafe optimizations flags */
 #define LIGHTREC_OPT_INV_DMA_ONLY	(1 << 0)
+#define LIGHTREC_OPT_SP_GP_HIT_RAM	(1 << 1)
 
 enum psx_map {
 	PSX_MAP_KERNEL_USER_RAM,

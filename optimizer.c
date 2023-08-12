@@ -1743,7 +1743,10 @@ static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 				/* Assume that all I/O operations that target
 				 * $sp or $gp will always only target a mapped
 				 * memory (RAM, BIOS, scratchpad). */
-				list->flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_DIRECT);
+				if (state->opt_flags & LIGHTREC_OPT_SP_GP_HIT_RAM)
+					list->flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_RAM);
+				else
+					list->flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_DIRECT);
 			}
 
 			fallthrough;
