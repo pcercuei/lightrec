@@ -400,6 +400,22 @@ u8 lightrec_alloc_reg_in(struct regcache *cache, jit_state_t *_jit,
 	return jit_reg;
 }
 
+void lightrec_remap_reg(struct regcache *cache, jit_state_t *_jit,
+			u8 jit_reg, u16 reg_out, bool discard)
+{
+	struct native_register *nreg;
+
+	lightrec_discard_reg_if_loaded(cache, reg_out);
+
+	nreg = lightning_reg_to_lightrec(cache, jit_reg);
+	clean_reg(_jit, nreg, jit_reg, !discard);
+
+	nreg->output = true;
+	nreg->emulated_register = reg_out;
+	nreg->extend = nreg->extended;
+	nreg->zero_extend = nreg->zero_extended;
+}
+
 static bool reg_pc_is_mapped(struct regcache *cache)
 {
 	struct native_register *nreg = lightning_reg_to_lightrec(cache, JIT_V0);

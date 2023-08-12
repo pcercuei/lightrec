@@ -50,6 +50,9 @@ u8 lightrec_alloc_reg_out(struct regcache *cache, jit_state_t *_jit,
 u8 lightrec_alloc_reg_in(struct regcache *cache, jit_state_t *_jit,
 			 u16 reg, u8 flags);
 
+void lightrec_remap_reg(struct regcache *cache, jit_state_t *_jit,
+			u8 jit_reg, u16 reg_out, _Bool discard);
+
 void lightrec_load_imm(struct regcache *cache,
 		       jit_state_t *_jit, u8 jit_reg, u32 pc, u32 imm);
 void lightrec_load_next_pc(struct regcache *cache, jit_state_t *_jit, u8 reg);
