@@ -490,7 +490,7 @@ static void rec_alu_shiftv(struct lightrec_cstate *state, const struct block *bl
 	rt = lightrec_alloc_reg_in(reg_cache, _jit, c.r.rt, flags);
 	rd = lightrec_alloc_reg_out(reg_cache, _jit, c.r.rd, flags);
 
-	if (rs != rd && rt != rd) {
+	if (rt != rd) {
 		jit_andi(rd, rs, 0x1f);
 		jit_new_node_www(code, rd, rt, rd);
 	} else {
