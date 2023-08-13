@@ -2477,10 +2477,29 @@ static void rec_meta_MOV(struct lightrec_cstate *state,
 	union code c = op->c;
 	jit_state_t *_jit = block->_jit;
 	bool unload_rd;
+	bool unload_rs, discard_rs;
 	u8 rs, rd;
 
 	_jit_name(block->_jit, __func__);
 	jit_note(__FILE__, __LINE__);
+
+	unload_rs = OPT_EARLY_UNLOAD
+		&& LIGHTREC_FLAGS_GET_RS(op->flags) == LIGHTREC_REG_UNLOAD;
+	discard_rs = OPT_EARLY_UNLOAD
+		&& LIGHTREC_FLAGS_GET_RS(op->flags) == LIGHTREC_REG_DISCARD;
+
+	if ((unload_rs || discard_rs) && c.m.rs) {
+		/* If the source register is going to be unloaded or discarded,
+		 * then we can simply mark its host register as now pointing to
+		 * the destination register. */
+		pr_debug("Remap %s to %s at offset 0x%x\n",
+			 lightrec_reg_name(c.m.rs), lightrec_reg_name(c.m.rd),
+			 offset << 2);
+		rs = lightrec_alloc_reg_in(reg_cache, _jit, c.m.rs, 0);
+		lightrec_remap_reg(reg_cache, _jit, rs, c.m.rd, discard_rs);
+		lightrec_free_reg(reg_cache, rs);
+		return;
+	}
 
 	unload_rd = OPT_EARLY_UNLOAD
 		&& LIGHTREC_FLAGS_GET_RD(op->flags) == LIGHTREC_REG_UNLOAD;
