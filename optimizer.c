@@ -647,6 +647,31 @@ lightrec_remove_useless_lui(struct block *block, unsigned int offset,
 	}
 }
 
+static void lightrec_lui_to_movi(struct block *block, unsigned int offset)
+{
+	struct opcode *ori, *lui = &block->opcode_list[offset];
+	int next;
+
+	if (lui->i.op != OP_LUI)
+		return;
+
+	next = find_next_reader(block->opcode_list, offset + 1, lui->i.rt);
+	if (next > 0) {
+		ori = &block->opcode_list[next];
+
+		switch (ori->i.op) {
+		case OP_ORI:
+		case OP_ADDI:
+		case OP_ADDIU:
+			if (ori->i.rs == ori->i.rt && ori->i.imm) {
+				ori->flags |= LIGHTREC_MOVI;
+				lui->flags |= LIGHTREC_MOVI;
+			}
+			break;
+		}
+	}
+}
+
 static void lightrec_modify_lui(struct block *block, unsigned int offset)
 {
 	union code c, *lui = &block->opcode_list[offset].c;
@@ -947,6 +972,8 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 			if (i == 0 || !has_delay_slot(list[i - 1].c))
 				lightrec_modify_lui(block, i);
 			lightrec_remove_useless_lui(block, i, v);
+			if (i == 0 || !has_delay_slot(list[i - 1].c))
+				lightrec_lui_to_movi(block, i);
 			break;
 
 		/* Transform ORI/ADDI/ADDIU with imm #0 or ORR/ADD/ADDU/SUB/SUBU
