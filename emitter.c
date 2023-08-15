@@ -544,14 +544,18 @@ static void rec_movi(struct lightrec_cstate *state,
 	union code c = block->opcode_list[offset].c;
 	jit_state_t *_jit = block->_jit;
 	u16 flags = REG_EXT;
+	s32 value = (s32)(s16) c.i.imm;
 	u8 rt;
 
-	if (!(c.i.imm & 0x8000))
+	if (block->opcode_list[offset].flags & LIGHTREC_MOVI)
+		value += (s32)((u32)state->movi_temp[c.i.rt] << 16);
+
+	if (value >= 0)
 		flags |= REG_ZEXT;
 
 	rt = lightrec_alloc_reg_out(reg_cache, _jit, c.i.rt, flags);
 
-	jit_movi(rt, (s32)(s16) c.i.imm);
+	jit_movi(rt, value);
 
 	lightrec_free_reg(reg_cache, rt);
 }
@@ -559,9 +563,11 @@ static void rec_movi(struct lightrec_cstate *state,
 static void rec_ADDIU(struct lightrec_cstate *state,
 		      const struct block *block, u16 offset)
 {
+	const struct opcode *op = &block->opcode_list[offset];
+
 	_jit_name(block->_jit, __func__);
 
-	if (block->opcode_list[offset].c.i.rs)
+	if (op->i.rs && !(op->flags & LIGHTREC_MOVI))
 		rec_alu_imm(state, block, offset, jit_code_addi, false);
 	else
 		rec_movi(state, block, offset);
@@ -642,8 +648,24 @@ static void rec_alu_or_xor(struct lightrec_cstate *state, const struct block *bl
 static void rec_ORI(struct lightrec_cstate *state,
 		    const struct block *block, u16 offset)
 {
-	_jit_name(block->_jit, __func__);
-	rec_alu_or_xor(state, block, offset, jit_code_ori);
+	const struct opcode *op = &block->opcode_list[offset];
+	struct regcache *reg_cache = state->reg_cache;
+	jit_state_t *_jit = block->_jit;
+	s32 val;
+	u8 rt;
+
+	_jit_name(_jit, __func__);
+
+	if (op->flags & LIGHTREC_MOVI) {
+		rt = lightrec_alloc_reg_out(reg_cache, _jit, op->i.rt, REG_EXT);
+
+		val = ((u32)state->movi_temp[op->i.rt] << 16) | op->i.imm;
+		jit_movi(rt, val);
+
+		lightrec_free_reg(reg_cache, rt);
+	} else {
+		rec_alu_or_xor(state, block, offset, jit_code_ori);
+	}
 }
 
 static void rec_XORI(struct lightrec_cstate *state,
@@ -660,6 +682,11 @@ static void rec_LUI(struct lightrec_cstate *state,
 	union code c = block->opcode_list[offset].c;
 	jit_state_t *_jit = block->_jit;
 	u8 rt, flags = REG_EXT;
+
+	if (block->opcode_list[offset].flags & LIGHTREC_MOVI) {
+		state->movi_temp[c.i.rt] = c.i.imm;
+		return;
+	}
 
 	jit_name(__func__);
 	jit_note(__FILE__, __LINE__);

@@ -149,6 +149,7 @@ struct lightrec_cstate {
 
 	struct lightrec_branch local_branches[512];
 	struct lightrec_branch_target targets[512];
+	u16 movi_temp[32];
 	unsigned int nb_local_branches;
 	unsigned int nb_targets;
 	unsigned int cycles;
