@@ -1279,7 +1279,7 @@ static void rec_store_memory(struct lightrec_cstate *cstate,
 	bool add_imm = c.i.imm &&
 		((!state->mirrors_mapped && !no_mask) || (invalidate &&
 		((imm & 0x3) || simm + lut_offt != (s16)(simm + lut_offt))));
-	bool need_tmp = !no_mask || addr_offset || add_imm || invalidate;
+	bool need_tmp = !no_mask || add_imm || invalidate;
 	bool swc2 = c.i.op == OP_SWC2;
 	u8 in_reg = swc2 ? REG_TEMP : c.i.rt;
 
