@@ -296,6 +296,21 @@ void lightrec_temp_set_value(struct regcache *cache, u8 jit_reg, intptr_t value)
 	nreg->value = value;
 }
 
+u8 lightrec_alloc_reg_temp_with_value(struct regcache *cache,
+				      jit_state_t *_jit, intptr_t value)
+{
+	s8 reg;
+
+	reg = lightrec_get_reg_with_value(cache, value);
+	if (reg < 0) {
+		reg = lightrec_alloc_reg_temp(cache, _jit);
+		jit_movi((u8)reg, value);
+		lightrec_temp_set_value(cache, (u8)reg, value);
+	}
+
+	return (u8)reg;
+}
+
 u8 lightrec_alloc_reg_out(struct regcache *cache, jit_state_t *_jit,
 			  u16 reg, u8 flags)
 {
