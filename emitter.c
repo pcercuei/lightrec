@@ -1284,7 +1284,6 @@ static void rec_store_memory(struct lightrec_cstate *cstate,
 	u8 in_reg = swc2 ? REG_TEMP : c.i.rt;
 	s8 reg_imm;
 
-	rt = lightrec_alloc_reg_in(reg_cache, _jit, in_reg, 0);
 	rs = lightrec_alloc_reg_in(reg_cache, _jit, c.i.rs, 0);
 	if (need_tmp)
 		tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
@@ -1311,12 +1310,18 @@ static void rec_store_memory(struct lightrec_cstate *cstate,
 	}
 
 	if (addr_offset) {
+		reg_imm = lightrec_alloc_reg_temp_with_value(reg_cache, _jit,
+							     addr_offset);
 		tmp2 = lightrec_alloc_reg_temp(reg_cache, _jit);
-		jit_addi(tmp2, addr_reg, addr_offset);
+		jit_addr(tmp2, addr_reg, reg_imm);
 		addr_reg2 = tmp2;
+
+		lightrec_free_reg(reg_cache, reg_imm);
 	} else {
 		addr_reg2 = addr_reg;
 	}
+
+	rt = lightrec_alloc_reg_in(reg_cache, _jit, in_reg, 0);
 
 	if (is_big_endian() && swap_code && in_reg) {
 		tmp3 = lightrec_alloc_reg_temp(reg_cache, _jit);
@@ -1413,8 +1418,7 @@ static void rec_store_direct_no_invalidate(struct lightrec_cstate *cstate,
 	jit_state_t *_jit = block->_jit;
 	jit_node_t *to_not_ram, *to_end;
 	bool swc2 = c.i.op == OP_SWC2;
-	bool offset_ram_or_scratch = state->offset_ram || state->offset_scratch;
-	u8 tmp, tmp2, rs, rt, in_reg = swc2 ? REG_TEMP : c.i.rt;
+	u8 tmp, tmp2 = 0, rs, rt, in_reg = swc2 ? REG_TEMP : c.i.rt;
 	u32 addr_mask;
 	s32 reg_imm;
 	s16 imm;
@@ -1422,9 +1426,6 @@ static void rec_store_direct_no_invalidate(struct lightrec_cstate *cstate,
 	jit_note(__FILE__, __LINE__);
 	rs = lightrec_alloc_reg_in(reg_cache, _jit, c.i.rs, 0);
 	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
-
-	if (offset_ram_or_scratch)
-		tmp2 = lightrec_alloc_reg_temp(reg_cache, _jit);
 
 	if (state->mirrors_mapped)
 		addr_mask = 0x1f800000 | (4 * RAM_SIZE - 1);
@@ -1447,6 +1448,8 @@ static void rec_store_direct_no_invalidate(struct lightrec_cstate *cstate,
 	lightrec_free_reg(reg_cache, reg_imm);
 
 	if (state->offset_ram != state->offset_scratch) {
+		tmp2 = lightrec_alloc_reg_temp(reg_cache, _jit);
+
 		to_not_ram = jit_bmsi(tmp, BIT(28));
 
 		jit_movi(tmp2, state->offset_ram);
@@ -1457,10 +1460,11 @@ static void rec_store_direct_no_invalidate(struct lightrec_cstate *cstate,
 		jit_movi(tmp2, state->offset_scratch);
 		jit_patch(to_end);
 	} else if (state->offset_ram) {
-		jit_movi(tmp2, state->offset_ram);
+		tmp2 = lightrec_alloc_reg_temp_with_value(reg_cache, _jit,
+							  state->offset_ram);
 	}
 
-	if (offset_ram_or_scratch) {
+	if (state->offset_ram || state->offset_scratch) {
 		jit_addr(tmp, tmp, tmp2);
 		lightrec_free_reg(reg_cache, tmp2);
 	}
@@ -1718,8 +1722,13 @@ static void rec_load_memory(struct lightrec_cstate *cstate,
 	}
 
 	if (addr_offset) {
-		jit_addi(rt, addr_reg, addr_offset);
+		reg_imm = lightrec_alloc_reg_temp_with_value(reg_cache, _jit,
+							     addr_offset);
+
+		jit_addr(rt, addr_reg, reg_imm);
 		addr_reg = rt;
+
+		lightrec_free_reg(reg_cache, reg_imm);
 	}
 
 	jit_new_node_www(code, rt, addr_reg, imm);
@@ -1792,6 +1801,7 @@ static void rec_load_direct(struct lightrec_cstate *cstate,
 	union code c = op->c;
 	s32 addr_mask;
 	u32 reg_imm;
+	s8 offt_reg;
 	s16 imm;
 
 	if (load_delay || c.i.op == OP_LWC2)
@@ -1844,8 +1854,18 @@ static void rec_load_direct(struct lightrec_cstate *cstate,
 
 		lightrec_free_reg(reg_cache, reg_imm);
 
-		if (state->offset_ram)
-			jit_movi(tmp, state->offset_ram);
+		if (state->offset_ram) {
+			offt_reg = lightrec_get_reg_with_value(reg_cache,
+							       state->offset_ram);
+			if (offt_reg < 0) {
+				jit_movi(tmp, state->offset_ram);
+				lightrec_temp_set_value(reg_cache, tmp,
+							state->offset_ram);
+			} else {
+				lightrec_free_reg(reg_cache, tmp);
+				tmp = offt_reg;
+			}
+		}
 	} else {
 		to_not_ram = jit_bmsi(addr_reg, BIT(28));
 
