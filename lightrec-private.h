@@ -159,11 +159,21 @@ struct lightrec_cstate {
 	_Bool no_load_delay;
 };
 
+struct lightrec_timer_data {
+	_Alignas(16) struct {
+		u32 start;
+		u32 rate;
+	};
+};
+
+_Static_assert(sizeof(struct lightrec_timer_data) == 16);
+
 struct lightrec_state {
 	struct lightrec_registers regs;
 	u32 temp_reg;
 	u32 curr_pc;
 	u32 next_pc;
+	struct lightrec_timer_data timer_data[3];
 	uintptr_t wrapper_regs[NUM_TEMPS];
 	u8 in_delay_slot_n;
 	u32 current_cycle;

@@ -2121,3 +2121,15 @@ void lightrec_set_cycles_per_opcode(struct lightrec_state *state, u32 cycles)
 {
 	state->cycles_per_op = cycles;
 }
+
+void lightrec_set_timer_data(struct lightrec_state *state, unsigned int idx,
+			     u32 start, u32 rate)
+{
+	struct lightrec_timer_data *timer = &state->timer_data[idx];
+
+	if (idx >= 3)
+		return;
+
+	timer->start = start;
+	timer->rate = rate;
+}
