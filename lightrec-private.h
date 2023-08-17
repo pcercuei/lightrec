@@ -374,4 +374,27 @@ static inline _Bool lightrec_store_next_pc(void)
 	return NUM_REGS + NUM_TEMPS <= 4;
 }
 
+static inline _Bool lightrec_load_from_timer(union code c, u32 addr)
+{
+	if (OPT_FAST_TIMER) {
+		switch(c.i.op) {
+		case OP_LW:
+		case OP_LHU:
+			switch (addr & 0x1fffffff) {
+			case 0x1f801100:
+			case 0x1f801110:
+			case 0x1f801120:
+				return 1;
+			default:
+				break;
+			}
+			break;
+		default:
+			break;
+		}
+	}
+
+	return 0;
+}
+
 #endif /* __LIGHTREC_PRIVATE_H__ */
