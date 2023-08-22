@@ -2134,6 +2134,16 @@ void lightrec_set_timer_data(struct lightrec_state *state, unsigned int idx,
 	if (idx >= 3)
 		return;
 
+	if (timer->rate != rate) {
+		/*
+		 * Equivalent to:
+		 * timer->p = (u32) ceilf(log2((float) rate));
+		 * timer->m = (u32) ceilf(powf(2, timer->p + 32) / (float) rate);
+		 */
+		timer->p = 31 - clz32(rate) + !!(rate & (rate - 1));
+		timer->m = ((0x100000000ull << timer->p) + rate - 1) / (u64)rate;
+		timer->rate = rate;
+	}
+
 	timer->start = start;
-	timer->rate = rate;
 }

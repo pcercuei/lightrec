@@ -1687,8 +1687,19 @@ static void rec_load_timer(struct lightrec_cstate *cstate,
 	 * Compute the value of the timer from its start time, its rate,
 	 * and the current cycle count.
 	 *
-	 * The algorithm is:
+	 * The simple algorithm would be:
 	 * result = ((target - cycle - start) / rate) & 0xffff
+	 *
+	 * To avoid the division, we pre-computed m and p values in
+	 * lightrec_set_timer_data(), which should be called by the glue when
+	 * the timer settings changed.
+	 *
+	 * Using these pre-computed values, we can now compute the result
+	 * without any division:
+	 * n = target - cycle - start
+	 * q = (m * n) >> 32
+	 * t = ((n - q) >> 1) + q
+	 * result = (t >> (p - 1)) & 0xffff
 	 */
 
 	rs = lightrec_alloc_reg_in(reg_cache, _jit, c.i.rs, 0);
@@ -1707,15 +1718,28 @@ static void rec_load_timer(struct lightrec_cstate *cstate,
 		    offsetof(struct lightrec_state, target_cycle));
 	jit_ldxi_ui(tmp, tmp2,
 		    offsetof(struct lightrec_state, timer_data[0].start));
-	jit_ldxi_ui(tmp2, tmp2,
-		    offsetof(struct lightrec_state, timer_data[0].rate));
-
 	jit_subr(rt, rt, LIGHTREC_REG_CYCLE);
 	jit_subr(rt, rt, tmp);
 
-	no_div = jit_blei_u(tmp2, 1);
+	jit_ldxi_ui(tmp, tmp2,
+		    offsetof(struct lightrec_state, timer_data[0].p));
+	jit_ldxi_ui(tmp2, tmp2,
+		    offsetof(struct lightrec_state, timer_data[0].m));
 
-	jit_divr_u(rt, rt, tmp2);
+	no_div = jit_beqi(tmp, 0);
+
+	if (__WORDSIZE == 64) {
+		jit_mulr(tmp2, rt, tmp2);
+		jit_rshi_u(tmp2, tmp2, 32);
+	} else {
+		jit_hmulr_u(tmp2, rt, tmp2);
+	}
+
+	jit_subr(rt, rt, tmp2);
+	jit_rshi_u(rt, rt, 1);
+	jit_addr(rt, rt, tmp2);
+	jit_subi(tmp, tmp, 1);
+	jit_rshr_u(rt, rt, tmp);
 
 	jit_patch(no_div);
 

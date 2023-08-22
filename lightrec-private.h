@@ -163,6 +163,7 @@ struct lightrec_timer_data {
 	_Alignas(16) struct {
 		u32 start;
 		u32 rate;
+		u32 m, p;
 	};
 };
 
