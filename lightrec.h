@@ -146,6 +146,7 @@ __api u32 lightrec_current_cycle_count(const struct lightrec_state *state);
 __api void lightrec_reset_cycle_count(struct lightrec_state *state, u32 cycles);
 __api void lightrec_set_target_cycle_count(struct lightrec_state *state,
 					   u32 cycles);
+__api void lightrec_set_cycles_per_opcode(struct lightrec_state *state, u32 cycles);
 
 #ifdef __cplusplus
 };
