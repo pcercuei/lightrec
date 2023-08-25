@@ -1323,7 +1323,8 @@ union code lightrec_read_opcode(struct lightrec_state *state, u32 pc)
 	return (union code) LE32TOH(*code);
 }
 
-__cnst unsigned int lightrec_cycles_of_opcode(union code code)
+unsigned int lightrec_cycles_of_opcode(const struct lightrec_state *state,
+				       union code code)
 {
 	return 2;
 }
@@ -1595,7 +1596,7 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 #endif
 		}
 
-		cstate->cycles += lightrec_cycles_of_opcode(elm->c);
+		cstate->cycles += lightrec_cycles_of_opcode(state, elm->c);
 	}
 
 	for (i = 0; i < cstate->nb_local_branches; i++) {
