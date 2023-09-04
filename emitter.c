@@ -2730,12 +2730,19 @@ static void rec_meta_MULT2(struct lightrec_cstate *state,
 			hi = lightrec_alloc_reg_out(reg_cache, _jit,
 						    reg_hi, hiflags);
 
-			if (c.r.op >= 32)
+			if (c.r.op >= 32) {
 				jit_lshi(hi, rs, c.r.op - 32);
-			else if (is_signed)
-				jit_rshi(hi, rs, 32 - c.r.op);
-			else
-				jit_rshi_u(hi, rs, 32 - c.r.op);
+			} else if (is_signed) {
+				if (c.r.op)
+					jit_rshi(hi, rs, 32 - c.r.op);
+				else
+					jit_rshi(hi, rs, 31);
+			} else {
+				if (c.r.op)
+					jit_rshi_u(hi, rs, 32 - c.r.op);
+				else
+					jit_movi(hi, 0);
+			}
 
 			lightrec_free_reg(reg_cache, hi);
 		}
