@@ -997,12 +997,20 @@ static u32 int_META_MULT2(struct interpreter *inter)
 	}
 
 	if (!op_flag_no_hi(inter->op->flags)) {
-		if (c.r.op >= 32)
+		if (c.r.op >= 32) {
 			reg_cache[reg_hi] = rs << (c.r.op - 32);
-		else if (c.i.op == OP_META_MULT2)
-			reg_cache[reg_hi] = (s32) rs >> (32 - c.r.op);
-		else
-			reg_cache[reg_hi] = rs >> (32 - c.r.op);
+		}
+		else if (c.i.op == OP_META_MULT2) {
+			if (c.r.op)
+				reg_cache[reg_hi] = (s32) rs >> (32 - c.r.op);
+			else
+				reg_cache[reg_hi] = (s32) rs >> 31;
+		} else {
+			if (c.r.op)
+				reg_cache[reg_hi] = rs >> (32 - c.r.op);
+			else
+				reg_cache[reg_hi] = 0;
+		}
 	}
 
 	return jump_next(inter);
