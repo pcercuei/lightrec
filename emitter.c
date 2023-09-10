@@ -1264,7 +1264,7 @@ static void rec_store_memory(struct lightrec_cstate *cstate,
 	struct opcode *op = &block->opcode_list[offset];
 	jit_state_t *_jit = block->_jit;
 	union code c = op->c;
-	u8 rs, rt, tmp, tmp2, tmp3, addr_reg, addr_reg2;
+	u8 rs, rt, tmp = 0, tmp2 = 0, tmp3, addr_reg, addr_reg2;
 	s16 imm = (s16)c.i.imm;
 	s32 simm = (s32)imm << (1 - lut_is_32bit(state));
 	s32 lut_offt = offsetof(struct lightrec_state, code_lut);
@@ -1492,6 +1492,7 @@ static void rec_store_direct(struct lightrec_cstate *cstate, const struct block 
 	u8 tmp, tmp2, tmp3, masked_reg, rs, rt;
 	u8 in_reg = swc2 ? REG_TEMP : c.i.rt;
 	u32 addr_mask = 0x1f800000 | (ram_size - 1);
+	bool different_offsets = state->offset_ram != state->offset_scratch;
 	s32 reg_imm;
 
 	jit_note(__FILE__, __LINE__);
@@ -1514,7 +1515,7 @@ static void rec_store_direct(struct lightrec_cstate *cstate, const struct block 
 	lightrec_free_reg(reg_cache, reg_imm);
 	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
 
-	if (state->offset_ram != state->offset_scratch) {
+	if (different_offsets) {
 		to_not_ram = jit_bgti(tmp2, ram_size);
 		masked_reg = tmp2;
 	} else {
@@ -1539,7 +1540,7 @@ static void rec_store_direct(struct lightrec_cstate *cstate, const struct block 
 	else
 		jit_stxi(offsetof(struct lightrec_state, code_lut), tmp, tmp3);
 
-	if (state->offset_ram != state->offset_scratch) {
+	if (different_offsets) {
 		jit_movi(tmp, state->offset_ram);
 
 		to_end = jit_b();
@@ -1549,7 +1550,7 @@ static void rec_store_direct(struct lightrec_cstate *cstate, const struct block 
 	if (state->offset_ram || state->offset_scratch)
 		jit_movi(tmp, state->offset_scratch);
 
-	if (state->offset_ram != state->offset_scratch)
+	if (different_offsets)
 		jit_patch(to_end);
 
 	if (state->offset_ram || state->offset_scratch)
@@ -1791,6 +1792,7 @@ static void rec_load_direct(struct lightrec_cstate *cstate,
 	jit_state_t *_jit = block->_jit;
 	jit_node_t *to_not_ram, *to_not_bios, *to_end, *to_end2;
 	u8 tmp, rs, rt, out_reg, addr_reg, flags = REG_EXT;
+	bool different_offsets = state->offset_bios != state->offset_scratch;
 	union code c = op->c;
 	s32 addr_mask;
 	u32 reg_imm;
@@ -1872,7 +1874,7 @@ static void rec_load_direct(struct lightrec_cstate *cstate,
 
 		jit_patch(to_not_ram);
 
-		if (state->offset_bios != state->offset_scratch)
+		if (different_offsets)
 			to_not_bios = jit_bmci(addr_reg, BIT(22));
 
 		/* Convert to KUNSEG */
@@ -1880,7 +1882,7 @@ static void rec_load_direct(struct lightrec_cstate *cstate,
 
 		jit_movi(tmp, state->offset_bios);
 
-		if (state->offset_bios != state->offset_scratch) {
+		if (different_offsets) {
 			to_end2 = jit_b();
 
 			jit_patch(to_not_bios);

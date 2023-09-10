@@ -155,7 +155,7 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 	bool run_first_op = false, dummy_ld = false, save_rs = false,
 	     load_in_ds, branch_in_ds = false, branch_at_addr = false,
 	     branch_taken;
-	u32 old_rs, new_rt, new_rs = 0;
+	u32 new_rt, old_rs = 0, new_rs = 0;
 	u32 next_pc, ds_next_pc;
 	u32 cause, epc;
 
