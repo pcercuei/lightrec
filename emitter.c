@@ -1240,7 +1240,7 @@ static void rec_io(struct lightrec_cstate *state,
 	}
 }
 
-static u32 rec_ram_mask(struct lightrec_state *state)
+static u32 rec_ram_mask(const struct lightrec_state *state)
 {
 	return (RAM_SIZE << (state->mirrors_mapped * 2)) - 1;
 }
@@ -1369,7 +1369,7 @@ static void rec_store_ram(struct lightrec_cstate *cstate,
 			  u16 offset, jit_code_t code,
 			  jit_code_t swap_code, bool invalidate)
 {
-	struct lightrec_state *state = cstate->state;
+	const struct lightrec_state *state = cstate->state;
 
 	_jit_note(block->_jit, __FILE__, __LINE__);
 
@@ -1405,7 +1405,7 @@ static void rec_store_direct_no_invalidate(struct lightrec_cstate *cstate,
 					   u16 offset, jit_code_t code,
 					   jit_code_t swap_code)
 {
-	struct lightrec_state *state = cstate->state;
+	const struct lightrec_state *state = cstate->state;
 	struct regcache *reg_cache = cstate->reg_cache;
 	union code c = block->opcode_list[offset].c;
 	jit_state_t *_jit = block->_jit;
@@ -1482,7 +1482,7 @@ static void rec_store_direct_no_invalidate(struct lightrec_cstate *cstate,
 static void rec_store_direct(struct lightrec_cstate *cstate, const struct block *block,
 			     u16 offset, jit_code_t code, jit_code_t swap_code)
 {
-	struct lightrec_state *state = cstate->state;
+	const struct lightrec_state *state = cstate->state;
 	u32 ram_size = state->mirrors_mapped ? RAM_SIZE * 4 : RAM_SIZE;
 	struct regcache *reg_cache = cstate->reg_cache;
 	union code c = block->opcode_list[offset].c;
@@ -1784,7 +1784,7 @@ static void rec_load_direct(struct lightrec_cstate *cstate,
 			    jit_code_t code, jit_code_t swap_code,
 			    bool is_unsigned)
 {
-	struct lightrec_state *state = cstate->state;
+	const struct lightrec_state *state = cstate->state;
 	struct regcache *reg_cache = cstate->reg_cache;
 	struct opcode *op = &block->opcode_list[offset];
 	bool load_delay = op_flag_load_delay(op->flags) && !cstate->no_load_delay;
