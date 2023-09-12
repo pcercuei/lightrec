@@ -1213,7 +1213,7 @@ u32 lightrec_emulate_block(struct lightrec_state *state, struct block *block, u3
 	if (offset < block->nb_ops)
 		return lightrec_emulate_block_list(state, block, offset);
 
-	pr_err("PC 0x%x is outside block at PC 0x%x\n", pc, block->pc);
+	pr_err(PC_FMT" is outside block at "PC_FMT"\n", pc, block->pc);
 
 	lightrec_set_exit_flags(state, LIGHTREC_EXIT_SEGFAULT);
 
