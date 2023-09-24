@@ -114,6 +114,8 @@ static u64 opcode_read_mask(union code op)
 	case OP_SWL:
 	case OP_SW:
 	case OP_SWR:
+	case OP_META_LWU:
+	case OP_META_SWU:
 		return BIT(op.i.rs) | BIT(op.i.rt);
 	case OP_META:
 		return BIT(op.m.rs);
@@ -186,6 +188,7 @@ u64 opcode_write_mask(union code op)
 	case OP_LBU:
 	case OP_LHU:
 	case OP_LWR:
+	case OP_META_LWU:
 		return BIT(op.i.rt);
 	case OP_JAL:
 		return BIT(31);
@@ -382,6 +385,7 @@ bool opcode_is_load(union code op)
 	case OP_LHU:
 	case OP_LWR:
 	case OP_LWC2:
+	case OP_META_LWU:
 		return true;
 	default:
 		return false;
@@ -397,6 +401,7 @@ static bool opcode_is_store(union code op)
 	case OP_SWL:
 	case OP_SWR:
 	case OP_SWC2:
+	case OP_META_SWU:
 		return true;
 	default:
 		return false;
@@ -438,6 +443,7 @@ static bool is_nop(union code op)
 		case OP_LBU:
 		case OP_LHU:
 		case OP_LWR:
+		case OP_META_LWU:
 			return false;
 		default:
 			return true;
@@ -822,6 +828,7 @@ static void lightrec_patch_known_zero(struct opcode *op,
 	case OP_SWL:
 	case OP_SW:
 	case OP_SWR:
+	case OP_META_SWU:
 		if (is_known_zero(v, op->i.rt))
 			op->i.rt = 0;
 		fallthrough;
@@ -834,6 +841,7 @@ static void lightrec_patch_known_zero(struct opcode *op,
 	case OP_LWR:
 	case OP_LWC2:
 	case OP_SWC2:
+	case OP_META_LWU:
 		if (is_known(v, op->i.rs)
 		    && kunseg(v[op->i.rs].value) == 0)
 			op->i.rs = 0;
