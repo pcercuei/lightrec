@@ -1042,6 +1042,23 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 				}
 			}
 			break;
+		case OP_SWL:
+		case OP_SWR:
+			if (i == 0 || !has_delay_slot(list[i - 1].c)) {
+				idx = find_next_reader(list, i + 1, op->i.rt);
+				if (idx > 0 && list[idx].i.op == (op->i.op ^ 0x4)
+				    && list[idx].i.rs == op->i.rs
+				    && list[idx].i.rt == op->i.rt
+				    && abs((s16)op->i.imm - (s16)list[idx].i.imm) == 3) {
+					/* Replace a SWL/SWR combo with a META_SWU */
+					if (op->i.op == OP_SWL)
+						op->i.imm -= 3;
+					op->i.op = OP_META_SWU;
+					list[idx].opcode = 0;
+					pr_debug("Convert SWL/SWR to SWU\n");
+				}
+			}
+			break;
 		case OP_REGIMM:
 			switch (op->r.rt) {
 			case OP_REGIMM_BLTZ:
