@@ -887,6 +887,7 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 	struct constprop_data v[32] = LIGHTREC_CONSTPROP_INITIALIZER;
 	unsigned int i;
 	bool local;
+	int idx;
 	u8 tmp;
 
 	for (i = 0; i < block->nb_ops; i++) {
@@ -1021,6 +1022,23 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 					op->m.rd = op->i.rt;
 					op->m.op = OP_META_MOV;
 					op->i.op = OP_META;
+				}
+			}
+			break;
+		case OP_LWL:
+		case OP_LWR:
+			if (i == 0 || !has_delay_slot(list[i - 1].c)) {
+				idx = find_next_reader(list, i + 1, op->i.rt);
+				if (idx > 0 && list[idx].i.op == (op->i.op ^ 0x4)
+				    && list[idx].i.rs == op->i.rs
+				    && list[idx].i.rt == op->i.rt
+				    && abs((s16)op->i.imm - (s16)list[idx].i.imm) == 3) {
+					/* Replace a LWL/LWR combo with a META_LWU */
+					if (op->i.op == OP_LWL)
+						op->i.imm -= 3;
+					op->i.op = OP_META_LWU;
+					list[idx].opcode = 0;
+					pr_debug("Convert LWL/LWR to LWU\n");
 				}
 			}
 			break;
