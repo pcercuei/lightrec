@@ -1272,7 +1272,8 @@ static void rec_store_memory(struct lightrec_cstate *cstate,
 	s32 lut_offt = offsetof(struct lightrec_state, code_lut);
 	bool no_mask = op_flag_no_mask(op->flags);
 	bool add_imm = c.i.imm &&
-		((!state->mirrors_mapped && !no_mask) || (invalidate &&
+		(c.i.op == OP_META_SWU
+		 || (!state->mirrors_mapped && !no_mask) || (invalidate &&
 		((imm & 0x3) || simm + lut_offt != (s16)(simm + lut_offt))));
 	bool need_tmp = !no_mask || add_imm || invalidate;
 	bool swc2 = c.i.op == OP_SWC2;
@@ -1322,9 +1323,15 @@ static void rec_store_memory(struct lightrec_cstate *cstate,
 		tmp3 = lightrec_alloc_reg_temp(reg_cache, _jit);
 
 		jit_new_node_ww(swap_code, tmp3, rt);
-		jit_new_node_www(code, imm, addr_reg2, tmp3);
+
+		if (c.i.op == OP_META_SWU)
+			jit_unstr(addr_reg2, tmp3, LIGHTNING_UNALIGNED_32BIT);
+		else
+			jit_new_node_www(code, imm, addr_reg2, tmp3);
 
 		lightrec_free_reg(reg_cache, tmp3);
+	} else if (c.i.op == OP_META_SWU) {
+		jit_unstr(addr_reg2, rt, LIGHTNING_UNALIGNED_32BIT);
 	} else {
 		jit_new_node_www(code, imm, addr_reg2, rt);
 	}
@@ -1430,7 +1437,7 @@ static void rec_store_direct_no_invalidate(struct lightrec_cstate *cstate,
 	reg_imm = lightrec_alloc_reg_temp_with_value(reg_cache, _jit, addr_mask);
 
 	/* Convert to KUNSEG and avoid RAM mirrors */
-	if (!state->mirrors_mapped && c.i.imm) {
+	if ((c.i.op == OP_META_SWU || !state->mirrors_mapped) && c.i.imm) {
 		imm = 0;
 		jit_addi(tmp, rs, (s16)c.i.imm);
 		jit_andr(tmp, tmp, reg_imm);
@@ -1470,9 +1477,15 @@ static void rec_store_direct_no_invalidate(struct lightrec_cstate *cstate,
 		tmp2 = lightrec_alloc_reg_temp(reg_cache, _jit);
 
 		jit_new_node_ww(swap_code, tmp2, rt);
-		jit_new_node_www(code, imm, tmp, tmp2);
+
+		if (c.i.op == OP_META_SWU)
+			jit_unstr(tmp, tmp2, LIGHTNING_UNALIGNED_32BIT);
+		else
+			jit_new_node_www(code, imm, tmp, tmp2);
 
 		lightrec_free_reg(reg_cache, tmp2);
+	} else if (c.i.op == OP_META_SWU) {
+		jit_unstr(tmp, rt, LIGHTNING_UNALIGNED_32BIT);
 	} else {
 		jit_new_node_www(code, imm, tmp, rt);
 	}
@@ -1542,6 +1555,18 @@ static void rec_store_direct(struct lightrec_cstate *cstate, const struct block 
 	else
 		jit_stxi(offsetof(struct lightrec_state, code_lut), tmp, tmp3);
 
+	if (c.i.op == OP_META_SWU) {
+		/* With a SWU opcode, we might have touched the following 32-bit
+		 * word, so invalidate it as well */
+		if (lut_is_32bit(state)) {
+			jit_stxi_i(offsetof(struct lightrec_state, code_lut) + 4,
+				   tmp, tmp3);
+		} else {
+			jit_stxi(offsetof(struct lightrec_state, code_lut)
+				 + sizeof(uintptr_t), tmp, tmp3);
+		}
+	}
+
 	if (different_offsets) {
 		jit_movi(tmp, state->offset_ram);
 
@@ -1567,9 +1592,15 @@ static void rec_store_direct(struct lightrec_cstate *cstate, const struct block 
 		tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
 
 		jit_new_node_ww(swap_code, tmp, rt);
-		jit_new_node_www(code, 0, tmp2, tmp);
+
+		if (c.i.op == OP_META_SWU)
+			jit_unstr(tmp2, tmp, LIGHTNING_UNALIGNED_32BIT);
+		else
+			jit_new_node_www(code, 0, tmp2, tmp);
 
 		lightrec_free_reg(reg_cache, tmp);
+	} else if (c.i.op == OP_META_SWU) {
+		jit_unstr(tmp2, rt, LIGHTNING_UNALIGNED_32BIT);
 	} else {
 		jit_new_node_www(code, 0, tmp2, rt);
 	}
@@ -2805,6 +2836,14 @@ static void rec_meta_LWU(struct lightrec_cstate *state,
 	rec_load(state, block, offset, code, jit_code_bswapr_ui, false);
 }
 
+static void rec_meta_SWU(struct lightrec_cstate *state,
+			 const struct block *block,
+			 u16 offset)
+{
+	_jit_name(block->_jit, __func__);
+	rec_store(state, block, offset, jit_code_unstr, jit_code_bswapr_ui);
+}
+
 static void unknown_opcode(struct lightrec_cstate *state,
 			   const struct block *block, u16 offset)
 {
@@ -2851,6 +2890,7 @@ static const lightrec_rec_func_t rec_standard[64] = {
 	[OP_META_MULT2]		= rec_meta_MULT2,
 	[OP_META_MULTU2]	= rec_meta_MULT2,
 	[OP_META_LWU]		= rec_meta_LWU,
+	[OP_META_SWU]		= rec_meta_SWU,
 };
 
 static const lightrec_rec_func_t rec_special[64] = {
