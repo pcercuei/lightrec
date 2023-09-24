@@ -14,6 +14,8 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#define LIGHTNING_UNALIGNED_32BIT 4
+
 typedef void (*lightrec_rec_func_t)(struct lightrec_cstate *, const struct block *, u16);
 
 /* Forward declarations */
@@ -1696,7 +1698,8 @@ static void rec_load_memory(struct lightrec_cstate *cstate,
 	rs = lightrec_alloc_reg_in(reg_cache, _jit, c.i.rs, 0);
 	rt = lightrec_alloc_reg_out(reg_cache, _jit, out_reg, flags);
 
-	if (!cstate->state->mirrors_mapped && c.i.imm && !no_mask) {
+	if ((op->i.op == OP_META_LWU && c.i.imm)
+	    || (!cstate->state->mirrors_mapped && c.i.imm && !no_mask)) {
 		jit_addi(rt, rs, (s16)c.i.imm);
 		addr_reg = rt;
 		imm = 0;
@@ -1704,6 +1707,9 @@ static void rec_load_memory(struct lightrec_cstate *cstate,
 		addr_reg = rs;
 		imm = (s16)c.i.imm;
 	}
+
+	if (op->i.op == OP_META_LWU)
+		imm = LIGHTNING_UNALIGNED_32BIT;
 
 	if (!no_mask) {
 		reg_imm = lightrec_alloc_reg_temp_with_value(reg_cache, _jit,
@@ -1815,7 +1821,8 @@ static void rec_load_direct(struct lightrec_cstate *cstate,
 
 	if ((state->offset_ram == state->offset_bios &&
 	    state->offset_ram == state->offset_scratch &&
-	    state->mirrors_mapped) || !c.i.imm) {
+	    state->mirrors_mapped && c.i.op != OP_META_LWU)
+	    || !c.i.imm) {
 		addr_reg = rs;
 		imm = (s16)c.i.imm;
 	} else {
@@ -1826,6 +1833,9 @@ static void rec_load_direct(struct lightrec_cstate *cstate,
 		if (c.i.rs != c.i.rt)
 			lightrec_free_reg(reg_cache, rs);
 	}
+
+	if (op->i.op == OP_META_LWU)
+		imm = LIGHTNING_UNALIGNED_32BIT;
 
 	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
 
@@ -2780,6 +2790,21 @@ static void rec_meta_COM(struct lightrec_cstate *state,
 	lightrec_free_reg(reg_cache, rd);
 }
 
+static void rec_meta_LWU(struct lightrec_cstate *state,
+			 const struct block *block,
+			 u16 offset)
+{
+	jit_code_t code;
+
+	if (is_big_endian() && __WORDSIZE == 64)
+		code = jit_code_unldr_u;
+	else
+		code = jit_code_unldr;
+
+	_jit_name(block->_jit, __func__);
+	rec_load(state, block, offset, code, jit_code_bswapr_ui, false);
+}
+
 static void unknown_opcode(struct lightrec_cstate *state,
 			   const struct block *block, u16 offset)
 {
@@ -2825,6 +2850,7 @@ static const lightrec_rec_func_t rec_standard[64] = {
 	[OP_META]		= rec_META,
 	[OP_META_MULT2]		= rec_meta_MULT2,
 	[OP_META_MULTU2]	= rec_meta_MULT2,
+	[OP_META_LWU]		= rec_meta_LWU,
 };
 
 static const lightrec_rec_func_t rec_special[64] = {
