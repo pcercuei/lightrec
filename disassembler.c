@@ -40,6 +40,8 @@ static const char * const std_opcodes[] = {
 	[OP_SWR]		= "swr     ",
 	[OP_LWC2]		= "lwc2    ",
 	[OP_SWC2]		= "swc2    ",
+	[OP_META_MULT2]		= "mult2   ",
+	[OP_META_MULTU2]	= "multu2  ",
 };
 
 static const char * const special_opcodes[] = {
