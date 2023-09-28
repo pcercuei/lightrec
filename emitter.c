@@ -959,8 +959,6 @@ static void rec_alu_mult(struct lightrec_cstate *state,
 
 	if (!no_lo)
 		lo = lightrec_alloc_reg_out(reg_cache, _jit, reg_lo, 0);
-	else if (__WORDSIZE == 32)
-		lo = lightrec_alloc_reg_temp(reg_cache, _jit);
 
 	if (!no_hi)
 		hi = lightrec_alloc_reg_out(reg_cache, _jit, reg_hi, REG_EXT);
@@ -968,13 +966,17 @@ static void rec_alu_mult(struct lightrec_cstate *state,
 	if (__WORDSIZE == 32) {
 		/* On 32-bit systems, do a 32*32->64 bit operation, or a 32*32->32 bit
 		 * operation if the MULT was detected a 32-bit only. */
-		if (!no_hi) {
+		if (no_lo) {
 			if (is_signed)
-				jit_qmulr(lo, hi, rs, rt);
+				jit_hmulr(hi, rs, rt);
 			else
-				jit_qmulr_u(lo, hi, rs, rt);
-		} else {
+				jit_hmulr_u(hi, rs, rt);
+		} else if (no_hi) {
 			jit_mulr(lo, rs, rt);
+		} else if (is_signed) {
+			jit_qmulr(lo, hi, rs, rt);
+		} else {
+			jit_qmulr_u(lo, hi, rs, rt);
 		}
 	} else {
 		/* On 64-bit systems, do a 64*64->64 bit operation. */
@@ -992,7 +994,7 @@ static void rec_alu_mult(struct lightrec_cstate *state,
 
 	lightrec_free_reg(reg_cache, rs);
 	lightrec_free_reg(reg_cache, rt);
-	if (!no_lo || __WORDSIZE == 32)
+	if (!no_lo)
 		lightrec_free_reg(reg_cache, lo);
 	if (!no_hi)
 		lightrec_free_reg(reg_cache, hi);
