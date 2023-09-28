@@ -944,6 +944,8 @@ static void rec_alu_mult(struct lightrec_cstate *state,
 	u8 reg_hi = get_mult_div_hi(c);
 	jit_state_t *_jit = block->_jit;
 	u8 lo, hi, rs, rt, rflags = 0;
+	bool no_lo = op_flag_no_lo(flags);
+	bool no_hi = op_flag_no_hi(flags);
 
 	jit_note(__FILE__, __LINE__);
 
@@ -955,18 +957,18 @@ static void rec_alu_mult(struct lightrec_cstate *state,
 	rs = lightrec_alloc_reg_in(reg_cache, _jit, c.r.rs, rflags);
 	rt = lightrec_alloc_reg_in(reg_cache, _jit, c.r.rt, rflags);
 
-	if (!op_flag_no_lo(flags))
+	if (!no_lo)
 		lo = lightrec_alloc_reg_out(reg_cache, _jit, reg_lo, 0);
 	else if (__WORDSIZE == 32)
 		lo = lightrec_alloc_reg_temp(reg_cache, _jit);
 
-	if (!op_flag_no_hi(flags))
+	if (!no_hi)
 		hi = lightrec_alloc_reg_out(reg_cache, _jit, reg_hi, REG_EXT);
 
 	if (__WORDSIZE == 32) {
 		/* On 32-bit systems, do a 32*32->64 bit operation, or a 32*32->32 bit
 		 * operation if the MULT was detected a 32-bit only. */
-		if (!op_flag_no_hi(flags)) {
+		if (!no_hi) {
 			if (is_signed)
 				jit_qmulr(lo, hi, rs, rt);
 			else
@@ -976,23 +978,23 @@ static void rec_alu_mult(struct lightrec_cstate *state,
 		}
 	} else {
 		/* On 64-bit systems, do a 64*64->64 bit operation. */
-		if (op_flag_no_lo(flags)) {
+		if (no_lo) {
 			jit_mulr(hi, rs, rt);
 			jit_rshi(hi, hi, 32);
 		} else {
 			jit_mulr(lo, rs, rt);
 
 			/* The 64-bit output value is in $lo, store the upper 32 bits in $hi */
-			if (!op_flag_no_hi(flags))
+			if (!no_hi)
 				jit_rshi(hi, lo, 32);
 		}
 	}
 
 	lightrec_free_reg(reg_cache, rs);
 	lightrec_free_reg(reg_cache, rt);
-	if (!op_flag_no_lo(flags) || __WORDSIZE == 32)
+	if (!no_lo || __WORDSIZE == 32)
 		lightrec_free_reg(reg_cache, lo);
-	if (!op_flag_no_hi(flags))
+	if (!no_hi)
 		lightrec_free_reg(reg_cache, hi);
 }
 
