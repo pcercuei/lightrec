@@ -156,8 +156,7 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 	     load_in_ds, branch_in_ds = false, branch_at_addr = false,
 	     branch_taken;
 	u32 new_rt, old_rs = 0, new_rs = 0;
-	u32 next_pc, ds_next_pc;
-	u32 cause, epc;
+	u32 next_pc, ds_next_pc, epc;
 
 	if (op->i.op == OP_CP0 && op->r.rs == OP_CP0_RFE) {
 		/* When an IRQ happens, the PSX exception handlers (when done)
@@ -168,11 +167,13 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 		 * but on branch boundaries, we need to adjust the return
 		 * address so that the GTE opcode is effectively executed.
 		 */
-		cause = state->regs.cp0[13];
 		epc = state->regs.cp0[14];
 
-		if (!(cause & 0x7c) && epc == pc - 4)
-			pc -= 4;
+		if (epc == pc - 4) {
+			op_next = lightrec_read_opcode(state, epc);
+			if (op_next.i.op == OP_CP2)
+				pc -= 4;
+		}
 	}
 
 	if (inter->delay_slot) {
