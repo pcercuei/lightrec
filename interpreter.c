@@ -150,7 +150,6 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 		.state = state,
 		.cycles = inter->cycles,
 		.delay_slot = true,
-		.block = NULL,
 	};
 	bool run_first_op = false, dummy_ld = false, save_rs = false,
 	     load_in_ds, branch_in_ds = false, branch_at_addr = false,
@@ -1189,15 +1188,13 @@ static u32 int_META(struct interpreter *inter)
 static u32 lightrec_emulate_block_list(struct lightrec_state *state,
 				       struct block *block, u32 offset)
 {
-	struct interpreter inter;
+	struct interpreter inter = {
+		.block = block,
+		.state = state,
+		.offset = offset,
+		.op = &block->opcode_list[offset],
+	};
 	u32 pc;
-
-	inter.block = block;
-	inter.state = state;
-	inter.offset = offset;
-	inter.op = &block->opcode_list[offset];
-	inter.cycles = 0;
-	inter.delay_slot = false;
 
 	pc = lightrec_int_op(&inter);
 
@@ -1254,9 +1251,7 @@ u32 lightrec_handle_load_delay(struct lightrec_state *state,
 	struct interpreter inter = {
 		.block = block,
 		.state = state,
-		.offset = 0,
 		.op = op,
-		.cycles = 0,
 	};
 	bool branch_taken;
 	u32 reg_mask, next_pc;
