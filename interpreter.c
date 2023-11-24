@@ -31,6 +31,7 @@ struct interpreter {
 	struct opcode *op;
 	u32 cycles;
 	bool delay_slot;
+	bool load_delay;
 	u16 offset;
 };
 
@@ -150,6 +151,7 @@ static u32 int_delay_slot(struct interpreter *inter, u32 pc, bool branch)
 		.state = state,
 		.cycles = inter->cycles,
 		.delay_slot = true,
+		.load_delay = true,
 	};
 	bool run_first_op = false, dummy_ld = false, save_rs = false,
 	     load_in_ds, branch_in_ds = false, branch_at_addr = false,
@@ -600,7 +602,7 @@ static u32 int_io(struct interpreter *inter, bool is_load)
 	u32 *reg_cache = inter->state->regs.gpr;
 	u32 val, *flags = NULL;
 
-	if (inter->block)
+	if (!inter->load_delay && inter->block)
 		flags = &inter->op->flags;
 
 	val = lightrec_rw(inter->state, inter->op->c,
@@ -1252,6 +1254,7 @@ u32 lightrec_handle_load_delay(struct lightrec_state *state,
 		.block = block,
 		.state = state,
 		.op = op,
+		.load_delay = true,
 	};
 	bool branch_taken;
 	u32 reg_mask, next_pc;
