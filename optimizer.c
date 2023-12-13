@@ -1391,7 +1391,7 @@ static int lightrec_handle_load_delays(struct lightrec_state *state,
 	for (i = 0; i < block->nb_ops; i++) {
 		op = &list[i];
 
-		if (!opcode_is_load(op->c) || !op->c.i.rt || op->c.i.op == OP_LWC2)
+		if (!opcode_has_load_delay(op->c))
 			continue;
 
 		if (!is_delay_slot(list, i)) {
