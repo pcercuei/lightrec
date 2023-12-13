@@ -35,6 +35,8 @@ static bool lightrec_block_is_fully_tagged(const struct block *block);
 static void lightrec_mtc2(struct lightrec_state *state, u8 reg, u32 data);
 static u32 lightrec_mfc2(struct lightrec_state *state, u8 reg);
 
+static void lightrec_reap_block(struct lightrec_state *state, void *data);
+
 static void lightrec_default_sb(struct lightrec_state *state, u32 opcode,
 				void *host, u32 addr, u32 data)
 {
@@ -703,9 +705,15 @@ static struct block * lightrec_get_block(struct lightrec_state *state, u32 pc)
 			if (ENABLE_THREADED_COMPILER)
 				lightrec_recompiler_remove(state->rec, block);
 
-			lightrec_unregister_block(state->block_cache, block);
 			remove_from_code_lut(state->block_cache, block);
-			lightrec_free_block(state, block);
+
+			if (ENABLE_THREADED_COMPILER) {
+				lightrec_reaper_add(state->reaper,
+						    lightrec_reap_block, block);
+			} else {
+				lightrec_unregister_block(state->block_cache, block);
+				lightrec_free_block(state, block);
+			}
 		}
 
 		block = NULL;
