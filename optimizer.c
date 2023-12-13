@@ -411,6 +411,12 @@ static bool opcode_is_store(union code op)
 	}
 }
 
+bool opcode_has_load_delay(union code op)
+{
+	return (opcode_is_load(op) && op.i.rt && op.i.op != OP_LWC2)
+		|| opcode_is_mfc(op);
+}
+
 static u8 opcode_get_io_size(union code op)
 {
 	switch (op.i.op) {

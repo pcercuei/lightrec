@@ -18,6 +18,7 @@ __cnst _Bool has_delay_slot(union code op);
 _Bool is_delay_slot(const struct opcode *list, unsigned int offset);
 __cnst _Bool opcode_is_mfc(union code op);
 __cnst _Bool opcode_is_load(union code op);
+__cnst _Bool opcode_has_load_delay(union code op);
 __cnst _Bool opcode_is_io(union code op);
 __cnst _Bool is_unconditional_jump(union code c);
 __cnst _Bool is_syscall(union code c);
