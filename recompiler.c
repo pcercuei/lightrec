@@ -316,6 +316,7 @@ int lightrec_recompiler_add(struct recompiler *rec, struct block *block)
 {
 	struct slist_elm *elm;
 	struct block_rec *block_rec;
+	u32 pc1, pc2;
 	int ret = 0;
 
 	pthread_mutex_lock(&rec->mutex);
@@ -337,6 +338,16 @@ int lightrec_recompiler_add(struct recompiler *rec, struct block *block)
 		if (block_rec->block == block) {
 			/* The block to compile is already in the queue -
 			 * increment its counter to increase its priority */
+			block_rec->requests++;
+			goto out_unlock;
+		}
+
+		pc1 = kunseg(block_rec->block->pc);
+		pc2 = kunseg(block->pc);
+		if (pc2 >= pc1 && pc2 < pc1 + block_rec->block->nb_ops * 4) {
+			/* The block we want to compile is already covered by
+			 * another one in the queue - increment its counter to
+			 * increase its priority */
 			block_rec->requests++;
 			goto out_unlock;
 		}
