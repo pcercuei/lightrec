@@ -1815,8 +1815,6 @@ static void rec_load_direct(struct lightrec_cstate *cstate,
 	if (op->i.op == OP_META_LWU)
 		imm = LIGHTNING_UNALIGNED_32BIT;
 
-	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
-
 	if (!state->mirrors_mapped)
 		addr_mask = 0x1f800000 | (RAM_SIZE - 1);
 	else
@@ -1825,16 +1823,19 @@ static void rec_load_direct(struct lightrec_cstate *cstate,
 	reg_imm = lightrec_alloc_reg_temp_with_value(reg_cache, _jit,
 						     addr_mask);
 	if (!state->mirrors_mapped) {
+		tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
+
 		jit_andi(tmp, addr_reg, BIT(28));
 		jit_rshi_u(tmp, tmp, 28 - 22);
 		jit_orr(tmp, tmp, reg_imm);
 		jit_andr(rt, addr_reg, tmp);
+
+		lightrec_free_reg(reg_cache, tmp);
 	} else {
 		jit_andr(rt, addr_reg, reg_imm);
 	}
 
 	lightrec_free_reg(reg_cache, reg_imm);
-	lightrec_free_reg(reg_cache, tmp);
 
 	if (state->offset)
 		rec_add_offset(cstate, _jit, rt, rt);
