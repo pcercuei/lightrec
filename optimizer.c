@@ -1002,10 +1002,10 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 			break;
 
 		case OP_LUI:
-			if (i == 0 || !has_delay_slot(list[i - 1].c))
+			if (!is_delay_slot(list, i))
 				lightrec_modify_lui(block, i);
 			lightrec_remove_useless_lui(block, i, v);
-			if (i == 0 || !has_delay_slot(list[i - 1].c))
+			if (!is_delay_slot(list, i))
 				lightrec_lui_to_movi(block, i);
 			break;
 
