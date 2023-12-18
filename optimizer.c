@@ -642,7 +642,7 @@ lightrec_remove_useless_lui(struct block *block, unsigned int offset,
 		return;
 	}
 
-	if (op->i.imm != 0 || op->i.rt == 0 || offset == block->nb_ops - 1)
+	if (op->i.imm != 0 || op->i.rt == 0 || is_delay_slot(list, offset))
 		return;
 
 	reader = find_next_reader(list, offset + 1, op->i.rt);
