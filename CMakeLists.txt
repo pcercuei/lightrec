@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
-project(lightrec LANGUAGES C VERSION 0.8)
+project(lightrec LANGUAGES C VERSION 0.9)
 
 list(APPEND LIGHTREC_SOURCES
 	blockcache.c
