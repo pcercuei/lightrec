@@ -3,6 +3,7 @@
  * Copyright (C) 2014-2021 Paul Cercueil <paul@crapouillou.net>
  */
 
+#include "arch.h"
 #include "blockcache.h"
 #include "debug.h"
 #include "disassembler.h"
@@ -1276,10 +1277,16 @@ static void rec_and_mask(struct lightrec_cstate *cstate,
 	struct regcache *reg_cache = cstate->reg_cache;
 	u8 reg_imm;
 
-	reg_imm = lightrec_alloc_reg_temp_with_value(reg_cache, _jit, mask);
-	jit_andr(reg_out, reg_in, reg_imm);
+	if (arch_has_fast_mask()
+	    && (is_low_mask(mask) || is_high_mask(mask))) {
+		jit_andi(reg_out, reg_in, mask);
+	} else {
+		reg_imm = lightrec_alloc_reg_temp_with_value(reg_cache, _jit,
+							     mask);
+		jit_andr(reg_out, reg_in, reg_imm);
 
-	lightrec_free_reg(reg_cache, reg_imm);
+		lightrec_free_reg(reg_cache, reg_imm);
+	}
 }
 
 static void rec_store_memory(struct lightrec_cstate *cstate,
