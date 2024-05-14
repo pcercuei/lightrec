@@ -1249,9 +1249,9 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 	to_end = jit_blei(LIGHTREC_REG_CYCLE, 0);
 
 	/* Convert next PC to KUNSEG and avoid mirrors */
-	jit_andi(JIT_V1, JIT_V0, 0x10000000 | (RAM_SIZE - 1));
-	jit_rshi_u(JIT_R1, JIT_V1, 28);
+	jit_andi(JIT_V1, JIT_V0, RAM_SIZE - 1);
 	jit_andi(JIT_R2, JIT_V0, BIOS_SIZE - 1);
+	jit_andi(JIT_R1, JIT_V0, BIT(28));
 	jit_addi(JIT_R2, JIT_R2, RAM_SIZE);
 	jit_movnr(JIT_V1, JIT_R2, JIT_R1);
 
