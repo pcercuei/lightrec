@@ -946,14 +946,6 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 	jit_node_t *to_end[C_WRAPPERS_COUNT - 1];
 	u8 tmp = JIT_R1;
 
-#ifdef __sh__
-	/* On SH, GBR-relative loads target the r0 register.
-	 * Use it as the temporary register to factorize the move to
-	 * JIT_R1. */
-	if (LIGHTREC_REG_STATE == _GBR)
-		tmp = _R0;
-#endif
-
 	block = lightrec_malloc(state, MEM_FOR_IR, sizeof(*block));
 	if (!block)
 		goto err_no_mem;
