@@ -177,9 +177,9 @@ struct lightrec_state {
 	u32 exit_flags;
 	u32 old_cycle_counter;
 	u32 cycles_per_op;
+	void *c_wrapper;
 	struct block *dispatcher, *c_wrapper_block;
 	void *c_wrappers[C_WRAPPERS_COUNT];
-	void *wrappers_eps[C_WRAPPERS_COUNT];
 	struct blockcache *block_cache;
 	struct recompiler *rec;
 	struct lightrec_cstate *cstate;

@@ -942,9 +942,6 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 	struct block *block;
 	jit_state_t *_jit;
 	unsigned int i;
-	jit_node_t *addr[C_WRAPPERS_COUNT - 1];
-	jit_node_t *to_end[C_WRAPPERS_COUNT - 1];
-	u8 tmp = JIT_R1;
 
 	block = lightrec_malloc(state, MEM_FOR_IR, sizeof(*block));
 	if (!block)
@@ -961,18 +958,9 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 	jit_prolog();
 	jit_tramp(256);
 
-	/* Add entry points */
-	for (i = C_WRAPPERS_COUNT - 1; i > 0; i--) {
-		jit_ldxi(tmp, LIGHTREC_REG_STATE, lightrec_offset(c_wrappers[i]));
-		to_end[i - 1] = jit_b();
-		addr[i - 1] = jit_indirect();
-	}
-
-	jit_ldxi(tmp, LIGHTREC_REG_STATE, lightrec_offset(c_wrappers[0]));
-
-	for (i = 0; i < C_WRAPPERS_COUNT - 1; i++)
-		jit_patch(to_end[i]);
-	jit_movr(JIT_R1, tmp);
+	/* Load pointer to C wrapper */
+	jit_addr(JIT_R1, JIT_R1, LIGHTREC_REG_STATE);
+	jit_ldxi(JIT_R1, JIT_R1, lightrec_offset(c_wrappers));
 
 	jit_epilog();
 	jit_prolog();
@@ -1026,10 +1014,7 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 	if (!block->function)
 		goto err_free_jit;
 
-	state->wrappers_eps[C_WRAPPERS_COUNT - 1] = block->function;
-
-	for (i = 0; i < C_WRAPPERS_COUNT - 1; i++)
-		state->wrappers_eps[i] = jit_address(addr[i]);
+	state->c_wrapper = block->function;
 
 	if (ENABLE_DISASSEMBLER) {
 		pr_debug("Wrapper block:\n");

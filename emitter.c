@@ -1173,14 +1173,16 @@ static void call_to_c_wrapper(struct lightrec_cstate *state,
 	/* Make sure JIT_R1 is not mapped; it will be used in the C wrapper. */
 	tmp2 = lightrec_alloc_reg(reg_cache, _jit, JIT_R1);
 
+	jit_movi(tmp2, (unsigned int)wrapper << (1 + __WORDSIZE / 32));
+
 	tmp = lightrec_get_reg_with_value(reg_cache,
-					  (intptr_t) state->state->wrappers_eps[wrapper]);
+					  (intptr_t) state->state->c_wrapper);
 	if (tmp < 0) {
 		tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
-		jit_ldxi(tmp, LIGHTREC_REG_STATE, lightrec_offset(wrappers_eps[wrapper]));
+		jit_ldxi(tmp, LIGHTREC_REG_STATE, lightrec_offset(c_wrapper));
 
 		lightrec_temp_set_value(reg_cache, tmp,
-					(intptr_t) state->state->wrappers_eps[wrapper]);
+					(intptr_t) state->state->c_wrapper);
 	}
 
 	lightrec_free_reg(reg_cache, tmp2);
