@@ -904,6 +904,12 @@ static void * lightrec_emit_code(struct lightrec_state *state,
 	}
 
 	code = jit_emit();
+	if (!code) {
+		if (has_code_buffer)
+			lightrec_free_code(state, code);
+
+		return NULL;
+	}
 
 	jit_get_code(&new_code_size);
 	lightrec_register(MEM_FOR_CODE, new_code_size);
