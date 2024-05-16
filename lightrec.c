@@ -1025,7 +1025,7 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 	block->function = lightrec_emit_code(state, block, _jit,
 					     &block->code_size);
 	if (!block->function)
-		goto err_free_block;
+		goto err_free_jit;
 
 	state->wrappers_eps[C_WRAPPERS_COUNT - 1] = block->function;
 
@@ -1040,6 +1040,8 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 	jit_clear_state();
 	return block;
 
+err_free_jit:
+	jit_destroy_state();
 err_free_block:
 	lightrec_free(state, MEM_FOR_IR, sizeof(*block), block);
 err_no_mem:
@@ -1323,7 +1325,7 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 	block->function = lightrec_emit_code(state, block, _jit,
 					     &block->code_size);
 	if (!block->function)
-		goto err_free_block;
+		goto err_free_jit;
 
 	state->eob_wrapper_func = jit_address(addr2);
 	if (OPT_DETECT_IMPOSSIBLE_BRANCHES)
@@ -1343,6 +1345,8 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 	jit_clear_state();
 	return block;
 
+err_free_jit:
+	jit_destroy_state();
 err_free_block:
 	lightrec_free(state, MEM_FOR_IR, sizeof(*block), block);
 err_no_mem:
