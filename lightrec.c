@@ -2179,5 +2179,19 @@ struct lightrec_registers * lightrec_get_registers(struct lightrec_state *state)
 
 void lightrec_set_cycles_per_opcode(struct lightrec_state *state, u32 cycles)
 {
+	if (state->cycles_per_op == cycles)
+		return;
+
 	state->cycles_per_op = cycles;
+
+	if (ENABLE_THREADED_COMPILER) {
+		lightrec_recompiler_pause(state->rec);
+		lightrec_reaper_reap(state->reaper);
+	}
+
+	lightrec_invalidate_all(state);
+	lightrec_free_all_blocks(state->block_cache);
+
+	if (ENABLE_THREADED_COMPILER)
+		lightrec_recompiler_unpause(state->rec);
 }
