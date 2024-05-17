@@ -877,6 +877,13 @@ static void * lightrec_emit_code(struct lightrec_state *state,
 
 	if (has_code_buffer) {
 		jit_get_code(&code_size);
+
+#ifdef __i386__
+		/* Lightning's code size estimation routine is buggy on x86 and
+		 * will return a value that's too small. */
+		code_size *= 2;
+#endif
+
 		code = lightrec_alloc_code(state, (size_t) code_size);
 
 		if (!code) {
