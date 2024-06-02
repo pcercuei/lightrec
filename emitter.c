@@ -2662,16 +2662,7 @@ static void rec_meta_MOV(struct lightrec_cstate *state,
 	unload_rd = OPT_EARLY_UNLOAD
 		&& LIGHTREC_FLAGS_GET_RD(op->flags) == LIGHTREC_REG_UNLOAD;
 
-	if (c.m.rs && !lightrec_reg_is_loaded(reg_cache, c.m.rs)) {
-		/* The source register is not yet loaded - we can load its value
-		 * from the register cache directly into the target register. */
-		rd = lightrec_alloc_reg_out(reg_cache, _jit, c.m.rd, REG_EXT);
-
-		jit_ldxi_i(rd, LIGHTREC_REG_STATE,
-			   offsetof(struct lightrec_state, regs.gpr) + (c.m.rs << 2));
-
-		lightrec_free_reg(reg_cache, rd);
-	} else if (unload_rd) {
+	if (unload_rd) {
 		/* If the destination register will be unloaded right after the
 		 * MOV meta-opcode, we don't actually need to write any host
 		 * register - we can just store the source register directly to
