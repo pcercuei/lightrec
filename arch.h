@@ -19,6 +19,10 @@ static bool arch_has_fast_mask(void)
 	/* On PowerPC, we can use the RLWINM instruction */
 	return true;
 #endif
+#ifdef __aarch64__
+	/* Aarch64 can use the UBFX instruction */
+	return true;
+#endif
 #if defined(__x86__) || defined(__x86_64__)
 	/* x86 doesn't have enough registers, using cached values make
 	 * little sense. Using jit_andi() will give a better result as it will
