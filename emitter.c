@@ -248,11 +248,11 @@ static void rec_b(struct lightrec_cstate *state, const struct block *block, u16 
 	struct lightrec_branch *branch;
 	const struct opcode *op = &block->opcode_list[offset],
 			    *ds = get_delay_slot(block->opcode_list, offset);
-	jit_node_t *addr;
 	bool is_forward = (s16)op->i.imm >= 0;
 	int op_cycles = lightrec_cycles_of_opcode(state->state, op->c);
 	u32 target_offset, cycles = state->cycles + op_cycles;
 	bool no_indirection = false;
+	jit_node_t *addr = NULL;
 	u32 next_pc;
 	u8 rs, rt;
 
@@ -942,7 +942,7 @@ static void rec_alu_mult(struct lightrec_cstate *state,
 	u8 reg_lo = get_mult_div_lo(c);
 	u8 reg_hi = get_mult_div_hi(c);
 	jit_state_t *_jit = block->_jit;
-	u8 lo, hi, rs, rt, rflags = 0;
+	u8 lo, hi = 0, rs, rt, rflags = 0;
 	bool no_lo = op_flag_no_lo(flags);
 	bool no_hi = op_flag_no_hi(flags);
 
