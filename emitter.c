@@ -1517,23 +1517,81 @@ static void rec_store_direct(struct lightrec_cstate *cstate, const struct block 
 	jit_state_t *_jit = block->_jit;
 	jit_node_t *to_not_ram, *to_end;
 	bool swc2 = c.i.op == OP_SWC2;
-	u8 src_reg, addr_reg, tmp, tmp2, tmp3, rs, rt, reg_imm;
+	u8 src_reg, addr_reg, tmp, tmp2, tmp3, rs, rt, reg_imm = 0, inv_reg = 0;
 	u8 in_reg = swc2 ? REG_TEMP : c.i.rt;
 	u32 mask;
 	bool different_offsets = state->offset_ram != state->offset_scratch;
+	bool no_mask = op_flag_no_mask(block->opcode_list[offset].flags);
+	bool need_tmp2;
+	s16 imm = 0;
 
 	jit_note(__FILE__, __LINE__);
 
 	rs = lightrec_alloc_reg_in(reg_cache, _jit, c.i.rs, 0);
-	tmp2 = lightrec_alloc_reg_temp(reg_cache, _jit);
+	addr_reg = rs;
+
+	if (ENABLE_EXTERNAL_CODE_LUT && state->external_lut) {
+		need_tmp2 = !no_mask || state->offset_ram || (c.i.op != OP_SW && c.i.imm);
+
+		if (need_tmp2)
+			tmp2 = lightrec_alloc_reg_temp(reg_cache, _jit);
+
+		if (!no_mask) {
+			rec_and_mask(cstate, _jit, tmp2, rs, 0x1fffffff);
+			addr_reg = tmp2;
+		}
+
+		if (state->offset_ram) {
+			rec_add_offset(cstate, _jit, tmp2, addr_reg, state->offset_ram);
+			addr_reg = tmp2;
+		}
+
+		if (c.i.op == OP_SW) {
+			imm = (s16)c.i.imm;
+			inv_reg = addr_reg;
+		} else {
+			if (c.i.imm) {
+				jit_addi(tmp2, addr_reg, (s16)c.i.imm);
+				addr_reg = tmp2;
+			}
+
+			tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
+
+			rec_and_mask(cstate, _jit, tmp, addr_reg, ~3);
+			inv_reg = tmp;
+		}
+
+		if (need_tmp2)
+			lightrec_free_reg(reg_cache, rs);
+
+		tmp3 = lightrec_alloc_reg_in(reg_cache, _jit, 0, 0);
+
+		jit_stxi_i((intptr_t)state->external_lut
+			   - (intptr_t)state->offset_ram
+			   + imm, inv_reg, tmp3);
+
+		/* With a SWU opcode, we might have touched the following 32-bit
+		 * word, so invalidate it as well */
+		if (c.i.op == OP_META_SWU) {
+			jit_stxi_i((intptr_t)state->external_lut
+				   - (intptr_t)state->offset_ram + 4 + imm,
+				   inv_reg, tmp3);
+		}
+
+		if (c.i.op != OP_SW)
+			lightrec_free_reg(reg_cache, tmp);
+		lightrec_free_reg(reg_cache, tmp3);
+
+		goto out_store;
+	}
+
 	tmp3 = lightrec_alloc_reg_in(reg_cache, _jit, 0, 0);
+	tmp2 = lightrec_alloc_reg_temp(reg_cache, _jit);
 
 	/* Convert to KUNSEG and avoid RAM mirrors */
 	if (c.i.imm) {
 		jit_addi(tmp2, rs, (s16)c.i.imm);
 		addr_reg = tmp2;
-	} else {
-		addr_reg = rs;
 	}
 
 	rec_and_mask(cstate, _jit, tmp2, addr_reg, 0x1f800000 | (ram_size - 1));
@@ -1597,6 +1655,9 @@ static void rec_store_direct(struct lightrec_cstate *cstate, const struct block 
 	lightrec_free_reg(reg_cache, tmp3);
 	lightrec_free_reg(reg_cache, reg_imm);
 
+	addr_reg = tmp2;
+
+out_store:
 	rt = lightrec_alloc_reg_in(reg_cache, _jit, in_reg, 0);
 	src_reg = rt;
 
@@ -1610,12 +1671,12 @@ static void rec_store_direct(struct lightrec_cstate *cstate, const struct block 
 	}
 
 	if (c.i.op == OP_META_SWU)
-		jit_unstr(tmp2, src_reg, LIGHTNING_UNALIGNED_32BIT);
+		jit_unstr(addr_reg, src_reg, LIGHTNING_UNALIGNED_32BIT);
 	else
-		jit_new_node_www(code, 0, tmp2, src_reg);
+		jit_new_node_www(code, imm, addr_reg, src_reg);
 
 	lightrec_free_reg(reg_cache, src_reg);
-	lightrec_free_reg(reg_cache, tmp2);
+	lightrec_free_reg(reg_cache, addr_reg);
 }
 
 static void rec_store(struct lightrec_cstate *state,
