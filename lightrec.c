@@ -219,7 +219,7 @@ static void lightrec_invalidate_map(struct lightrec_state *state,
 		const struct lightrec_mem_map *map, u32 addr, u32 len)
 {
 	if (map == &state->maps[PSX_MAP_KERNEL_USER_RAM]) {
-		memset(lut_address(state, lut_offset(addr)), 0,
+		memset(lut_address(state, lut_offset(state, addr)), 0,
 		       ((len + 3) / 4) * lut_elm_size(state));
 	}
 }
@@ -319,7 +319,7 @@ u32 lightrec_rw(struct lightrec_state *state, union code op, u32 base,
 			pr_debug("Opcode of block at "PC_FMT" has been tagged"
 				 " - flag for recompilation\n", block->pc);
 
-			lut_write(state, lut_offset(block->pc), NULL);
+			lut_write(state, lut_offset(state, block->pc), NULL);
 		}
 	}
 
@@ -742,7 +742,7 @@ static void * get_next_block_func(struct lightrec_state *state, u32 pc)
 	int err;
 
 	do {
-		func = lut_read(state, lut_offset(pc));
+		func = lut_read(state, lut_offset(state, pc));
 		if (func && func != state->get_next_block)
 			break;
 
@@ -1467,7 +1467,7 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 		addr = state->memset_func;
 	else
 		addr = state->get_next_block;
-	lut_write(state, lut_offset(pc), addr);
+	lut_write(state, lut_offset(state, pc), addr);
 
 	pr_debug("Blocks created: %u\n", ++state->nb_precompile);
 
@@ -1673,7 +1673,7 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 	block_clear_flags(block, BLOCK_SHOULD_RECOMPILE);
 
 	/* Add compiled function to the LUT */
-	lut_write(state, lut_offset(block->pc), block->function);
+	lut_write(state, lut_offset(state, block->pc), block->function);
 
 	/* Detect old blocks that have been covered by the new one */
 	for (i = 0; ENABLE_THREADED_COMPILER && i < cstate->nb_targets; i++) {
@@ -1716,7 +1716,7 @@ int lightrec_compile_block(struct lightrec_cstate *cstate,
 		/* We know from now on that block2 (if present) isn't going to
 		 * be compiled. We can override the LUT entry with our new
 		 * block's entry point. */
-		offset = lut_offset(block->pc) + target->offset;
+		offset = lut_offset(state, block->pc) + target->offset;
 		lut_write(state, offset, jit_address(target->label));
 
 		if (ENABLE_THREADED_COMPILER) {
@@ -2098,7 +2098,7 @@ void lightrec_invalidate(struct lightrec_state *state, u32 addr, u32 len)
 		return;
 	}
 
-	memset(lut_address(state, lut_offset(kaddr)), 0,
+	memset(lut_address(state, lut_offset(state, kaddr)), 0,
 	       ((len + 3) / 4) * lut_elm_size(state));
 }
 

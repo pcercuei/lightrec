@@ -223,7 +223,7 @@ static inline u32 kunseg(u32 addr)
 		return addr &~ 0x80000000;
 }
 
-static inline u32 lut_offset(u32 pc)
+static inline u32 lut_offset(const struct lightrec_state *state, u32 pc)
 {
 	if (pc & BIT(28))
 		return ((pc & (BIOS_SIZE - 1)) + RAM_SIZE) >> 2; // BIOS

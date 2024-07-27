@@ -62,7 +62,7 @@ struct block * lightrec_find_block_from_lut(struct blockcache *cache,
 void remove_from_code_lut(struct blockcache *cache, struct block *block)
 {
 	struct lightrec_state *state = cache->state;
-	u32 offset = lut_offset(block->pc);
+	u32 offset = lut_offset(state, block->pc);
 
 	if (block->function) {
 		memset(lut_address(state, offset), 0,
@@ -217,12 +217,12 @@ static void lightrec_reset_lut_offset(struct lightrec_state *state, void *d)
 		return;
 
 	addr = block->function ?: state->get_next_block;
-	lut_write(state, lut_offset(pc), addr);
+	lut_write(state, lut_offset(state, pc), addr);
 }
 
 bool lightrec_block_is_outdated(struct lightrec_state *state, struct block *block)
 {
-	u32 offset = lut_offset(block->pc);
+	u32 offset = lut_offset(state, block->pc);
 	bool outdated;
 
 	if (lut_read(state, offset))
