@@ -1980,7 +1980,7 @@ struct lightrec_state * lightrec_init(char *argv0,
 	    && offset_ram == offset_scratch
 	    && offset_ram == offset_io) {
 		/* All stars aligned, we'll use the external code LUT */
-		//with_external_lut = true;
+		with_external_lut = true;
 	}
 
 	if (ENABLE_EXTERNAL_CODE_LUT && with_external_lut)
