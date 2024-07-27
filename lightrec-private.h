@@ -87,6 +87,7 @@
 
 #define RAM_SIZE	0x200000
 #define BIOS_SIZE	0x80000
+#define SCRATCH_SIZE	0x400
 
 #define CODE_LUT_SIZE	((RAM_SIZE + BIOS_SIZE) >> 2)
 
@@ -199,6 +200,7 @@ struct lightrec_state {
 	u32 opt_flags;
 	_Bool with_32bit_lut;
 	_Bool mirrors_mapped;
+	void *external_lut;
 	void *code_lut[];
 };
 
@@ -225,6 +227,8 @@ static inline u32 kunseg(u32 addr)
 
 static inline u32 lut_offset(const struct lightrec_state *state, u32 pc)
 {
+	if (ENABLE_EXTERNAL_CODE_LUT && state->external_lut)
+		return kunseg(pc) >> 2;
 	if (pc & BIT(28))
 		return ((pc & (BIOS_SIZE - 1)) + RAM_SIZE) >> 2; // BIOS
 	else
@@ -249,6 +253,8 @@ static inline size_t lut_elm_size(const struct lightrec_state *state)
 
 static inline void ** lut_address(struct lightrec_state *state, u32 offset)
 {
+	if (ENABLE_EXTERNAL_CODE_LUT && state->external_lut)
+		return (void **) ((uintptr_t) state->external_lut + offset * 4);
 	if (lut_is_32bit(state))
 		return (void **) ((uintptr_t) state->code_lut + offset * 4);
 	else

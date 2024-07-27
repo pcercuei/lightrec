@@ -114,6 +114,8 @@ if (ENABLE_CODE_BUFFER)
 	target_include_directories(lightrec PRIVATE tlsf)
 endif (ENABLE_CODE_BUFFER)
 
+option(ENABLE_EXTERNAL_CODE_LUT "Enable external code LUT" ON)
+
 find_library(LIBLIGHTNING lightning REQUIRED)
 find_path(LIBLIGHTNING_INCLUDE_DIR lightning.h REQUIRED)
 

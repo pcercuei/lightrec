@@ -10,6 +10,7 @@
 #cmakedefine01 ENABLE_FIRST_PASS
 #cmakedefine01 ENABLE_DISASSEMBLER
 #cmakedefine01 ENABLE_CODE_BUFFER
+#cmakedefine01 ENABLE_EXTERNAL_CODE_LUT
 
 #cmakedefine01 HAS_DEFAULT_ELM
 

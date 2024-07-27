@@ -1156,23 +1156,31 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 	/* Jump to end if state->target_cycle < state->current_cycle */
 	to_end = jit_blei(LIGHTREC_REG_CYCLE, 0);
 
-	/* Convert next PC to KUNSEG and avoid mirrors */
-	jit_andi(JIT_V1, JIT_V0, RAM_SIZE - 1);
-	jit_andi(JIT_R2, JIT_V0, BIOS_SIZE - 1);
-	jit_andi(JIT_R1, JIT_V0, BIT(28));
-	jit_addi(JIT_R2, JIT_R2, RAM_SIZE);
-	jit_movnr(JIT_V1, JIT_R2, JIT_R1);
+	if (ENABLE_EXTERNAL_CODE_LUT && state->external_lut) {
+		/* Kunseg the address */
+		jit_andi(JIT_V1, JIT_V0, 0x1fffffff);
 
-	/* If possible, use the code LUT */
-	if (!lut_is_32bit(state))
-		jit_lshi(JIT_V1, JIT_V1, 1);
-	jit_add_state(JIT_V1, JIT_V1);
+		/* Note that external LUT is garanteed to contain 32-bit pointers */
+		jit_ldxi_ui(JIT_V1, JIT_V1, (uintptr_t)state->external_lut);
+	} else {
+		/* Convert next PC to KUNSEG and avoid mirrors */
+		jit_andi(JIT_V1, JIT_V0, RAM_SIZE - 1);
+		jit_andi(JIT_R2, JIT_V0, BIOS_SIZE - 1);
+		jit_andi(JIT_R1, JIT_V0, BIT(28));
+		jit_addi(JIT_R2, JIT_R2, RAM_SIZE);
+		jit_movnr(JIT_V1, JIT_R2, JIT_R1);
 
-	offset = lightrec_offset(code_lut);
-	if (lut_is_32bit(state))
-		jit_ldxi_ui(JIT_V1, JIT_V1, offset);
-	else
-		jit_ldxi(JIT_V1, JIT_V1, offset);
+		/* If possible, use the code LUT */
+		if (!lut_is_32bit(state))
+			jit_lshi(JIT_V1, JIT_V1, 1);
+		jit_add_state(JIT_V1, JIT_V1);
+
+		offset = lightrec_offset(code_lut);
+		if (lut_is_32bit(state))
+			jit_ldxi_ui(JIT_V1, JIT_V1, offset);
+		else
+			jit_ldxi(JIT_V1, JIT_V1, offset);
+	}
 
 	/* Store back the current PC to the lightrec_state structure */
 	jit_stxi_i(lightrec_offset(curr_pc), LIGHTREC_REG_STATE, JIT_V0);
@@ -1911,12 +1919,13 @@ struct lightrec_state * lightrec_init(char *argv0,
 				      const struct lightrec_ops *ops)
 {
 	const struct lightrec_mem_map *codebuf_map = &maps[PSX_MAP_CODE_BUFFER];
+	const struct lightrec_mem_map *codelut_map = &maps[PSX_MAP_CODE_LUT];
+	bool mirrors_mapped, with_32bit_lut = false, with_external_lut = false;
 	uintptr_t offset_ram, offset_bios, offset_scratch, offset_io;
 	const struct lightrec_mem_map *map;
 	struct lightrec_state *state;
 	uintptr_t addr;
 	void *tlsf = NULL;
-	bool mirrors_mapped, with_32bit_lut = false;
 	size_t lut_size;
 
 	/* Sanity-check ops */
@@ -1963,7 +1972,20 @@ struct lightrec_state * lightrec_init(char *argv0,
 		}
 	}
 
-	if (with_32bit_lut)
+	if (ENABLE_EXTERNAL_CODE_LUT && nb > PSX_MAP_CODE_LUT
+	    && codelut_map->address
+	    && (__WORDSIZE == 32 || with_32bit_lut)
+	    && mirrors_mapped
+	    && offset_ram == offset_bios
+	    && offset_ram == offset_scratch
+	    && offset_ram == offset_io) {
+		/* All stars aligned, we'll use the external code LUT */
+		//with_external_lut = true;
+	}
+
+	if (ENABLE_EXTERNAL_CODE_LUT && with_external_lut)
+		lut_size = 0;
+	else if (with_32bit_lut)
 		lut_size = CODE_LUT_SIZE * 4;
 	else
 		lut_size = CODE_LUT_SIZE * sizeof(void *);
@@ -1975,6 +1997,9 @@ struct lightrec_state * lightrec_init(char *argv0,
 		goto err_finish_jit;
 
 	lightrec_register(MEM_FOR_LIGHTREC, sizeof(*state) + lut_size);
+
+	if (lut_size == 0)
+		state->external_lut = codelut_map->address;
 
 	state->tlsf = tlsf;
 	state->with_32bit_lut = with_32bit_lut;
@@ -2036,6 +2061,8 @@ struct lightrec_state * lightrec_init(char *argv0,
 
 	if (state->with_32bit_lut)
 		pr_info("Using 32-bit LUT\n");
+	if (state->external_lut)
+		pr_info("Using external LUT\n");
 
 	return state;
 
@@ -2112,7 +2139,13 @@ void lightrec_invalidate(struct lightrec_state *state, u32 addr, u32 len)
 
 void lightrec_invalidate_all(struct lightrec_state *state)
 {
-	memset(state->code_lut, 0, lut_elm_size(state) * CODE_LUT_SIZE);
+	if (ENABLE_EXTERNAL_CODE_LUT && state->external_lut) {
+		memset(state->external_lut, 0, RAM_SIZE);
+		memset(state->external_lut + 0x1fc00000, 0, BIOS_SIZE);
+		memset(state->external_lut + 0x1f800000, 0, SCRATCH_SIZE);
+	} else {
+		memset(state->code_lut, 0, lut_elm_size(state) * CODE_LUT_SIZE);
+	}
 }
 
 void lightrec_set_unsafe_opt_flags(struct lightrec_state *state, u32 flags)

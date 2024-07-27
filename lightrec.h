@@ -82,6 +82,18 @@ enum psx_map {
 	PSX_MAP_PPORT_MIRROR,
 	PSX_MAP_CODE_BUFFER,
 
+	/* External code LUT entry.
+	 * The entry's address has to point to a memory area which verifies each
+	 * of the following conditions:
+	 * - (pointer + 0x0), (pointer + 0x20'0000), (pointer + 0x40'0000) and
+	 *   (pointer + 0x60'0000) are memory windows to the same 2 MiB buffer;
+	 * - (pointer + 0x1fc0'0000) is a memory mapping to a 512 KiB buffer;
+         * - (pointer + 0x1f80'0000) is a memory mapping to a 1 KiB buffer;
+	 * - (pointer + 0x1f80'03ff) must be a 32-bit address (which basically
+	 *   means that everything between the pointer and the end of the 1 KiB
+	 *   buffer must be in 32-bit memory space). */
+	PSX_MAP_CODE_LUT,
+
 	PSX_MAP_UNKNOWN,
 };
 
