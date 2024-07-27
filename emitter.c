@@ -1302,18 +1302,25 @@ static void rec_store_memory(struct lightrec_cstate *cstate,
 	union code c = op->c;
 	u8 rs, rt, tmp = 0, tmp2 = 0, tmp3, addr_reg, addr_reg2, src_reg;
 	s16 imm = (s16)c.i.imm;
+	intptr_t lut_offt = 0;
 	s32 simm = (s32)imm << (1 - lut_is_32bit(state));
-	s32 lut_offt = lightrec_offset(code_lut);
 	bool no_mask = op_flag_no_mask(op->flags);
-	bool add_imm = c.i.imm &&
-		(c.i.op == OP_META_SWU
-		 || (!state->mirrors_mapped && !no_mask) || (invalidate &&
-		((imm & 0x3) || simm + lut_offt != (s16)(simm + lut_offt))));
-	bool need_tmp = !no_mask || add_imm || invalidate;
+	bool add_imm, need_tmp;
 	bool swc2 = c.i.op == OP_SWC2;
 	u8 in_reg = swc2 ? REG_TEMP : c.i.rt;
 
 	rs = lightrec_alloc_reg_in(reg_cache, _jit, c.i.rs, 0);
+
+	if (!ENABLE_EXTERNAL_CODE_LUT || !state->external_lut)
+		lut_offt = lightrec_offset(code_lut);
+
+	add_imm = c.i.imm &&
+		(c.i.op == OP_META_SWU
+		 || (!state->mirrors_mapped && !no_mask) || (invalidate &&
+		((imm & 0x3) ||
+		 (s32)(simm + lut_offt) != (s32)(s16)(simm + lut_offt))));
+
+	need_tmp = !no_mask || add_imm || invalidate;
 	if (need_tmp)
 		tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
 
@@ -1368,16 +1375,21 @@ static void rec_store_memory(struct lightrec_cstate *cstate,
 			addr_reg = tmp;
 		}
 
-		if (!lut_is_32bit(state)) {
-			jit_lshi(tmp, addr_reg, 1);
+		if (ENABLE_EXTERNAL_CODE_LUT && state->external_lut) {
+			jit_addi(tmp, addr_reg, (intptr_t)state->external_lut);
 			addr_reg = tmp;
-		}
-
-		if (addr_reg == rs && c.i.rs == 0) {
-			addr_reg = LIGHTREC_REG_STATE;
 		} else {
-			jit_add_state(tmp, addr_reg);
-			addr_reg = tmp;
+			if (!lut_is_32bit(state)) {
+				jit_lshi(tmp, addr_reg, 1);
+				addr_reg = tmp;
+			}
+
+			if (addr_reg == rs && c.i.rs == 0) {
+				addr_reg = LIGHTREC_REG_STATE;
+			} else {
+				jit_add_state(tmp, addr_reg);
+				addr_reg = tmp;
+			}
 		}
 
 		if (lut_is_32bit(state))
