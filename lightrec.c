@@ -1911,11 +1911,12 @@ struct lightrec_state * lightrec_init(char *argv0,
 				      const struct lightrec_ops *ops)
 {
 	const struct lightrec_mem_map *codebuf_map = &maps[PSX_MAP_CODE_BUFFER];
+	uintptr_t offset_ram, offset_bios, offset_scratch, offset_io;
 	const struct lightrec_mem_map *map;
 	struct lightrec_state *state;
 	uintptr_t addr;
 	void *tlsf = NULL;
-	bool with_32bit_lut = false;
+	bool mirrors_mapped, with_32bit_lut = false;
 	size_t lut_size;
 
 	/* Sanity-check ops */
@@ -1928,6 +1929,24 @@ struct lightrec_state * lightrec_init(char *argv0,
 		pr_debug("Optional cop2_notify callback in lightrec_ops\n");
 	else
 		pr_debug("No optional cop2_notify callback in lightrec_ops\n");
+
+
+	map = &maps[PSX_MAP_BIOS];
+	offset_bios = (uintptr_t)map->address - map->pc;
+
+	map = &maps[PSX_MAP_SCRATCH_PAD];
+	offset_scratch = (uintptr_t)map->address - map->pc;
+
+	map = &maps[PSX_MAP_HW_REGISTERS];
+	offset_io = (uintptr_t)map->address - map->pc;
+
+	map = &maps[PSX_MAP_KERNEL_USER_RAM];
+	offset_ram = (uintptr_t)map->address - map->pc;
+
+	if (maps[PSX_MAP_MIRROR1].address == map->address + 0x200000 &&
+	    maps[PSX_MAP_MIRROR2].address == map->address + 0x400000 &&
+	    maps[PSX_MAP_MIRROR3].address == map->address + 0x600000)
+		mirrors_mapped = true;
 
 	if (ENABLE_CODE_BUFFER && nb > PSX_MAP_CODE_BUFFER
 	    && codebuf_map->address) {
@@ -1999,22 +2018,11 @@ struct lightrec_state * lightrec_init(char *argv0,
 	state->c_wrappers[C_WRAPPER_MTC] = lightrec_mtc_cb;
 	state->c_wrappers[C_WRAPPER_CP] = lightrec_cp_cb;
 
-	map = &maps[PSX_MAP_BIOS];
-	state->offset_bios = (uintptr_t)map->address - map->pc;
-
-	map = &maps[PSX_MAP_SCRATCH_PAD];
-	state->offset_scratch = (uintptr_t)map->address - map->pc;
-
-	map = &maps[PSX_MAP_HW_REGISTERS];
-	state->offset_io = (uintptr_t)map->address - map->pc;
-
-	map = &maps[PSX_MAP_KERNEL_USER_RAM];
-	state->offset_ram = (uintptr_t)map->address - map->pc;
-
-	if (maps[PSX_MAP_MIRROR1].address == map->address + 0x200000 &&
-	    maps[PSX_MAP_MIRROR2].address == map->address + 0x400000 &&
-	    maps[PSX_MAP_MIRROR3].address == map->address + 0x600000)
-		state->mirrors_mapped = true;
+	state->offset_bios = offset_bios;
+	state->offset_scratch = offset_scratch;
+	state->offset_io = offset_io;
+	state->offset_ram = offset_ram;
+	state->mirrors_mapped = mirrors_mapped;
 
 	if (state->offset_bios == 0 &&
 	    state->offset_scratch == 0 &&
