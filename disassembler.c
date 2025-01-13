@@ -492,7 +492,7 @@ void lightrec_print_disassembly(const struct block *block, const u32 *code_ptr)
 	const char * const *flags_ptr;
 	size_t nb_flags, count, count2;
 	char buf[256], buf2[256], buf3[256];
-	unsigned int i;
+	unsigned int i, nb_spaces1, nb_spaces2;
 	u32 pc, branch_pc, code;
 	bool is_io;
 
@@ -518,7 +518,10 @@ void lightrec_print_disassembly(const struct block *block, const u32 *code_ptr)
 
 		print_flags(buf3, sizeof(buf3), op, flags_ptr, nb_flags, is_io);
 
+		nb_spaces1 = (*buf2 || *buf3) ? 30 - (int)count : 0;
+		nb_spaces2 = *buf3 ? 30 - (int)count2 : 0;
+
 		printf(X32_FMT" (0x%x)\t%s%*c%s%*c%s\n", pc, i << 2,
-		       buf, 30 - (int)count, ' ', buf2, 30 - (int)count2, ' ', buf3);
+		       buf, nb_spaces1, ' ', buf2, nb_spaces2, ' ', buf3);
 	}
 }
