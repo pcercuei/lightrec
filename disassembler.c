@@ -40,6 +40,7 @@ static const char * const std_opcodes[] = {
 	[OP_SWR]		= "swr     ",
 	[OP_LWC2]		= "lwc2    ",
 	[OP_SWC2]		= "swc2    ",
+	[OP_META_BIOS]		= "bios    ",
 	[OP_META_MULT2]		= "mult2   ",
 	[OP_META_MULTU2]	= "multu2  ",
 	[OP_META_LWU]		= "lwu     ",
@@ -467,6 +468,10 @@ static int print_op(union code c, u32 pc, char *buf, size_t len,
 				lightrec_reg_name(c.i.rt),
 				(s16)c.i.imm,
 				lightrec_reg_name(c.i.rs));
+	case OP_META_BIOS:
+		return snprintf(buf, len, "%s0x%x",
+				std_opcodes[c.i.op],
+				c.opcode & 0x03ffffff);
 	case OP_META:
 		return snprintf(buf, len, "%s%s,%s",
 				meta_opcodes[c.m.op],
