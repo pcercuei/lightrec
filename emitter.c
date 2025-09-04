@@ -1522,7 +1522,7 @@ static void rec_store_direct(struct lightrec_cstate *cstate, const struct block 
 	jit_state_t *_jit = block->_jit;
 	jit_node_t *to_not_ram, *to_end;
 	bool swc2 = c.i.op == OP_SWC2;
-	u8 src_reg, addr_reg, tmp, tmp2, tmp3, rs, rt, reg_imm;
+	u8 src_reg, addr_reg, tmp, tmp2, tmp3, rs, rt, reg_imm, reg_ram_size;
 	u8 in_reg = swc2 ? REG_TEMP : c.i.rt;
 	u32 mask;
 	bool different_offsets = state->offset_ram != state->offset_scratch;
@@ -1547,15 +1547,22 @@ static void rec_store_direct(struct lightrec_cstate *cstate, const struct block 
 	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
 
 	mask = c.i.op == OP_SW ? RAM_SIZE - 1 : (RAM_SIZE - 1) & ~3;
-	reg_imm = lightrec_alloc_reg_temp_with_value(reg_cache, _jit, mask);
 
 	if (different_offsets) {
+		reg_imm = lightrec_alloc_reg_temp_with_value(reg_cache, _jit, mask);
+
 		to_not_ram = jit_bgti(tmp2, ram_size);
 		addr_reg = tmp2;
 	} else {
-		jit_lti_u(tmp, tmp2, ram_size);
+		reg_ram_size = lightrec_alloc_reg_temp_with_value(reg_cache, _jit, ram_size);
+
+		jit_ltr_u(tmp, tmp2, reg_ram_size);
 		jit_movnr(tmp, tmp2, tmp);
 		addr_reg = tmp;
+
+		lightrec_free_reg(reg_cache, reg_ram_size);
+
+		reg_imm = lightrec_alloc_reg_temp_with_value(reg_cache, _jit, mask);
 	}
 
 	/* Compute the offset to the code LUT */
