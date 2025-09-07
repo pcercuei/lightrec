@@ -2148,6 +2148,20 @@ static bool remove_div_sequence(struct block *block, unsigned int offset)
 	 * and these sequences can be removed.
 	 */
 
+	if (is_delay_slot(block->opcode_list, offset - 1)) {
+		if (((block->opcode_list[offset - 2].opcode & 0xfc1fffff) == 0x14000002)
+		    && block->opcode_list[offset].opcode == 0x0007000d) {
+			/* BNE +2 / DIV(U) / BREAK combo, we can get rid of the BNE/BREAK. */
+			block->opcode_list[offset - 2].opcode = 0;
+			block->opcode_list[offset].opcode = 0;
+
+			pr_debug("Removing DIVU sequence at offset 0x%x\n",
+				 (offset - 2) << 2);
+
+			return true;
+		}
+	}
+
 	for (i = offset; i < block->nb_ops; i++) {
 		op = &block->opcode_list[i];
 
