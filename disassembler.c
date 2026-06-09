@@ -469,7 +469,7 @@ static int print_op(union code c, u32 pc, char *buf, size_t len,
 				(s16)c.i.imm,
 				lightrec_reg_name(c.i.rs));
 	case OP_META_BIOS:
-		return snprintf(buf, len, "%s0x%x",
+		return snprintf(buf, len, "%s0x%" PRIx32,
 				std_opcodes[c.i.op],
 				c.opcode & 0x03ffffff);
 	case OP_META:
