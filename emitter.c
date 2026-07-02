@@ -2257,6 +2257,9 @@ rec_mtc0(struct lightrec_cstate *state, const struct block *block, u16 offset)
 
 
 		jit_patch(to_end);
+
+		lightrec_free_reg(reg_cache, tmp);
+		lightrec_free_reg(reg_cache, tmp2);
 	}
 
 	if (!op_flag_no_ds(block->opcode_list[offset].flags) &&
