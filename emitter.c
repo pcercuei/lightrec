@@ -1872,7 +1872,11 @@ static void rec_load_direct(struct lightrec_cstate *cstate,
 		addr_reg = rt;
 		imm = 0;
 
-		if (c.i.rs != c.i.rt)
+		/* Use out_reg and not c.i.rt: for LWC2 opcodes or loads in
+		 * load delay slots the output register is REG_TEMP, and
+		 * c.i.rt is a COP2 register number that may alias the GPR
+		 * number in c.i.rs. */
+		if (c.i.rs != out_reg)
 			lightrec_free_reg(reg_cache, rs);
 	}
 
