@@ -312,7 +312,7 @@ u32 lightrec_rw(struct lightrec_state *state, union code op, u32 base,
 		ops = map->ops;
 	}
 
-	if (!was_tagged) {
+	if (!was_tagged && likely(!block_has_flag(block, BLOCK_NEVER_COMPILE))) {
 		old_flags = block_set_flags(block, BLOCK_SHOULD_RECOMPILE);
 
 		if (!(old_flags & BLOCK_SHOULD_RECOMPILE)) {
