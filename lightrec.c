@@ -319,7 +319,10 @@ u32 lightrec_rw(struct lightrec_state *state, union code op, u32 base,
 			pr_debug("Opcode of block at "PC_FMT" has been tagged"
 				 " - flag for recompilation\n", block->pc);
 
-			lut_write(state, lut_offset(block->pc), NULL);
+			if (ENABLE_THREADED_COMPILER)
+				lightrec_recompiler_add(state->rec, block);
+			else
+				lut_write(state, lut_offset(block->pc), NULL);
 		}
 	}
 
