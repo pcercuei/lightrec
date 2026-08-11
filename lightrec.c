@@ -1104,9 +1104,8 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 	struct block *block;
 	jit_state_t *_jit;
 	jit_node_t *to_end, *loop, *loop2,
-		   *addr, *addr2, *addr3, *addr4, *addr5;
+		   *addr, *addr2, *addr3, *addr4, *addr5, *addr6;
 	unsigned int i;
-	u32 offset;
 
 	block = lightrec_malloc(state, MEM_FOR_IR, sizeof(*block));
 	if (!block)
@@ -1147,9 +1146,6 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 
 	loop2 = jit_label();
 
-	/* Jump to end if state->target_cycle < state->current_cycle */
-	to_end = jit_blei(LIGHTREC_REG_CYCLE, 0);
-
 	/* Convert next PC to KUNSEG and avoid mirrors */
 	jit_andi(JIT_V1, JIT_V0, RAM_SIZE - 1);
 	jit_andi(JIT_R2, JIT_V0, BIOS_SIZE - 1);
@@ -1161,12 +1157,18 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 	if (!lut_is_32bit(state))
 		jit_lshi(JIT_V1, JIT_V1, 1);
 	jit_add_state(JIT_V1, JIT_V1);
+	jit_addi(JIT_V1, JIT_V1, lightrec_offset(code_lut));
 
-	offset = lightrec_offset(code_lut);
+	/* The block will jump here if it already knows the code LUT entry */
+	addr6 = jit_indirect();
+
 	if (lut_is_32bit(state))
-		jit_ldxi_ui(JIT_V1, JIT_V1, offset);
+		jit_ldr_ui(JIT_V1, JIT_V1);
 	else
-		jit_ldxi(JIT_V1, JIT_V1, offset);
+		jit_ldr(JIT_V1, JIT_V1);
+
+	/* Jump to end if state->target_cycle < state->current_cycle */
+	to_end = jit_blei(LIGHTREC_REG_CYCLE, 0);
 
 	/* Store back the current PC to the lightrec_state structure */
 	jit_stxi_i(lightrec_offset(curr_pc), LIGHTREC_REG_STATE, JIT_V0);
@@ -1309,6 +1311,8 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 		state->ds_check_func = jit_address(addr5);
 	if (OPT_REPLACE_MEMSET)
 		state->memset_func = jit_address(addr3);
+	if (OPT_FAST_EOB)
+		state->fast_eob = jit_address(addr6);
 	state->get_next_block = jit_address(addr);
 
 	if (ENABLE_DISASSEMBLER) {

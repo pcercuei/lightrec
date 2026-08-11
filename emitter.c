@@ -46,6 +46,15 @@ lightrec_jump_to_eob(struct lightrec_cstate *state, jit_state_t *_jit)
 	lightrec_jump_to_fn(_jit, state->state->eob_wrapper_func);
 }
 
+static void lightrec_jump_to_known_eob(struct lightrec_cstate *state,
+				       jit_state_t *_jit, u32 imm)
+{
+	/* Load the LUT entry address to JIT_V1 where the dispatcher expects it */
+	jit_movi(JIT_V1, (uintptr_t)lut_address(state->state, lut_offset(imm)));
+
+	lightrec_jump_to_fn(_jit, state->state->fast_eob);
+}
+
 static void
 lightrec_jump_to_ds_check(struct lightrec_cstate *state, jit_state_t *_jit)
 {
@@ -117,6 +126,10 @@ static void lightrec_emit_end_of_block(struct lightrec_cstate *state,
 		jit_movi(JIT_V1, ds->c.i.rt);
 
 		lightrec_jump_to_ds_check(state, _jit);
+	} else if (reg_new_pc < 0) {
+		/* We already know the target: we can try to load it directly
+		 * from the code LUT. */
+		lightrec_jump_to_known_eob(state, _jit, imm);
 	} else {
 		lightrec_jump_to_eob(state, _jit);
 	}
@@ -151,18 +164,17 @@ static void lightrec_emit_eob(struct lightrec_cstate *state,
 {
 	struct regcache *reg_cache = state->reg_cache;
 	jit_state_t *_jit = block->_jit;
+	u32 imm = block->pc + (offset << 2);
 
 	lightrec_clean_regs(reg_cache, _jit);
 
-	lightrec_load_imm(reg_cache, _jit, JIT_V0, block->pc,
-			  block->pc + (offset << 2));
-	if (lightrec_store_next_pc()) {
+	lightrec_load_imm(reg_cache, _jit, JIT_V0, block->pc, imm);
+	if (lightrec_store_next_pc())
 	      jit_stxi_i(lightrec_offset(next_pc), LIGHTREC_REG_STATE, JIT_V0);
-	}
 
 	jit_subi(LIGHTREC_REG_CYCLE, LIGHTREC_REG_CYCLE, state->cycles);
 
-	lightrec_jump_to_eob(state, _jit);
+	lightrec_jump_to_known_eob(state, _jit, imm);
 }
 
 static void rec_special_JR(struct lightrec_cstate *state, const struct block *block, u16 offset)
