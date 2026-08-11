@@ -1103,7 +1103,7 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 {
 	struct block *block;
 	jit_state_t *_jit;
-	jit_node_t *to_end, *loop, *loop2,
+	jit_node_t *to_end, *to_loop, *to_slow_path, *loop, *loop2,
 		   *addr, *addr2, *addr3, *addr4, *addr5;
 	unsigned int i;
 	u32 offset;
@@ -1131,13 +1131,7 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 	for (i = 0; i < NUM_REGS; i++)
 		jit_movr(JIT_V(i + FIRST_REG), JIT_V(i + FIRST_REG));
 
-	loop = jit_label();
-
-	if (!arch_has_fast_mask())
-		jit_movi(JIT_R1, 0x1fffffff);
-
-	/* Call the block's code */
-	jit_jmpr(JIT_V1);
+	to_loop = jit_jmpi();
 
 	/* The block will jump here, with the number of cycles remaining in
 	 * LIGHTREC_REG_CYCLE */
@@ -1171,8 +1165,19 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 	/* Store back the current PC to the lightrec_state structure */
 	jit_stxi_i(lightrec_offset(curr_pc), LIGHTREC_REG_STATE, JIT_V0);
 
-	/* If we get non-NULL, loop */
-	jit_patch_at(jit_bnei(JIT_V1, 0), loop);
+	/* If we get NULL, jump to the slow path */
+	to_slow_path = jit_beqi(JIT_V1, 0);
+
+	jit_patch(to_loop);
+	loop = jit_label();
+
+	if (!arch_has_fast_mask())
+		jit_movi(JIT_R1, 0x1fffffff);
+
+	/* Call the block's code */
+	jit_jmpr(JIT_V1);
+
+	jit_patch(to_slow_path);
 
 	/* The code LUT will be set to this address when the block at the target
 	 * PC has been preprocessed but not yet compiled by the threaded
