@@ -134,11 +134,8 @@ void lightrec_emit_jump_to_interpreter(struct lightrec_cstate *state,
 
 	/* Call the interpreter with the block's address in JIT_V1 and the
 	 * PC (which might have an offset) in JIT_V0. */
-	lightrec_load_imm(reg_cache, _jit, JIT_V0, block->pc,
-			  block->pc + (offset << 2));
-	if (lightrec_store_next_pc()) {
-	      jit_stxi_i(lightrec_offset(next_pc), LIGHTREC_REG_STATE, JIT_V0);
-	}
+	lightrec_load_next_pc_imm(reg_cache, _jit, block->pc,
+				  block->pc + (offset << 2));
 
 	jit_movi(JIT_V1, (uintptr_t)block);
 
@@ -154,11 +151,8 @@ static void lightrec_emit_eob(struct lightrec_cstate *state,
 
 	lightrec_clean_regs(reg_cache, _jit);
 
-	lightrec_load_imm(reg_cache, _jit, JIT_V0, block->pc,
-			  block->pc + (offset << 2));
-	if (lightrec_store_next_pc()) {
-	      jit_stxi_i(lightrec_offset(next_pc), LIGHTREC_REG_STATE, JIT_V0);
-	}
+	lightrec_load_next_pc_imm(reg_cache, _jit, block->pc,
+				  block->pc + (offset << 2));
 
 	jit_subi(LIGHTREC_REG_CYCLE, LIGHTREC_REG_CYCLE, state->cycles);
 
