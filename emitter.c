@@ -11,6 +11,7 @@
 #include "lightning-wrapper.h"
 #include "optimizer.h"
 #include "regcache.h"
+#include "gte.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -2993,6 +2994,16 @@ static void rec_CP2(struct lightrec_cstate *state,
 		if (HAS_DEFAULT_ELM || likely(f)) {
 			(*f)(state, block, offset);
 			return;
+		}
+	}
+
+	if (OPT_EMULATE_GTE && !state->state->ops.cop2_notify) {
+		switch (c.r.op) {
+		case OP_CP2_NCLIP:
+			rec_gte_NCLIP(state, block, offset);
+			return;
+		default:
+			break;
 		}
 	}
 

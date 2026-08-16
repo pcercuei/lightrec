@@ -89,6 +89,11 @@ if (OPT_LOCAL_BRANCHES)
 else()
 	set(OPT_DETECT_IDLE OFF)
 endif()
+option(OPT_EMULATE_GTE "(optimization) Emulate GTE opcodes" ON)
+
+if (OPT_EMULATE_GTE)
+	target_sources(lightrec PRIVATE gte.c)
+endif()
 
 if (CMAKE_SYSTEM_PROCESSOR MATCHES "SH4|sh4")
 	option(OPT_SH4_USE_GBR "(SH4 optimization) Use GBR register for the state pointer" OFF)
