@@ -2314,26 +2314,6 @@ static void rec_cp0_CTC0(struct lightrec_cstate *state,
 	rec_mtc0(state, block, offset);
 }
 
-static unsigned int cp2d_i_offset(u8 reg)
-{
-	return lightrec_offset(regs.cp2d[reg]);
-}
-
-static unsigned int cp2d_s_offset(u8 reg)
-{
-	return cp2d_i_offset(reg) + is_big_endian() * 2;
-}
-
-static unsigned int cp2c_i_offset(u8 reg)
-{
-	return lightrec_offset(regs.cp2c[reg]);
-}
-
-static unsigned int cp2c_s_offset(u8 reg)
-{
-	return cp2c_i_offset(reg) + is_big_endian() * 2;
-}
-
 static void rec_cp2_do_mfc2(struct lightrec_cstate *state,
 			    const struct block *block, u16 offset,
 			    u8 reg, u8 out_reg)
@@ -2366,14 +2346,14 @@ static void rec_cp2_do_mfc2(struct lightrec_cstate *state,
 	case 9:
 	case 10:
 	case 11:
-		jit_ldxi_s(rt, LIGHTREC_REG_STATE, cp2d_s_offset(reg));
+		jit_ldxi_s(rt, LIGHTREC_REG_STATE, cp2d_sl_offset(reg));
 		break;
 	case 7:
 	case 16:
 	case 17:
 	case 18:
 	case 19:
-		jit_ldxi_us(rt, LIGHTREC_REG_STATE, cp2d_s_offset(reg));
+		jit_ldxi_us(rt, LIGHTREC_REG_STATE, cp2d_sl_offset(reg));
 		break;
 	case 28:
 	case 29:
@@ -2384,7 +2364,7 @@ static void rec_cp2_do_mfc2(struct lightrec_cstate *state,
 		for (i = 0; i < 3; i++) {
 			out = i == 0 ? rt : tmp;
 
-			jit_ldxi_s(tmp, LIGHTREC_REG_STATE, cp2d_s_offset(9 + i));
+			jit_ldxi_s(tmp, LIGHTREC_REG_STATE, cp2d_sl_offset(9 + i));
 			jit_movi(tmp2, 0x1f);
 			jit_rshi(out, tmp, 7);
 
@@ -2446,7 +2426,7 @@ static void rec_cp2_basic_CFC2(struct lightrec_cstate *state,
 	case 29:
 	case 30:
 		rt = lightrec_alloc_reg_out(reg_cache, _jit, c.r.rt, REG_EXT);
-		jit_ldxi_s(rt, LIGHTREC_REG_STATE, cp2c_s_offset(c.r.rd));
+		jit_ldxi_s(rt, LIGHTREC_REG_STATE, cp2c_sl_offset(c.r.rd));
 		break;
 	default:
 		rt = lightrec_alloc_reg_out(reg_cache, _jit, c.r.rt, REG_ZEXT);
@@ -2501,15 +2481,15 @@ static void rec_cp2_do_mtc2(struct lightrec_cstate *state,
 
 		jit_lshi(tmp, rt, 7);
 		jit_andi(tmp, tmp, 0xf80);
-		jit_stxi_s(cp2d_s_offset(9), LIGHTREC_REG_STATE, tmp);
+		jit_stxi_s(cp2d_sl_offset(9), LIGHTREC_REG_STATE, tmp);
 
 		jit_lshi(tmp, rt, 2);
 		jit_andi(tmp, tmp, 0xf80);
-		jit_stxi_s(cp2d_s_offset(10), LIGHTREC_REG_STATE, tmp);
+		jit_stxi_s(cp2d_sl_offset(10), LIGHTREC_REG_STATE, tmp);
 
 		jit_rshi(tmp, rt, 3);
 		jit_andi(tmp, tmp, 0xf80);
-		jit_stxi_s(cp2d_s_offset(11), LIGHTREC_REG_STATE, tmp);
+		jit_stxi_s(cp2d_sl_offset(11), LIGHTREC_REG_STATE, tmp);
 
 		lightrec_free_reg(reg_cache, tmp);
 		break;
@@ -2571,7 +2551,7 @@ static void rec_cp2_basic_CTC2(struct lightrec_cstate *state,
 	case 27:
 	case 29:
 	case 30:
-		jit_stxi_s(cp2c_s_offset(c.r.rd), LIGHTREC_REG_STATE, rt);
+		jit_stxi_s(cp2c_sl_offset(c.r.rd), LIGHTREC_REG_STATE, rt);
 		break;
 	case 31:
 		tmp = lightrec_alloc_reg_temp(reg_cache, _jit);

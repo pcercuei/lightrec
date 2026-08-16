@@ -394,4 +394,34 @@ static inline _Bool lightrec_store_next_pc(void)
 	return NUM_REGS + NUM_TEMPS <= 4;
 }
 
+static inline unsigned int cp2d_i_offset(u8 reg)
+{
+	return lightrec_offset(regs.cp2d[reg]);
+}
+
+static inline unsigned int cp2c_i_offset(u8 reg)
+{
+	return lightrec_offset(regs.cp2c[reg]);
+}
+
+static inline unsigned int cp2d_sl_offset(u8 reg)
+{
+	return cp2d_i_offset(reg) + is_big_endian() * 2;
+}
+
+static inline unsigned int cp2c_sl_offset(u8 reg)
+{
+	return cp2c_i_offset(reg) + is_big_endian() * 2;
+}
+
+static inline unsigned int cp2d_sh_offset(u8 reg)
+{
+	return cp2d_i_offset(reg) + !is_big_endian() * 2;
+}
+
+static inline unsigned int cp2c_sh_offset(u8 reg)
+{
+	return cp2c_i_offset(reg) + !is_big_endian() * 2;
+}
+
 #endif /* __LIGHTREC_PRIVATE_H__ */
