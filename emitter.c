@@ -1183,15 +1183,8 @@ static void call_to_c_wrapper(struct lightrec_cstate *state,
 
 	jit_movi(tmp2, (unsigned int)wrapper << (1 + __WORDSIZE / 32));
 
-	tmp = lightrec_get_reg_with_value(reg_cache,
-					  (intptr_t) state->state->c_wrapper);
-	if (tmp < 0) {
-		tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
-		jit_ldxi(tmp, LIGHTREC_REG_STATE, lightrec_offset(c_wrapper));
-
-		lightrec_temp_set_value(reg_cache, tmp,
-					(intptr_t) state->state->c_wrapper);
-	}
+	tmp = lightrec_alloc_reg_temp_with_value(reg_cache, _jit,
+						 (intptr_t)state->state->c_wrapper);
 
 	lightrec_free_reg(reg_cache, tmp2);
 
@@ -1913,16 +1906,8 @@ static void rec_load_direct(struct lightrec_cstate *cstate,
 		}
 
 		if (state->offset_ram) {
-			offt_reg = lightrec_get_reg_with_value(reg_cache,
-							       state->offset_ram);
-			if (offt_reg < 0) {
-				jit_movi(tmp, state->offset_ram);
-				lightrec_temp_set_value(reg_cache, tmp,
-							state->offset_ram);
-			} else {
-				lightrec_free_reg(reg_cache, tmp);
-				tmp = offt_reg;
-			}
+			tmp = lightrec_alloc_reg_temp_with_value(reg_cache, _jit,
+								 state->offset_ram);
 		}
 	} else {
 		to_not_ram = jit_bmsi(addr_reg, BIT(28));
