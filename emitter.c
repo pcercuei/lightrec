@@ -1839,12 +1839,11 @@ static void rec_load_direct(struct lightrec_cstate *cstate,
 	bool load_delay = op_flag_load_delay(op->flags) && !cstate->no_load_delay;
 	jit_state_t *_jit = block->_jit;
 	jit_node_t *to_not_ram, *to_not_bios, *to_end, *to_end2;
-	u8 tmp, rs, rt, out_reg, addr_reg, flags = REG_EXT;
+	u8 tmp = 0, rs, rt, out_reg, addr_reg, flags = REG_EXT;
 	bool different_offsets = state->offset_bios != state->offset_scratch;
 	union code c = op->c;
 	s32 addr_mask;
 	u32 reg_imm;
-	s8 offt_reg;
 	s16 imm;
 
 	if (load_delay || c.i.op == OP_LWC2)
@@ -1883,8 +1882,6 @@ static void rec_load_direct(struct lightrec_cstate *cstate,
 	if (op->i.op == OP_META_LWU)
 		imm = LIGHTNING_UNALIGNED_32BIT;
 
-	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
-
 	if (state->offset_ram == state->offset_bios &&
 	    state->offset_ram == state->offset_scratch) {
 		if (!state->mirrors_mapped)
@@ -1895,11 +1892,14 @@ static void rec_load_direct(struct lightrec_cstate *cstate,
 		if (!state->mirrors_mapped) {
 			reg_imm = lightrec_alloc_reg_temp_with_value(reg_cache, _jit,
 								     addr_mask);
+			tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
+
 			jit_andi(tmp, addr_reg, BIT(28));
 			jit_rshi_u(tmp, tmp, 28 - 22);
 			jit_orr(tmp, tmp, reg_imm);
 			jit_andr(rt, addr_reg, tmp);
 
+			lightrec_free_reg(reg_cache, tmp);
 			lightrec_free_reg(reg_cache, reg_imm);
 		} else {
 			rec_and_mask(cstate, _jit, rt, addr_reg, addr_mask);
@@ -1910,6 +1910,8 @@ static void rec_load_direct(struct lightrec_cstate *cstate,
 								 state->offset_ram);
 		}
 	} else {
+		tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
+
 		to_not_ram = jit_bmsi(addr_reg, BIT(28));
 
 		/* Convert to KUNSEG and avoid RAM mirrors */
@@ -1947,8 +1949,10 @@ static void rec_load_direct(struct lightrec_cstate *cstate,
 		jit_patch(to_end);
 	}
 
-	if (state->offset_ram || state->offset_bios || state->offset_scratch)
+	if (state->offset_ram || state->offset_bios || state->offset_scratch) {
 		jit_addr(rt, rt, tmp);
+		lightrec_free_reg(reg_cache, tmp);
+	}
 
 	jit_new_node_www(code, rt, rt, imm);
 
@@ -1963,7 +1967,6 @@ static void rec_load_direct(struct lightrec_cstate *cstate,
 
 	lightrec_free_reg(reg_cache, addr_reg);
 	lightrec_free_reg(reg_cache, rt);
-	lightrec_free_reg(reg_cache, tmp);
 }
 
 static void rec_load(struct lightrec_cstate *state, const struct block *block,
