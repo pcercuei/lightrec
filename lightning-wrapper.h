@@ -34,4 +34,12 @@
 #define jit_add_state(u,v)	jit_addr(u,v,LIGHTREC_REG_STATE)
 #endif
 
+#if defined(__sh__)
+#define JIT_A_NUM 4
+#define JIT_A(n) (_R4 + (n))
+#else
+#define JIT_A_NUM 0
+#define JIT_A(n) (n)
+#endif
+
 #endif /* __LIGHTNING_WRAPPER_H__ */
