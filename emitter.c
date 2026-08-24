@@ -548,7 +548,7 @@ static void rec_movi(struct lightrec_cstate *state,
 	s32 value = (s32)(s16) c.i.imm;
 	u8 rt;
 
-	if (block->opcode_list[offset].flags & LIGHTREC_MOVI)
+	if (op_flag_movi(block->opcode_list[offset].flags))
 		value += (s32)((u32)state->movi_temp[c.i.rt] << 16);
 
 	if (value >= 0)
@@ -568,7 +568,7 @@ static void rec_ADDIU(struct lightrec_cstate *state,
 
 	_jit_name(block->_jit, __func__);
 
-	if (op->i.rs && !(op->flags & LIGHTREC_MOVI))
+	if (op->i.rs && !op_flag_movi(op->flags))
 		rec_alu_imm(state, block, offset, jit_code_addi, false);
 	else
 		rec_movi(state, block, offset);
@@ -657,7 +657,7 @@ static void rec_ORI(struct lightrec_cstate *state,
 
 	_jit_name(_jit, __func__);
 
-	if (op->flags & LIGHTREC_MOVI) {
+	if (op_flag_movi(op->flags)) {
 		rt = lightrec_alloc_reg_out(reg_cache, _jit, op->i.rt, REG_EXT);
 
 		val = ((u32)state->movi_temp[op->i.rt] << 16) | op->i.imm;
@@ -684,7 +684,7 @@ static void rec_LUI(struct lightrec_cstate *state,
 	jit_state_t *_jit = block->_jit;
 	u8 rt, flags = REG_EXT;
 
-	if (block->opcode_list[offset].flags & LIGHTREC_MOVI) {
+	if (op_flag_movi(block->opcode_list[offset].flags)) {
 		state->movi_temp[c.i.rt] = c.i.imm;
 		return;
 	}

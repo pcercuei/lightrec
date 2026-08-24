@@ -315,6 +315,11 @@ static inline _Bool op_flag_smc(u32 flags)
 	return OPT_FLAG_IO && (flags & LIGHTREC_SMC);
 }
 
+static inline _Bool op_flag_movi(u32 flags)
+{
+	return OPT_TRANSFORM_OPS && (flags & LIGHTREC_MOVI);
+}
+
 static inline _Bool op_flag_no_invalidate(u32 flags)
 {
 	return OPT_FLAG_IO && (flags & LIGHTREC_NO_INVALIDATE);
