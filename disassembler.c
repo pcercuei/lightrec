@@ -139,6 +139,7 @@ static const char * const mult2_opcodes[] = {
 static const char * const opcode_flags[] = {
 	"switched branch/DS",
 	"sync point",
+	"movi",
 };
 
 static const char * const opcode_io_flags[] = {
@@ -160,10 +161,6 @@ static const char * const opcode_io_modes[] = {
 static const char * const opcode_branch_flags[] = {
 	"emulate branch",
 	"local branch",
-};
-
-static const char * const opcode_movi_flags[] = {
-	"movi",
 };
 
 static const char * const opcode_multdiv_flags[] = {
@@ -413,9 +410,6 @@ static int print_op(union code c, u32 pc, char *buf, size_t len,
 	case OP_ADDI:
 	case OP_ADDIU:
 	case OP_ORI:
-		*flags_ptr = opcode_movi_flags;
-		*nb_flags = ARRAY_SIZE(opcode_movi_flags);
-		fallthrough;
 	case OP_SLTI:
 	case OP_SLTIU:
 	case OP_ANDI:
@@ -427,8 +421,6 @@ static int print_op(union code c, u32 pc, char *buf, size_t len,
 				(u16)c.i.imm);
 
 	case OP_LUI:
-		*flags_ptr = opcode_movi_flags;
-		*nb_flags = ARRAY_SIZE(opcode_movi_flags);
 		return snprintf(buf, len, "%s%s,0x%04hx",
 				std_opcodes[c.i.op],
 				lightrec_reg_name(c.i.rt),
