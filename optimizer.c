@@ -676,6 +676,16 @@ static void lightrec_lui_to_movi(struct block *block, unsigned int offset)
 		ori = &block->opcode_list[next];
 
 		switch (ori->i.op) {
+		case OP_LB:
+		case OP_LH:
+		case OP_LWL:
+		case OP_LW:
+		case OP_LBU:
+		case OP_LHU:
+		case OP_LWR:
+		case OP_LWC2:
+		case OP_SWC2:
+		case OP_META_LWU:
 		case OP_ORI:
 		case OP_ADDI:
 		case OP_ADDIU:
