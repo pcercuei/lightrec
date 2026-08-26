@@ -539,22 +539,22 @@ static void rec_alu_shiftv(struct lightrec_cstate *state, const struct block *bl
 }
 
 static void rec_movi(struct lightrec_cstate *state,
-		     const struct block *block, u16 offset)
+		     const struct block *block, u16 offset, bool is_io)
 {
 	struct regcache *reg_cache = state->reg_cache;
 	union code c = block->opcode_list[offset].c;
 	jit_state_t *_jit = block->_jit;
 	u16 flags = REG_EXT;
 	s32 value = (s32)(s16) c.i.imm;
-	u8 rt;
+	u8 rt, reg = is_io ? c.i.rs : c.r.rt;
 
 	if (op_flag_movi(block->opcode_list[offset].flags))
-		value += (s32)((u32)state->movi_temp[c.i.rt] << 16);
+		value += (s32)((u32)state->movi_temp[reg] << 16);
 
 	if (value >= 0)
 		flags |= REG_ZEXT;
 
-	rt = lightrec_alloc_reg_out(reg_cache, _jit, c.i.rt, flags);
+	rt = lightrec_alloc_reg_out(reg_cache, _jit, reg, flags);
 
 	jit_movi(rt, value);
 
@@ -571,7 +571,7 @@ static void rec_ADDIU(struct lightrec_cstate *state,
 	if (op->i.rs && !op_flag_movi(op->flags))
 		rec_alu_imm(state, block, offset, jit_code_addi, false);
 	else
-		rec_movi(state, block, offset);
+		rec_movi(state, block, offset, false);
 }
 
 static void rec_ADDI(struct lightrec_cstate *state,
@@ -1748,7 +1748,7 @@ static void rec_load_memory(struct lightrec_cstate *cstate,
 		flags |= REG_ZEXT;
 
 	if (op_flag_movi(op->flags)) {
-		rec_movi(cstate, block, offset);
+		rec_movi(cstate, block, offset, true);
 		c.i.imm = 0;
 	}
 
