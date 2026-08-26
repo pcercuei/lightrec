@@ -683,9 +683,10 @@ static void lightrec_lui_to_movi(struct block *block, unsigned int offset)
 		case OP_LBU:
 		case OP_LHU:
 		case OP_LWR:
-		case OP_LWC2:
-		case OP_SWC2:
 		case OP_META_LWU:
+			if (op_flag_load_delay(ori->flags))
+				break;
+			fallthrough;
 		case OP_ORI:
 		case OP_ADDI:
 		case OP_ADDIU:
@@ -693,6 +694,8 @@ static void lightrec_lui_to_movi(struct block *block, unsigned int offset)
 				ori->flags |= LIGHTREC_MOVI;
 				lui->flags |= LIGHTREC_MOVI;
 			}
+			break;
+		default:
 			break;
 		}
 	}
