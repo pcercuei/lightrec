@@ -1221,11 +1221,6 @@ static void rec_io(struct lightrec_cstate *state,
 
 	jit_note(__FILE__, __LINE__);
 
-	if (op_flag_movi(block->opcode_list[offset].flags)) {
-		rec_movi(state, block, offset);
-		c.i.imm = 0;
-	}
-
 	lightrec_clean_reg_if_loaded(reg_cache, _jit, c.i.rs, false);
 
 	if (read_rt && likely(c.i.rt))
@@ -1867,11 +1862,6 @@ static void rec_load_direct(struct lightrec_cstate *cstate,
 		flags |= REG_ZEXT;
 
 	jit_note(__FILE__, __LINE__);
-
-	if (op_flag_movi(op->flags)) {
-		rec_movi(cstate, block, offset);
-		c.i.imm = 0;
-	}
 
 	rs = lightrec_alloc_reg_in(reg_cache, _jit, c.i.rs, 0);
 	rt = lightrec_alloc_reg_out(reg_cache, _jit, out_reg, flags);
