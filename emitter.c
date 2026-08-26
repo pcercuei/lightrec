@@ -652,15 +652,19 @@ static void rec_ORI(struct lightrec_cstate *state,
 	const struct opcode *op = &block->opcode_list[offset];
 	struct regcache *reg_cache = state->reg_cache;
 	jit_state_t *_jit = block->_jit;
+	u16 flags = REG_EXT;
 	s32 val;
 	u8 rt;
 
 	_jit_name(_jit, __func__);
 
 	if (op_flag_movi(op->flags)) {
-		rt = lightrec_alloc_reg_out(reg_cache, _jit, op->i.rt, REG_EXT);
-
 		val = ((u32)state->movi_temp[op->i.rt] << 16) | op->i.imm;
+		if (val >= 0)
+			flags |= REG_ZEXT;
+
+		rt = lightrec_alloc_reg_out(reg_cache, _jit, op->i.rt, flags);
+
 		jit_movi(rt, val);
 
 		lightrec_free_reg(reg_cache, rt);
