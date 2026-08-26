@@ -317,7 +317,8 @@ static void rec_b(struct lightrec_cstate *state, const struct block *block, u16 
 		if (op_flag_idle_loop(op->flags)) {
 			/* We have an idle loop that branched - we can skip
 			 * all the way to the next IRQ event. */
-			jit_movi(LIGHTREC_REG_CYCLE, 0);
+			jit_lti(JIT_R2, LIGHTREC_REG_CYCLE, 0);
+			jit_movzr(LIGHTREC_REG_CYCLE, JIT_R2, JIT_R2);
 		} else {
 			target_offset = offset + 1 + (s16)op->i.imm
 				- !!op_flag_no_ds(op->flags);
