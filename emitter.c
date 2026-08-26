@@ -3002,6 +3002,12 @@ static void rec_CP2(struct lightrec_cstate *state,
 		case OP_CP2_NCLIP:
 			rec_gte_NCLIP(state, block, offset);
 			return;
+		case OP_CP2_AVSZ3:
+			rec_gte_AVSZ3(state, block, offset);
+			return;
+		case OP_CP2_AVSZ4:
+			rec_gte_AVSZ4(state, block, offset);
+			return;
 		default:
 			break;
 		}
