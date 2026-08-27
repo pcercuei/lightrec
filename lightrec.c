@@ -943,6 +943,7 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 	struct block *block;
 	jit_state_t *_jit;
 	unsigned int i;
+	int sp;
 
 	block = lightrec_malloc(state, MEM_FOR_IR, sizeof(*block));
 	if (!block)
@@ -957,23 +958,14 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 
 	/* Wrapper entry point */
 	jit_prolog();
-	jit_tramp(256);
 
-	/* Load pointer to C wrapper */
-	jit_add_state(JIT_R1, JIT_R1);
-	jit_ldxi(JIT_R1, JIT_R1, lightrec_offset(c_wrappers));
-
-	jit_epilog();
-	jit_prolog();
+	sp = jit_allocai(NUM_TEMPS * sizeof(void *));
 
 	/* Save all temporaries on stack */
-	for (i = 0; i < NUM_TEMPS; i++) {
-		if (i + FIRST_TEMP != 1) {
-			jit_stxi(lightrec_offset(wrapper_regs[i]),
-				 LIGHTREC_REG_STATE, JIT_R(i + FIRST_TEMP));
-		}
-	}
+	for (i = 0; i < NUM_TEMPS; i++)
+		jit_stxi(sp + i * sizeof(void *), JIT_FP, JIT_R(i + FIRST_TEMP));
 
+	jit_getarg(JIT_R1, jit_arg());
 	jit_getarg(JIT_R2, jit_arg());
 
 	jit_prepare();
@@ -995,12 +987,8 @@ static struct block * generate_wrapper(struct lightrec_state *state)
 	jit_subr(LIGHTREC_REG_CYCLE, JIT_R1, LIGHTREC_REG_CYCLE);
 
 	/* Restore temporaries from stack */
-	for (i = 0; i < NUM_TEMPS; i++) {
-		if (i + FIRST_TEMP != 1) {
-			jit_ldxi(JIT_R(i + FIRST_TEMP), LIGHTREC_REG_STATE,
-				 lightrec_offset(wrapper_regs[i]));
-		}
-	}
+	for (i = 0; i < NUM_TEMPS; i++)
+		jit_ldxi(JIT_R(i + FIRST_TEMP), JIT_FP, sp + i * sizeof(void *));
 
 	jit_ret();
 	jit_epilog();
