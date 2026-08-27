@@ -1232,6 +1232,11 @@ static void rec_io(struct lightrec_cstate *state,
 
 	jit_note(__FILE__, __LINE__);
 
+	if (op_flag_movi(flags)) {
+		rec_movi(state, block, offset, true);
+		c.i.imm = 0;
+	}
+
 	lightrec_clean_reg_if_loaded(reg_cache, _jit, c.i.rs, false);
 
 	if (read_rt && likely(c.i.rt))

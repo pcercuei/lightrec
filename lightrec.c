@@ -409,6 +409,7 @@ static void lightrec_rw_generic_cb(struct lightrec_state *state, u32 arg)
 	struct block *block;
 	struct opcode *op;
 	u16 offset = (u16)arg;
+	union code c;
 
 	block = lightrec_find_block_from_lut(state->block_cache,
 					     arg >> 16, state->curr_pc);
@@ -420,7 +421,12 @@ static void lightrec_rw_generic_cb(struct lightrec_state *state, u32 arg)
 	}
 
 	op = &block->opcode_list[offset];
-	lightrec_rw_helper(state, op->c, &op->flags, block, offset);
+	c = op->c;
+
+	if (op_flag_movi(op->flags))
+		c.i.imm = 0;
+
+	lightrec_rw_helper(state, c, &op->flags, block, offset);
 }
 
 static u32 clamp_s32(s32 val, s32 min, s32 max)
