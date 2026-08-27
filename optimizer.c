@@ -1924,11 +1924,11 @@ static int lightrec_flag_io(struct lightrec_state *state, struct block *block)
 			}
 
 			if (!LIGHTREC_FLAGS_GET_IO_MODE(list->flags)
-			    && list->i.rs >= 28 && list->i.rs <= 29
+			    && list->i.rs == 29
 			    && !state->maps[PSX_MAP_KERNEL_USER_RAM].ops) {
 				/* Assume that all I/O operations that target
-				 * $sp or $gp will always only target a mapped
-				 * memory (RAM, BIOS, scratchpad). */
+				 * $sp will always only target a mapped memory
+				 * (RAM, BIOS, scratchpad). */
 				if (state->opt_flags & LIGHTREC_OPT_SP_GP_HIT_RAM)
 					list->flags |= LIGHTREC_IO_MODE(LIGHTREC_IO_RAM);
 				else
