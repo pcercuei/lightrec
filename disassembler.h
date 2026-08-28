@@ -21,11 +21,13 @@
 #define LIGHTREC_SYNC		BIT(1)
 #define LIGHTREC_MOVI		BIT(2)
 
+/* Flags for load/store opcodes and MFC/CFC */
+#define LIGHTREC_LOAD_DELAY	BIT(3)
+
 /* Flags for load/store opcodes */
-#define LIGHTREC_SMC		BIT(3)
-#define LIGHTREC_NO_INVALIDATE	BIT(4)
-#define LIGHTREC_NO_MASK	BIT(5)
-#define LIGHTREC_LOAD_DELAY	BIT(6)
+#define LIGHTREC_SMC		BIT(4)
+#define LIGHTREC_NO_INVALIDATE	BIT(5)
+#define LIGHTREC_NO_MASK	BIT(6)
 
 /* I/O mode for load/store opcodes */
 #define LIGHTREC_IO_MODE_LSB	7
