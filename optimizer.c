@@ -1324,8 +1324,10 @@ static int lightrec_switch_delay_slots(struct lightrec_state *state, struct bloc
 		if (op_flag_sync(next->flags))
 			continue;
 
-		if (op_flag_load_delay(next->flags) && opcode_is_load(next_op))
+		if (op_flag_load_delay(next->flags)
+		    && opcode_has_load_delay(next_op)) {
 			continue;
+		}
 
 		if (!lightrec_can_switch_delay_slot(list->c, next_op))
 			continue;
@@ -1357,7 +1359,6 @@ static int lightrec_detect_impossible_branches(struct lightrec_state *state,
 
 		if (!has_delay_slot(op->c) ||
 		    (!has_delay_slot(next->c) &&
-		     !opcode_is_mfc(next->c) &&
 		     !(next->i.op == OP_CP0 && next->r.rs == OP_CP0_RFE)))
 			continue;
 
@@ -1573,7 +1574,7 @@ static int lightrec_local_branches(struct lightrec_state *state, struct block *b
 		pr_debug("Found local branch to offset 0x%"PRIx32"\n", offset << 2);
 
 		ds = get_delay_slot(block->opcode_list, i);
-		if (op_flag_load_delay(ds->flags) && opcode_is_load(ds->c)) {
+		if (op_flag_load_delay(ds->flags) && opcode_has_load_delay(ds->c)) {
 			pr_debug("Branch delay slot has a load delay - skip\n");
 			continue;
 		}
@@ -1744,7 +1745,7 @@ static int lightrec_early_unload(struct lightrec_state *state, struct block *blo
 		mask_r = opcode_read_mask(op->c);
 		mask_w = opcode_write_mask(op->c);
 
-		if (op_flag_load_delay(op->flags) && opcode_is_load(op->c)) {
+		if (op_flag_load_delay(op->flags) && opcode_has_load_delay(op->c)) {
 			/* If we have a load opcode in a delay slot, its target
 			 * register is actually not written there but at a
 			 * later point, in the dispatcher. Prevent the algorithm
