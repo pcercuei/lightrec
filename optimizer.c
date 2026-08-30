@@ -1526,7 +1526,7 @@ static bool lightrec_detect_idle_range(struct block *block, u16 min, u16 max)
 		return false;
 	}
 
-	pr_debug("Found idle loop at PC 0x%08x (0x%x -> 0x%x)\n",
+	pr_debug("Found idle loop at "PC_FMT" (0x%x -> 0x%x)\n",
 		 block->pc, min << 2, max << 2);
 	return true;
 }
