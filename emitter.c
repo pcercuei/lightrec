@@ -2065,8 +2065,7 @@ static void rec_LW(struct lightrec_cstate *state, const struct block *block, u16
 }
 
 static void rec_exit_early(struct lightrec_cstate *state,
-			   const struct block *block, u16 offset,
-			   u32 exit_code, u32 pc)
+			   const struct block *block, u32 exit_code)
 {
 	struct regcache *reg_cache = state->reg_cache;
 	jit_state_t *_jit = block->_jit;
@@ -2076,8 +2075,10 @@ static void rec_exit_early(struct lightrec_cstate *state,
 
 	tmp = lightrec_alloc_reg_temp(reg_cache, _jit);
 
-	jit_movi(tmp, exit_code);
-	jit_stxi_i(lightrec_offset(exit_flags), LIGHTREC_REG_STATE, tmp);
+	if (exit_code) {
+		jit_movi(tmp, exit_code);
+		jit_stxi_i(lightrec_offset(exit_flags), LIGHTREC_REG_STATE, tmp);
+	}
 
 	jit_ldxi_i(tmp, LIGHTREC_REG_STATE, lightrec_offset(target_cycle));
 	jit_subr(tmp, tmp, LIGHTREC_REG_CYCLE);
@@ -2086,26 +2087,29 @@ static void rec_exit_early(struct lightrec_cstate *state,
 	jit_stxi_i(lightrec_offset(current_cycle), LIGHTREC_REG_STATE, tmp);
 
 	lightrec_free_reg(reg_cache, tmp);
-
-	lightrec_emit_end_of_block(state, block, offset, -1, pc, 31, 0, true);
 }
 
 static void rec_special_SYSCALL(struct lightrec_cstate *state,
 				const struct block *block, u16 offset)
 {
+	u32 pc = get_ds_pc(block, offset, 0);
+
 	_jit_name(block->_jit, __func__);
 
 	/* TODO: the return address should be "pc - 4" if we're a delay slot */
-	rec_exit_early(state, block, offset, LIGHTREC_EXIT_SYSCALL,
-		       get_ds_pc(block, offset, 0));
+	rec_exit_early(state, block, LIGHTREC_EXIT_SYSCALL);
+	lightrec_emit_end_of_block(state, block, offset, -1, pc, 31, 0, true);
 }
 
 static void rec_special_BREAK(struct lightrec_cstate *state,
 			      const struct block *block, u16 offset)
 {
+	u32 pc = get_ds_pc(block, offset, 0);
+
 	_jit_name(block->_jit, __func__);
-	rec_exit_early(state, block, offset, LIGHTREC_EXIT_BREAK,
-		       get_ds_pc(block, offset, 0));
+
+	rec_exit_early(state, block, LIGHTREC_EXIT_BREAK);
+	lightrec_emit_end_of_block(state, block, offset, -1, pc, 31, 0, true);
 }
 
 static void rec_mfc(struct lightrec_cstate *state, const struct block *block, u16 offset)
@@ -2849,8 +2853,9 @@ static void rec_meta_SWU(struct lightrec_cstate *state,
 static void unknown_opcode(struct lightrec_cstate *state,
 			   const struct block *block, u16 offset)
 {
-	rec_exit_early(state, block, offset, LIGHTREC_EXIT_UNKNOWN_OP,
-		       block->pc + (offset << 2));
+	u32 pc = block->pc + (offset << 2);
+	rec_exit_early(state, block, LIGHTREC_EXIT_UNKNOWN_OP);
+	lightrec_emit_end_of_block(state, block, offset, -1, pc, 31, 0, true);
 }
 
 static const lightrec_rec_func_t rec_standard[64] = {
