@@ -30,6 +30,8 @@ static void rec_cp2_do_mtc2(struct lightrec_cstate *state,
 static void rec_cp2_do_mfc2(struct lightrec_cstate *state,
 			    const struct block *block, u16 offset,
 			    u8 reg, u8 out_reg);
+static void rec_exit_early(struct lightrec_cstate *state,
+			   const struct block *block, u32 exit_code);
 
 static void
 lightrec_jump_to_fn(jit_state_t *_jit, void (*fn)(void))
@@ -172,41 +174,55 @@ static void lightrec_emit_eob(struct lightrec_cstate *state,
 	lightrec_jump_to_known_eob(state, _jit, imm);
 }
 
+static void rec_jump(struct lightrec_cstate *state, const struct block *block,
+		     u16 offset, s8 reg_new_pc, u32 imm, u8 ra_reg,
+		     u32 link)
+{
+	const struct opcode *op = &block->opcode_list[offset];
+
+	if (op_flag_early_exit(op->flags)) {
+		pr_debug("Dynarec should exit after "PC_FMT".\n", block->pc);
+		rec_exit_early(state, block, LIGHTREC_EXIT_NORMAL);
+	}
+
+	lightrec_emit_end_of_block(state, block, offset,
+				   reg_new_pc, imm, ra_reg, link, true);
+}
+
 static void rec_special_JR(struct lightrec_cstate *state, const struct block *block, u16 offset)
 {
 	union code c = block->opcode_list[offset].c;
 
 	_jit_name(block->_jit, __func__);
-	lightrec_emit_end_of_block(state, block, offset, c.r.rs, 0, 31, 0, true);
+	rec_jump(state, block, offset, c.r.rs, 0, 31, 0);
 }
 
 static void rec_special_JALR(struct lightrec_cstate *state, const struct block *block, u16 offset)
 {
 	union code c = block->opcode_list[offset].c;
+	u32 pc = get_branch_pc(block, offset, 2);
 
 	_jit_name(block->_jit, __func__);
-	lightrec_emit_end_of_block(state, block, offset, c.r.rs, 0, c.r.rd,
-				   get_branch_pc(block, offset, 2), true);
+	rec_jump(state, block, offset, c.r.rs, 0, c.r.rd, pc);
 }
 
 static void rec_J(struct lightrec_cstate *state, const struct block *block, u16 offset)
 {
 	union code c = block->opcode_list[offset].c;
+	u32 pc = (block->pc & 0xf0000000) | (c.j.imm << 2);
 
 	_jit_name(block->_jit, __func__);
-	lightrec_emit_end_of_block(state, block, offset, -1,
-				   (block->pc & 0xf0000000) | (c.j.imm << 2),
-				   31, 0, true);
+	rec_jump(state, block, offset, -1, pc, 31, 0);
 }
 
 static void rec_JAL(struct lightrec_cstate *state, const struct block *block, u16 offset)
 {
 	union code c = block->opcode_list[offset].c;
+	u32 pc = (block->pc & 0xf0000000) | (c.j.imm << 2);
+	u32 link = get_branch_pc(block, offset, 2);
 
 	_jit_name(block->_jit, __func__);
-	lightrec_emit_end_of_block(state, block, offset, -1,
-				   (block->pc & 0xf0000000) | (c.j.imm << 2),
-				   31, get_branch_pc(block, offset, 2), true);
+	rec_jump(state, block, offset, -1, pc, 31, link);
 }
 
 static void lightrec_do_early_unload(struct lightrec_cstate *state,
