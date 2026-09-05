@@ -393,4 +393,11 @@ static inline _Bool lightrec_store_next_pc(void)
 	return NUM_REGS + NUM_TEMPS <= 4;
 }
 
+static inline _Bool lightrec_should_exit(u32 pc)
+{
+	pc = kunseg(pc);
+
+	return pc == 0xa0 || pc == 0xb0 || pc == 0xc0;
+}
+
 #endif /* __LIGHTREC_PRIVATE_H__ */
