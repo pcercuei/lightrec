@@ -918,6 +918,7 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 	unsigned int i;
 	bool local;
 	int idx;
+	u32 pc;
 	u8 tmp;
 
 	for (i = 0; i < block->nb_ops; i++) {
@@ -939,6 +940,14 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 			continue;
 
 		switch (op->i.op) {
+		case OP_J:
+		case OP_JAL:
+			pc = (block->pc & 0xf0000000) | (op->j.imm << 2);
+
+			if (lightrec_should_exit(pc))
+				op->flags |= LIGHTREC_EARLY_EXIT;
+			break;
+
 		case OP_BEQ:
 			if (op->i.rs == op->i.rt ||
 			    (is_known(v, op->i.rs) && is_known(v, op->i.rt) &&
@@ -1228,6 +1237,14 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 					pr_debug("Convert OR/ADD/SUB $zero to MOV\n");
 					op->m.op = OP_META_MOV;
 					op->i.op = OP_META;
+				}
+				break;
+
+			case OP_SPECIAL_JR:
+			case OP_SPECIAL_JALR:
+				if (is_known(v, op->i.rs)
+				    && lightrec_should_exit(v[op->i.rs].value)) {
+					op->flags |= LIGHTREC_EARLY_EXIT;
 				}
 				fallthrough;
 			default:

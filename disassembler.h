@@ -47,6 +47,7 @@
 #define LIGHTREC_EMULATE_BRANCH	BIT(3)
 #define LIGHTREC_LOCAL_BRANCH	BIT(4)
 #define LIGHTREC_IDLE_LOOP	BIT(5)
+#define LIGHTREC_EARLY_EXIT	BIT(6)
 
 /* Flags for div/mult opcodes */
 #define LIGHTREC_NO_LO		BIT(3)
@@ -319,6 +320,11 @@ static inline _Bool op_flag_smc(u32 flags)
 static inline _Bool op_flag_movi(u32 flags)
 {
 	return OPT_TRANSFORM_OPS && (flags & LIGHTREC_MOVI);
+}
+
+static inline _Bool op_flag_early_exit(u32 flags)
+{
+	return OPT_TRANSFORM_OPS && (flags & LIGHTREC_EARLY_EXIT);
 }
 
 static inline _Bool op_flag_no_invalidate(u32 flags)
