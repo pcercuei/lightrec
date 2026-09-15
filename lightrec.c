@@ -938,90 +938,6 @@ static void * lightrec_emit_code(struct lightrec_state *state,
 	return code;
 }
 
-static struct block * generate_wrapper(struct lightrec_state *state)
-{
-	struct block *block;
-	jit_state_t *_jit;
-	unsigned int i;
-	int sp;
-
-	block = lightrec_malloc(state, MEM_FOR_IR, sizeof(*block));
-	if (!block)
-		goto err_no_mem;
-
-	_jit = jit_new_state();
-	if (!_jit)
-		goto err_free_block;
-
-	jit_name("RW wrapper");
-	jit_note(__FILE__, __LINE__);
-
-	/* Wrapper entry point */
-	jit_prolog();
-
-	sp = jit_allocai(NUM_TEMPS * sizeof(void *));
-
-	/* Save all temporaries on stack */
-	for (i = 0; i < NUM_TEMPS; i++)
-		jit_stxi(sp + i * sizeof(void *), JIT_FP, JIT_R(i + FIRST_TEMP));
-
-	jit_getarg(JIT_R1, jit_arg());
-	jit_getarg(JIT_R2, jit_arg());
-
-	jit_prepare();
-	jit_pushargr(LIGHTREC_REG_STATE);
-	jit_pushargr(JIT_R2);
-
-	jit_ldxi_ui(JIT_R2, LIGHTREC_REG_STATE, lightrec_offset(target_cycle));
-
-	/* state->current_cycle = state->target_cycle - delta; */
-	jit_subr(LIGHTREC_REG_CYCLE, JIT_R2, LIGHTREC_REG_CYCLE);
-	jit_stxi_i(lightrec_offset(current_cycle), LIGHTREC_REG_STATE, LIGHTREC_REG_CYCLE);
-
-	/* Call the wrapper function */
-	jit_finishr(JIT_R1);
-
-	/* delta = state->target_cycle - state->current_cycle */;
-	jit_ldxi_ui(LIGHTREC_REG_CYCLE, LIGHTREC_REG_STATE, lightrec_offset(current_cycle));
-	jit_ldxi_ui(JIT_R1, LIGHTREC_REG_STATE, lightrec_offset(target_cycle));
-	jit_subr(LIGHTREC_REG_CYCLE, JIT_R1, LIGHTREC_REG_CYCLE);
-
-	/* Restore temporaries from stack */
-	for (i = 0; i < NUM_TEMPS; i++)
-		jit_ldxi(JIT_R(i + FIRST_TEMP), JIT_FP, sp + i * sizeof(void *));
-
-	jit_ret();
-	jit_epilog();
-
-	block->_jit = _jit;
-	block->opcode_list = NULL;
-	block->flags = BLOCK_NO_OPCODE_LIST;
-	block->nb_ops = 0;
-
-	block->function = lightrec_emit_code(state, block, _jit,
-					     &block->code_size);
-	if (!block->function)
-		goto err_free_jit;
-
-	state->c_wrapper = block->function;
-
-	if (ENABLE_DISASSEMBLER) {
-		pr_debug("Wrapper block:\n");
-		jit_disassemble();
-	}
-
-	jit_clear_state();
-	return block;
-
-err_free_jit:
-	jit_destroy_state();
-err_free_block:
-	lightrec_free(state, MEM_FOR_IR, sizeof(*block), block);
-err_no_mem:
-	pr_err("Unable to compile wrapper: Out of memory\n");
-	return NULL;
-}
-
 static u32 lightrec_memset(struct lightrec_state *state)
 {
 	u32 kunseg_pc = kunseg(state->regs.gpr[4]);
@@ -1098,8 +1014,10 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 	struct block *block;
 	jit_state_t *_jit;
 	jit_node_t *to_end, *to_loop, *to_slow_path, *loop, *loop2,
-		   *addr, *addr2, *addr3, *addr4, *addr5, *addr6;
+		   *addr, *addr2, *addr3, *addr4, *addr5, *addr6,
+		   *c_wrapper;
 	unsigned int i;
+	int sp;
 
 	block = lightrec_malloc(state, MEM_FOR_IR, sizeof(*block));
 	if (!block)
@@ -1293,6 +1211,44 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 
 	jit_epilog();
 
+	/* Wrapper entry point */
+	c_wrapper = jit_indirect();
+	jit_prolog();
+
+	sp = jit_allocai(NUM_TEMPS * sizeof(void *));
+
+	/* Save all temporaries on stack */
+	for (i = 0; i < NUM_TEMPS; i++)
+		jit_stxi(sp + i * sizeof(void *), JIT_FP, JIT_R(i + FIRST_TEMP));
+
+	jit_getarg(JIT_R1, jit_arg());
+	jit_getarg(JIT_R2, jit_arg());
+
+	jit_prepare();
+	jit_pushargr(LIGHTREC_REG_STATE);
+	jit_pushargr(JIT_R2);
+
+	jit_ldxi_ui(JIT_R2, LIGHTREC_REG_STATE, lightrec_offset(target_cycle));
+
+	/* state->current_cycle = state->target_cycle - delta; */
+	jit_subr(LIGHTREC_REG_CYCLE, JIT_R2, LIGHTREC_REG_CYCLE);
+	jit_stxi_i(lightrec_offset(current_cycle), LIGHTREC_REG_STATE, LIGHTREC_REG_CYCLE);
+
+	/* Call the wrapper function */
+	jit_finishr(JIT_R1);
+
+	/* delta = state->target_cycle - state->current_cycle */;
+	jit_ldxi_ui(LIGHTREC_REG_CYCLE, LIGHTREC_REG_STATE, lightrec_offset(current_cycle));
+	jit_ldxi_ui(JIT_R1, LIGHTREC_REG_STATE, lightrec_offset(target_cycle));
+	jit_subr(LIGHTREC_REG_CYCLE, JIT_R1, LIGHTREC_REG_CYCLE);
+
+	/* Restore temporaries from stack */
+	for (i = 0; i < NUM_TEMPS; i++)
+		jit_ldxi(JIT_R(i + FIRST_TEMP), JIT_FP, sp + i * sizeof(void *));
+
+	jit_ret();
+	jit_epilog();
+
 	block->_jit = _jit;
 	block->opcode_list = NULL;
 	block->flags = BLOCK_NO_OPCODE_LIST;
@@ -1302,6 +1258,8 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 					     &block->code_size);
 	if (!block->function)
 		goto err_free_jit;
+
+	state->c_wrapper = jit_address(c_wrapper);
 
 	state->eob_wrapper_func = jit_address(addr2);
 	if (OPT_DETECT_IMPOSSIBLE_BRANCHES)
@@ -1991,10 +1949,6 @@ struct lightrec_state * lightrec_init(char *argv0,
 	if (!state->dispatcher)
 		goto err_free_reaper;
 
-	state->c_wrapper_block = generate_wrapper(state);
-	if (!state->c_wrapper_block)
-		goto err_free_dispatcher;
-
 	state->c_wrappers[C_WRAPPER_RW] = lightrec_rw_cb;
 	state->c_wrappers[C_WRAPPER_RW_GENERIC] = lightrec_rw_generic_cb;
 	state->c_wrappers[C_WRAPPER_MFC] = lightrec_mfc_cb;
@@ -2033,8 +1987,6 @@ struct lightrec_state * lightrec_init(char *argv0,
 
 	return state;
 
-err_free_dispatcher:
-	lightrec_free_block(state, state->dispatcher);
 err_free_reaper:
 	if (ENABLE_THREADED_COMPILER)
 		lightrec_reaper_destroy(state->reaper);
@@ -2064,7 +2016,6 @@ void lightrec_destroy(struct lightrec_state *state)
 
 	lightrec_free_block_cache(state->block_cache);
 	lightrec_free_block(state, state->dispatcher);
-	lightrec_free_block(state, state->c_wrapper_block);
 
 	if (ENABLE_THREADED_COMPILER) {
 		lightrec_free_recompiler(state->rec);
