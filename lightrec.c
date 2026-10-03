@@ -678,12 +678,15 @@ void lightrec_rfe(struct lightrec_state *state)
 
 void lightrec_cp(struct lightrec_state *state, union code op)
 {
+	lightrec_gte_handler_t hdl;
+
 	if (op.i.op == OP_CP0) {
 		pr_err("Invalid CP opcode to coprocessor #0\n");
-		return;
-	}
+	} else {
+		hdl = (*state->ops.cop2_hdl)(op.opcode, false);
 
-	(*state->ops.cop2_op)(state, op.opcode);
+		(*hdl)(&state->regs.cp2, op.opcode);
+	}
 }
 
 static void lightrec_cp_cb(struct lightrec_state *state, u32 arg)
@@ -1879,7 +1882,7 @@ struct lightrec_state * lightrec_init(char *argv0,
 	size_t lut_size;
 
 	/* Sanity-check ops */
-	if (!ops || !ops->cop2_op || !ops->enable_ram) {
+	if (!ops || !ops->cop2_hdl || !ops->enable_ram) {
 		pr_err("Missing callbacks in lightrec_ops structure\n");
 		return NULL;
 	}
