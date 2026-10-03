@@ -124,11 +124,15 @@ struct lightrec_ops {
 	void (*code_inv)(void *addr, u32 len);
 };
 
+struct lightrec_registers_cp2 {
+	u32 cp2d[32];
+	u32 cp2c[32];
+};
+
 struct lightrec_registers {
 	u32 gpr[34];
 	u32 cp0[32];
-	u32 cp2d[32];
-	u32 cp2c[32];
+	struct lightrec_registers_cp2 cp2;
 };
 
 __api struct lightrec_state *lightrec_init(char *argv0,

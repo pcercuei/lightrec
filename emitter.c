@@ -2325,7 +2325,7 @@ static void rec_cp0_CTC0(struct lightrec_cstate *state,
 
 static unsigned int cp2d_i_offset(u8 reg)
 {
-	return lightrec_offset(regs.cp2d[reg]);
+	return lightrec_offset(regs.cp2.cp2d[reg]);
 }
 
 static unsigned int cp2d_s_offset(u8 reg)
@@ -2335,7 +2335,7 @@ static unsigned int cp2d_s_offset(u8 reg)
 
 static unsigned int cp2c_i_offset(u8 reg)
 {
-	return lightrec_offset(regs.cp2c[reg]);
+	return lightrec_offset(regs.cp2.cp2c[reg]);
 }
 
 static unsigned int cp2c_s_offset(u8 reg)

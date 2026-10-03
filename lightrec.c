@@ -456,18 +456,18 @@ static u32 lightrec_mfc2(struct lightrec_state *state, u8 reg)
 	case 9:
 	case 10:
 	case 11:
-		return (s32)(s16) load_u16(&state->regs.cp2d[reg]);
+		return (s32)(s16) load_u16(&state->regs.cp2.cp2d[reg]);
 	case 7:
 	case 16:
 	case 17:
 	case 18:
 	case 19:
-		return load_u16(&state->regs.cp2d[reg]);
+		return load_u16(&state->regs.cp2.cp2d[reg]);
 	case 28:
 	case 29:
-		gteir1 = (s16) load_u16(&state->regs.cp2d[9]);
-		gteir2 = (s16) load_u16(&state->regs.cp2d[10]);
-		gteir3 = (s16) load_u16(&state->regs.cp2d[11]);
+		gteir1 = (s16) load_u16(&state->regs.cp2.cp2d[9]);
+		gteir2 = (s16) load_u16(&state->regs.cp2.cp2d[10]);
+		gteir3 = (s16) load_u16(&state->regs.cp2.cp2d[11]);
 
 		return clamp_s32(gteir1 >> 7, 0, 0x1f) << 0 |
 			clamp_s32(gteir2 >> 7, 0, 0x1f) << 5 |
@@ -476,7 +476,7 @@ static u32 lightrec_mfc2(struct lightrec_state *state, u8 reg)
 		reg = 14;
 		fallthrough;
 	default:
-		return state->regs.cp2d[reg];
+		return state->regs.cp2.cp2d[reg];
 	}
 }
 
@@ -492,7 +492,7 @@ u32 lightrec_mfc(struct lightrec_state *state, union code op)
 	} else if (op.r.rs == OP_CP2_BASIC_MFC2)
 		val = lightrec_mfc2(state, op.r.rd);
 	else {
-		val = state->regs.cp2c[op.r.rd];
+		val = state->regs.cp2.cp2c[op.r.rd];
 
 		switch (op.r.rd) {
 		case 4:
@@ -589,22 +589,22 @@ static void lightrec_mtc2(struct lightrec_state *state, u8 reg, u32 data)
 {
 	switch (reg) {
 	case 15:
-		state->regs.cp2d[12] = state->regs.cp2d[13];
-		state->regs.cp2d[13] = state->regs.cp2d[14];
-		state->regs.cp2d[14] = data;
+		state->regs.cp2.cp2d[12] = state->regs.cp2.cp2d[13];
+		state->regs.cp2.cp2d[13] = state->regs.cp2.cp2d[14];
+		state->regs.cp2.cp2d[14] = data;
 		break;
 	case 28:
-		state->regs.cp2d[9] = (data << 7) & 0xf80;
-		state->regs.cp2d[10] = (data << 2) & 0xf80;
-		state->regs.cp2d[11] = (data >> 3) & 0xf80;
+		state->regs.cp2.cp2d[9] = (data << 7) & 0xf80;
+		state->regs.cp2.cp2d[10] = (data << 2) & 0xf80;
+		state->regs.cp2.cp2d[11] = (data >> 3) & 0xf80;
 		break;
 	case 31:
 		return;
 	case 30:
-		state->regs.cp2d[31] = count_leading_bits((s32) data);
+		state->regs.cp2.cp2d[31] = count_leading_bits((s32) data);
 		fallthrough;
 	default:
-		state->regs.cp2d[reg] = data;
+		state->regs.cp2.cp2d[reg] = data;
 		break;
 	}
 }
@@ -619,13 +619,13 @@ static void lightrec_ctc2(struct lightrec_state *state, u8 reg, u32 data)
 	case 27:
 	case 29:
 	case 30:
-		store_u16(&state->regs.cp2c[reg], data);
+		store_u16(&state->regs.cp2.cp2c[reg], data);
 		break;
 	case 31:
 		data = (data & 0x7ffff000) | !!(data & 0x7f87e000) << 31;
 		fallthrough;
 	default:
-		state->regs.cp2c[reg] = data;
+		state->regs.cp2.cp2c[reg] = data;
 		break;
 	}
 }
