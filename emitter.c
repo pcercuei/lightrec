@@ -2681,13 +2681,6 @@ static void rec_cop_CP2(struct lightrec_cstate *state,
 
 	hdl = (*state->state->ops.cop2_hdl)(c.opcode, false);
 
-#ifdef __mips__
-	/* On MIPS, register t9 is always used as the target register for JALR.
-	 * Therefore if it does not contain the target address we must
-	 * invalidate it. */
-	lightrec_unload_reg(reg_cache, _jit, _T9);
-#endif
-
 	jit_prepare();
 	jit_pushargi((intptr_t)&state->state->regs.cp2);
 	jit_pushargi(c.opcode);
