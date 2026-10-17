@@ -1604,7 +1604,7 @@ int lightrec_detect_idle(struct block *block)
 
 static int lightrec_local_branches(struct lightrec_state *state, struct block *block)
 {
-	const struct opcode *ds;
+	struct opcode *ds, *target;
 	struct opcode *list;
 	unsigned int i;
 	s32 offset;
@@ -1616,16 +1616,28 @@ static int lightrec_local_branches(struct lightrec_state *state, struct block *b
 			continue;
 
 		offset = i + 1 + (s16)list->c.i.imm;
+		target = &block->opcode_list[offset];
 
 		pr_debug("Found local branch to offset 0x%"PRIx32"\n", offset << 2);
 
-		ds = get_delay_slot(block->opcode_list, i);
+		ds = list + 1;
+
 		if (op_flag_load_delay(ds->flags) && opcode_has_load_delay(ds->c)) {
-			pr_debug("Branch delay slot has a load delay - skip\n");
-			continue;
+			/* The delay slot is a load - we can check whether or
+			 * not the opcode at the target uses the load's target
+			 * register. */
+
+			if (opcode_reads_register(target->c, ds->i.rt)) {
+				pr_debug("Branch delay slot has a load delay - skip\n");
+				continue;
+			}
+
+			/* No load dependency - drop the load delay flag */
+			pr_debug("Load delay in local branch delay slot removed\n");
+			ds->flags &= ~LIGHTREC_LOAD_DELAY;
 		}
 
-		if (should_emulate(&block->opcode_list[offset])) {
+		if (should_emulate(target)) {
 			pr_debug("Branch target must be emulated - skip\n");
 			continue;
 		}
