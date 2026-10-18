@@ -1247,7 +1247,7 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 				}
 
 				if (is_known(v, op->i.rs)
-				    && kunseg(v[op->i.rs].value) >> 28 == kunseg(block->pc) >> 28) {
+				    && v[op->i.rs].value >> 28 == block->pc >> 28) {
 					pr_debug("Convert JR to J\n");
 					op->j.imm = kunseg(v[op->i.rs].value) >> 2;
 					op->j.op = OP_J;
@@ -1262,7 +1262,7 @@ static int lightrec_transform_ops(struct lightrec_state *state, struct block *bl
 
 				if (is_known(v, op->r.rs)
 				    && op->r.rd == 31
-				    && kunseg(v[op->r.rs].value) >> 28 == kunseg(block->pc) >> 28) {
+				    && v[op->r.rs].value >> 28 == block->pc >> 28) {
 					pr_debug("Convert JALR to JAL\n");
 					op->j.imm = kunseg(v[op->i.rs].value) >> 2;
 					op->j.op = OP_JAL;
