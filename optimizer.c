@@ -1506,6 +1506,14 @@ static int lightrec_swap_load_delays(struct lightrec_state *state,
 			if (has_delay_slot(next))
 				continue;
 
+			if (opcode_writes_register(next, c.i.rt)) {
+				/* Load opcode and the next opcode both write
+				 * the same register; only consider the second
+				 * write. */
+				block->opcode_list[i].i.rt = 0;
+				continue;
+			}
+
 			if (opcode_reads_register(next, c.i.rt)
 			    && !opcode_writes_register(next, c.i.rs)) {
 				pr_debug("Swapping opcodes at offset 0x%x to "
