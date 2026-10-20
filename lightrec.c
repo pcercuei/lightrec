@@ -27,7 +27,10 @@
 #endif
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdlib.h>
 #include <string.h>
+
+static size_t dcache_size = 32768;
 
 static struct block * lightrec_precompile_block(struct lightrec_state *state,
 						u32 pc);
@@ -1868,6 +1871,41 @@ void lightrec_free_cstate(struct lightrec_cstate *cstate)
 	lightrec_free(cstate->state, MEM_FOR_LIGHTREC, sizeof(*cstate), cstate);
 }
 
+static void lightrec_free_state(struct lightrec_state *state)
+{
+	void *ptr;
+
+	ptr = (void *)((uintptr_t)state - 0x400);
+	free(ptr);
+}
+
+static struct lightrec_state *lightrec_alloc_state(bool lut_32bit)
+{
+	struct lightrec_state *state;
+	size_t struct_size, lut_size;
+	void *ptr;
+
+#ifdef _SC_LEVEL1_DCACHE_SIZE
+	dcache_size = sysconf(_SC_LEVEL1_DCACHE_SIZE);
+#endif
+
+
+	struct_size = sizeof(*state) + 0x400;
+	lut_size = (lut_32bit ? 4 : sizeof(void *)) * CODE_LUT_SIZE;
+
+	ptr = aligned_alloc(dcache_size, struct_size + lut_size);
+	if (!ptr)
+		return NULL;
+
+	memset(ptr, 0, struct_size + lut_size);
+
+	state = (void *)((uintptr_t)ptr + 0x400);
+
+	state->with_32bit_lut = lut_32bit;
+
+	return state;
+}
+
 struct lightrec_state * lightrec_init(char *argv0,
 				      const struct lightrec_mem_map *maps,
 				      size_t nb,
@@ -1879,7 +1917,6 @@ struct lightrec_state * lightrec_init(char *argv0,
 	uintptr_t addr;
 	void *tlsf = NULL;
 	bool with_32bit_lut = false;
-	size_t lut_size;
 
 	/* Sanity-check ops */
 	if (!ops || !ops->cop2_hdl || !ops->enable_ram) {
@@ -1907,21 +1944,13 @@ struct lightrec_state * lightrec_init(char *argv0,
 		}
 	}
 
-	if (with_32bit_lut)
-		lut_size = CODE_LUT_SIZE * 4;
-	else
-		lut_size = CODE_LUT_SIZE * sizeof(void *);
-
 	init_jit_with_debug(argv0, stdout);
 
-	state = calloc(1, sizeof(*state) + lut_size);
+	state = lightrec_alloc_state(with_32bit_lut);
 	if (!state)
 		goto err_finish_jit;
 
-	lightrec_register(MEM_FOR_LIGHTREC, sizeof(*state) + lut_size);
-
 	state->tlsf = tlsf;
-	state->with_32bit_lut = with_32bit_lut;
 	state->in_delay_slot_n = 0xff;
 	state->cycles_per_op = 2;
 
@@ -2001,9 +2030,7 @@ err_free_recompiler:
 err_free_block_cache:
 	lightrec_free_block_cache(state->block_cache);
 err_free_state:
-	lightrec_unregister(MEM_FOR_LIGHTREC, sizeof(*state) +
-			    lut_elm_size(state) * CODE_LUT_SIZE);
-	free(state);
+	lightrec_free_state(state);
 err_finish_jit:
 	finish_jit();
 	if (ENABLE_CODE_BUFFER && tlsf)
@@ -2031,9 +2058,7 @@ void lightrec_destroy(struct lightrec_state *state)
 	if (ENABLE_CODE_BUFFER && state->tlsf)
 		tlsf_destroy(state->tlsf);
 
-	lightrec_unregister(MEM_FOR_LIGHTREC, sizeof(*state) +
-			    lut_elm_size(state) * CODE_LUT_SIZE);
-	free(state);
+	lightrec_free_state(state);
 }
 
 void lightrec_invalidate(struct lightrec_state *state, u32 addr, u32 len)
