@@ -30,8 +30,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-static size_t dcache_size = 32768;
-
 static struct block * lightrec_precompile_block(struct lightrec_state *state,
 						u32 pc);
 static bool lightrec_block_is_fully_tagged(const struct block *block);
@@ -1889,30 +1887,42 @@ static void lightrec_free_state(struct lightrec_state *state)
 	void *ptr;
 
 	ptr = (void *)((uintptr_t)state - 0x400);
-	free(ptr);
+	free(((void **)ptr)[-1]);
 }
 
 static struct lightrec_state *lightrec_alloc_state(bool lut_32bit)
 {
 	struct lightrec_state *state;
-	size_t struct_size, lut_size;
-	void *ptr;
+	size_t struct_size, lut_size, alloc_size, alignment = 32768;
+	uintptr_t aligned;
+	void *allocation, *ptr;
 
 #ifdef _SC_LEVEL1_DCACHE_SIZE
-	dcache_size = sysconf(_SC_LEVEL1_DCACHE_SIZE);
+	long cache_size = sysconf(_SC_LEVEL1_DCACHE_SIZE);
+
+	if (cache_size > 0 && !(cache_size & (cache_size - 1)))
+		alignment = (size_t)cache_size;
 #endif
 
-
+	if (alignment < sizeof(void *))
+		alignment = sizeof(void *);
 	struct_size = sizeof(*state) + 0x400;
 	lut_size = (lut_32bit ? 4 : sizeof(void *)) * CODE_LUT_SIZE;
-
-	ptr = aligned_alloc(dcache_size, struct_size + lut_size);
-	if (!ptr)
+	alloc_size = struct_size + lut_size;
+	if (alloc_size > SIZE_MAX - sizeof(void *) - (alignment - 1))
 		return NULL;
 
-	memset(ptr, 0, struct_size + lut_size);
+	allocation = malloc(alloc_size + sizeof(void *) + alignment - 1);
+	if (!allocation)
+		return NULL;
 
-	state = (void *)((uintptr_t)ptr + 0x400);
+	aligned = ((uintptr_t)allocation + sizeof(void *) + alignment - 1)
+		& ~(uintptr_t)(alignment - 1);
+	ptr = (void *)aligned;
+	((void **)ptr)[-1] = allocation;
+	memset(ptr, 0, alloc_size);
+
+	state = (void *)(aligned + 0x400);
 
 	state->with_32bit_lut = lut_32bit;
 
