@@ -62,7 +62,7 @@ static inline u32 lightrec_int_op(struct interpreter *inter)
 {
 #ifdef __PS3__
 	u32 pc;
-	/* ELFv1 indirect calls cannot tail-call across function descriptors. */
+	/* Keep dispatch stack usage bounded with indirect ELFv1 calls. */
 	do {
 		inter->dispatch_next = false;
 		pc = execute(int_standard[inter->op->i.op], inter);
