@@ -1882,7 +1882,7 @@ static void lightrec_free_state(struct lightrec_state *state)
 static struct lightrec_state *lightrec_alloc_state(bool lut_32bit)
 {
 	struct lightrec_state *state;
-	size_t struct_size, lut_size;
+	size_t struct_size, lut_size, alloc_size;
 	void *ptr;
 
 #ifdef _SC_LEVEL1_DCACHE_SIZE
@@ -1892,8 +1892,9 @@ static struct lightrec_state *lightrec_alloc_state(bool lut_32bit)
 
 	struct_size = sizeof(*state) + 0x400;
 	lut_size = (lut_32bit ? 4 : sizeof(void *)) * CODE_LUT_SIZE;
+	alloc_size = (struct_size + lut_size + dcache_size - 1) & ~(dcache_size - 1);
 
-	ptr = aligned_alloc(dcache_size, struct_size + lut_size);
+	ptr = aligned_alloc(dcache_size, alloc_size);
 	if (!ptr)
 		return NULL;
 
