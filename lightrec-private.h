@@ -119,6 +119,7 @@ struct block {
 	void (*function)(void);
 	const u32 *code;
 	struct block *next;
+	struct block *prev;
 	u32 pc;
 	u32 kunseg_pc;
 	u32 hash;
@@ -224,9 +225,14 @@ static inline u32 kunseg(u32 addr)
 		return addr &~ 0x80000000;
 }
 
+static inline _Bool pc_in_bios(u32 pc)
+{
+	return pc & BIT(28);
+}
+
 static inline u32 lut_offset(u32 pc)
 {
-	if (pc & BIT(28))
+	if (pc_in_bios(pc))
 		return ((pc & (BIOS_SIZE - 1)) + RAM_SIZE) >> 2; // BIOS
 	else
 		return (pc & (RAM_SIZE - 1)) >> 2; // RAM

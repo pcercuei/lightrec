@@ -14,45 +14,87 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Must be power of two */
-#define LUT_SIZE 0x4000
+/*
+ * The blocks are kept in a doubly-linked list ordered by their entry point.
+ * To boost the access speed of the list, we use a LUT of anchor points.
+ * The RAM and BIOS memories are cut in segments of (1 << LUT_SIZE_SHIFT) bytes;
+ * in each of these segments, the anchor point is the block with the lowest PC.
+ */
+#define LUT_SIZE_SHIFT 8
+#define LUT_SIZE ((RAM_SIZE + BIOS_SIZE) >> LUT_SIZE_SHIFT)
 
 struct blockcache {
 	struct lightrec_state *state;
-	struct block * lut[LUT_SIZE];
+	struct block *head;
+	struct block *lut[LUT_SIZE];
 };
 
-u16 lightrec_get_lut_entry(const struct block *block)
+static inline u16 pc_get_lut_entry(u32 pc)
 {
-	return (block->kunseg_pc >> 2) & (LUT_SIZE - 1);
+	u16 entry;
+
+	if (pc_in_bios(pc))
+		entry = (RAM_SIZE + (pc & (BIOS_SIZE - 1))) >> LUT_SIZE_SHIFT;
+	else
+		entry = (pc & (RAM_SIZE - 1)) >> LUT_SIZE_SHIFT;
+
+	return entry;
+}
+
+static inline u16 lightrec_get_lut_entry(const struct block *block)
+{
+	return pc_get_lut_entry(block->kunseg_pc);
+}
+
+static inline u16 lightrec_get_last_lut_entry(const struct block *block)
+{
+	return pc_get_lut_entry(block->kunseg_pc + (block->nb_ops - 1) * 4);
+}
+
+static struct block * blockcache_find_anchor(struct blockcache *cache, u16 entry)
+{
+	struct block *anchor = NULL;
+	unsigned int i;
+
+	for (i = entry; !anchor && i < LUT_SIZE; i++)
+		anchor = cache->lut[i];
+
+	for (i = entry; !anchor && i > 0; i--)
+		anchor = cache->lut[i - 1];
+
+	return anchor;
 }
 
 struct block * lightrec_find_block(struct blockcache *cache, u32 pc)
 {
 	struct block *block;
+	u32 kunseg_pc = kunseg(pc);
+	u16 entry = pc_get_lut_entry(pc);
 
-	pc = kunseg(pc);
+	for (block = cache->lut[entry]; block; block = block->next) {
+		if (block->kunseg_pc > kunseg_pc)
+			break;
 
-	for (block = cache->lut[(pc >> 2) & (LUT_SIZE - 1)];
-	     block; block = block->next)
-		if (block->kunseg_pc == pc)
+		if (block->kunseg_pc == kunseg_pc)
 			return block;
+	}
 
 	return NULL;
 }
 
 struct block * lightrec_find_block_from_lut(struct blockcache *cache,
-					    u16 lut_entry, u32 addr_in_block)
+					    u16 tag, u32 addr_in_block)
 {
+	u16 entry = pc_get_lut_entry(addr_in_block);
+	u32 kunseg_pc = kunseg(addr_in_block);
 	struct block *block;
-	u32 pc;
 
-	addr_in_block = kunseg(addr_in_block);
+	for (block = cache->lut[entry]; block; block = block->next) {
+		if (block->kunseg_pc > kunseg_pc)
+			break;
 
-	for (block = cache->lut[lut_entry]; block; block = block->next) {
-		pc = block->kunseg_pc;
-		if (addr_in_block >= pc &&
-		    addr_in_block < pc + (block->nb_ops << 2))
+		if ((u16)(block->kunseg_pc >> 2) == tag
+		    && block->kunseg_pc + block->nb_ops * 4 > kunseg_pc)
 			return block;
 	}
 
@@ -72,36 +114,89 @@ void remove_from_code_lut(struct blockcache *cache, struct block *block)
 
 void lightrec_register_block(struct blockcache *cache, struct block *block)
 {
-	u32 pc = block->kunseg_pc;
-	struct block *old;
+	u16 last_entry = lightrec_get_last_lut_entry(block);
+	u16 first_entry = lightrec_get_lut_entry(block);
+	struct block *anchor, *prev, *next;
+	u16 entry;
 
-	old = cache->lut[(pc >> 2) & (LUT_SIZE - 1)];
-	if (old)
-		block->next = old;
+	anchor = blockcache_find_anchor(cache, first_entry);
 
-	cache->lut[(pc >> 2) & (LUT_SIZE - 1)] = block;
+	if (!anchor) {
+		prev = NULL;
+		next = NULL;
+	} else if (anchor->kunseg_pc <= block->kunseg_pc) {
+		while (anchor->next && anchor->next->kunseg_pc <= block->kunseg_pc)
+			anchor = anchor->next;
+
+		prev = anchor;
+		next = anchor->next;
+	} else {
+		while (anchor->prev && anchor->prev->kunseg_pc >= block->kunseg_pc)
+			anchor = anchor->prev;
+
+		prev = anchor->prev;
+		next = anchor;
+	}
+
+	block->prev = prev;
+	block->next = next;
+
+	if (prev)
+		prev->next = block;
+	else
+		cache->head = block;
+	if (next)
+		next->prev = block;
+
+	for (entry = first_entry; entry <= last_entry; entry++) {
+		if (!cache->lut[entry] || block->kunseg_pc < cache->lut[entry]->kunseg_pc)
+			cache->lut[entry] = block;
+	}
 
 	remove_from_code_lut(cache, block);
 }
 
 void lightrec_unregister_block(struct blockcache *cache, struct block *block)
 {
-	u32 pc = block->kunseg_pc;
-	struct block *old = cache->lut[(pc >> 2) & (LUT_SIZE - 1)];
+	u16 last_entry = lightrec_get_last_lut_entry(block);
+	u16 first_entry = lightrec_get_lut_entry(block);
+	struct block *first, *b;
+	u16 entry;
 
-	if (old == block) {
-		cache->lut[(pc >> 2) & (LUT_SIZE - 1)] = old->next;
+	if (unlikely(!block->prev && cache->head != block)) {
+		pr_err("Block at "PC_FMT" is not in cache\n", block->pc);
 		return;
 	}
 
-	for (; old; old = old->next) {
-		if (old->next == block) {
-			old->next = block->next;
-			return;
+	for (entry = first_entry; entry <= last_entry; entry++) {
+		if (cache->lut[entry] != block)
+			continue;
+
+		first = NULL;
+
+		for (b = block->next; b; b = b->next) {
+			if (lightrec_get_lut_entry(b) > entry)
+				break;
+
+			if (lightrec_get_last_lut_entry(b) >= entry) {
+				first = b;
+				break;
+			}
 		}
+
+		cache->lut[entry] = first;
 	}
 
-	pr_err("Block at "PC_FMT" is not in cache\n", block->pc);
+	if (block->prev)
+		block->prev->next = block->next;
+	else
+		cache->head = block->next;
+
+	if (block->next)
+		block->next->prev = block->prev;
+
+	block->prev = NULL;
+	block->next = NULL;
 }
 
 static bool lightrec_block_is_old(const struct lightrec_state *state,
@@ -118,35 +213,32 @@ static void lightrec_free_blocks(struct blockcache *cache,
 	struct lightrec_state *state = cache->state;
 	struct block *block, *next;
 	bool outdated = all;
-	unsigned int i;
 	u8 old_flags;
 
-	for (i = 0; i < LUT_SIZE; i++) {
-		for (block = cache->lut[i]; block; block = next) {
-			next = block->next;
+	for (block = cache->head; block; block = next) {
+		next = block->next;
 
-			if (except && block == except)
-				continue;
+		if (block == except)
+			continue;
 
-			if (!all) {
-				outdated = lightrec_block_is_old(state, block) ||
-					lightrec_block_is_outdated(state, block);
-			}
+		if (!all) {
+			outdated = lightrec_block_is_old(state, block) ||
+				lightrec_block_is_outdated(state, block);
+		}
 
-			if (!outdated)
-				continue;
+		if (!outdated)
+			continue;
 
-			old_flags = block_set_flags(block, BLOCK_IS_DEAD);
+		old_flags = block_set_flags(block, BLOCK_IS_DEAD);
 
-			if (!(old_flags & BLOCK_IS_DEAD)) {
-				if (ENABLE_THREADED_COMPILER)
-					lightrec_recompiler_remove(state->rec, block);
+		if (!(old_flags & BLOCK_IS_DEAD)) {
+			if (ENABLE_THREADED_COMPILER)
+				lightrec_recompiler_remove(state->rec, block);
 
-				pr_debug("Freeing outdated block at "PC_FMT"\n", block->pc);
-				remove_from_code_lut(cache, block);
-				lightrec_unregister_block(cache, block);
-				lightrec_free_block(state, block);
-			}
+			pr_debug("Freeing outdated block at "PC_FMT"\n", block->pc);
+			remove_from_code_lut(cache, block);
+			lightrec_unregister_block(cache, block);
+			lightrec_free_block(state, block);
 		}
 	}
 }

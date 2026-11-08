@@ -1400,6 +1400,7 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 	block->opcode_list = list;
 	block->code = code;
 	block->next = NULL;
+	block->prev = NULL;
 	block->flags = 0;
 	block->code_size = 0;
 	block->precompile_date = state->current_cycle;

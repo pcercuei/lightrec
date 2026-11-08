@@ -1231,7 +1231,6 @@ static void rec_io(struct lightrec_cstate *state,
 	bool is_tagged = LIGHTREC_FLAGS_GET_IO_MODE(flags);
 	bool load_delay = op_flag_load_delay(flags) && !state->no_load_delay;
 	u8 zero, reg = load_delay ? REG_TEMP : c.i.rt;
-	u32 lut_entry;
 
 	jit_note(__FILE__, __LINE__);
 
@@ -1264,8 +1263,7 @@ static void rec_io(struct lightrec_cstate *state,
 	if (is_tagged) {
 		call_to_c_wrapper(state, block, c.opcode, C_WRAPPER_RW);
 	} else {
-		lut_entry = lightrec_get_lut_entry(block);
-		call_to_c_wrapper(state, block, (lut_entry << 16) | offset,
+		call_to_c_wrapper(state, block, (block->pc << 14) | offset,
 				  C_WRAPPER_RW_GENERIC);
 	}
 }
