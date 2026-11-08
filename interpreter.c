@@ -1223,7 +1223,7 @@ static u32 lightrec_emulate_block_list(struct lightrec_state *state,
 
 u32 lightrec_emulate_block(struct lightrec_state *state, struct block *block, u32 pc)
 {
-	u32 offset = (kunseg(pc) - kunseg(block->pc)) >> 2;
+	u32 offset = (kunseg(pc) - block->kunseg_pc) >> 2;
 
 	if (offset < block->nb_ops)
 		return lightrec_emulate_block_list(state, block, offset);

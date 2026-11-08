@@ -24,7 +24,7 @@ struct blockcache {
 
 u16 lightrec_get_lut_entry(const struct block *block)
 {
-	return (kunseg(block->pc) >> 2) & (LUT_SIZE - 1);
+	return (block->kunseg_pc >> 2) & (LUT_SIZE - 1);
 }
 
 struct block * lightrec_find_block(struct blockcache *cache, u32 pc)
@@ -35,7 +35,7 @@ struct block * lightrec_find_block(struct blockcache *cache, u32 pc)
 
 	for (block = cache->lut[(pc >> 2) & (LUT_SIZE - 1)];
 	     block; block = block->next)
-		if (kunseg(block->pc) == pc)
+		if (block->kunseg_pc == pc)
 			return block;
 
 	return NULL;
@@ -50,7 +50,7 @@ struct block * lightrec_find_block_from_lut(struct blockcache *cache,
 	addr_in_block = kunseg(addr_in_block);
 
 	for (block = cache->lut[lut_entry]; block; block = block->next) {
-		pc = kunseg(block->pc);
+		pc = block->kunseg_pc;
 		if (addr_in_block >= pc &&
 		    addr_in_block < pc + (block->nb_ops << 2))
 			return block;
@@ -72,7 +72,7 @@ void remove_from_code_lut(struct blockcache *cache, struct block *block)
 
 void lightrec_register_block(struct blockcache *cache, struct block *block)
 {
-	u32 pc = kunseg(block->pc);
+	u32 pc = block->kunseg_pc;
 	struct block *old;
 
 	old = cache->lut[(pc >> 2) & (LUT_SIZE - 1)];
@@ -86,7 +86,7 @@ void lightrec_register_block(struct blockcache *cache, struct block *block)
 
 void lightrec_unregister_block(struct blockcache *cache, struct block *block)
 {
-	u32 pc = kunseg(block->pc);
+	u32 pc = block->kunseg_pc;
 	struct block *old = cache->lut[(pc >> 2) & (LUT_SIZE - 1)];
 
 	if (old == block) {

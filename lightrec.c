@@ -1394,6 +1394,7 @@ static struct block * lightrec_precompile_block(struct lightrec_state *state,
 	}
 
 	block->pc = pc;
+	block->kunseg_pc = kunseg(block->pc);
 	block->_jit = NULL;
 	block->function = NULL;
 	block->opcode_list = list;

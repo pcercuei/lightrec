@@ -120,6 +120,7 @@ struct block {
 	const u32 *code;
 	struct block *next;
 	u32 pc;
+	u32 kunseg_pc;
 	u32 hash;
 	u32 precompile_date;
 	unsigned int code_size;

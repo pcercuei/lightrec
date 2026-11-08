@@ -2186,7 +2186,7 @@ static bool block_uses_icache(const struct lightrec_cstate *state,
 			      const struct block *block)
 {
 	const struct lightrec_mem_map *map = &state->state->maps[PSX_MAP_KERNEL_USER_RAM];
-	u32 pc = kunseg(block->pc);
+	u32 pc = block->kunseg_pc;
 
 	if (pc < map->pc || pc >= map->pc + map->length)
 		return false;
