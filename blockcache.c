@@ -82,6 +82,23 @@ struct block * lightrec_find_block(struct blockcache *cache, u32 pc)
 	return NULL;
 }
 
+struct block * lightrec_find_block_containing(struct blockcache *cache, u32 pc)
+{
+	u16 entry = pc_get_lut_entry(pc);
+	u32 kunseg_pc = kunseg(pc);
+	struct block *block;
+
+	for (block = cache->lut[entry]; block; block = block->next) {
+		if (block->kunseg_pc > kunseg_pc)
+			break;
+
+		if (block->kunseg_pc + block->nb_ops * 4 > kunseg_pc)
+			return block;
+	}
+
+	return NULL;
+}
+
 struct block * lightrec_find_block_from_lut(struct blockcache *cache,
 					    u16 tag, u32 addr_in_block)
 {
