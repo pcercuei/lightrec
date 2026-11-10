@@ -2182,6 +2182,16 @@ static bool lightrec_always_skip_div_check(void)
 #endif
 }
 
+static bool lightrec_host_div_traps(void)
+{
+	/* x86's DIV/IDIV fault on a zero divisor instead of returning */
+#if defined(__i386__) || defined(__x86_64__)
+	return true;
+#else
+	return false;
+#endif
+}
+
 static int lightrec_flag_mults_divs(struct lightrec_state *state, struct block *block)
 {
 	struct opcode *list = NULL;
@@ -2375,7 +2385,8 @@ static int lightrec_remove_div_by_zero_check_sequence(struct lightrec_state *sta
 
 		if (op->i.op == OP_SPECIAL &&
 		    (op->r.op == OP_SPECIAL_DIVU || op->r.op == OP_SPECIAL_DIV) &&
-		    remove_div_sequence(block, i + 1))
+		    remove_div_sequence(block, i + 1) &&
+		    !lightrec_host_div_traps())
 			op->flags |= LIGHTREC_NO_DIV_CHECK;
 	}
 
