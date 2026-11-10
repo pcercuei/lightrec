@@ -1,0 +1,16 @@
+- Add an array of static entry points to each block
+- Add a linked list of malloc'd entry points
+
+- Remove the feature that frees the opcode lists. We'll always need them now.
+
+- Use lightrec_find_block_covering(), in the interpreter and in the JIT.
+  * If we find a block with an entry point, and the block has a function,
+    re-install the entry point.
+  * If we find a block with an entry point but no function, request a block
+    compilation and run the interpreter in the meantime.
+  * If we find a block, but there is no entry point, add the entry point to the
+    block, and request a new compilation (which will need a cleanup of the
+    opcode list and a re-optimization). Do not free the compiled code (if any)
+    right away as it's still valid for the other entry points, use the
+    interpreter in the meantime.
+  * If we don't find a block, create a new one.
