@@ -23,14 +23,22 @@
 
 #define jit_b()			jit_beqr(0, 0)
 
-#if defined(__sh__) && OPT_SH4_USE_GBR
-#define jit_add_state(u,v)						\
-	do {								\
-		jit_new_node_ww(jit_code_movr,_R0,LIGHTREC_REG_STATE);	\
-		jit_new_node_www(jit_code_addr,u,v,_R0);		\
-	} while (0)
-#else
 #define jit_add_state(u,v)	jit_addr(u,v,LIGHTREC_REG_STATE)
+
+#ifdef OPT_SH4_USE_GBR
+#undef jit_stxi_c
+#undef jit_stxi_s
+#undef jit_stxi_i
+#define jit_stxi_c(offt,addr,reg) \
+	jit_new_node_www(jit_code_stxi_c,(offt),\
+			 (addr) == LIGHTREC_REG_STATE && (offt) <= 255 ? _GBR : (addr),(reg))
+#define jit_stxi_s(offt,addr,reg) \
+	jit_new_node_www(jit_code_stxi_s,(offt),\
+			 (addr) == LIGHTREC_REG_STATE && (offt) <= 510 ? _GBR : (addr),(reg))
+#define jit_stxi_i(offt,addr,reg) \
+	jit_new_node_www(jit_code_stxi_i,(offt),\
+			 (addr) == LIGHTREC_REG_STATE && (offt) > 60 && (offt) <= 1020 ? _GBR : (addr),(reg))
 #endif
+
 
 #endif /* __LIGHTNING_WRAPPER_H__ */
