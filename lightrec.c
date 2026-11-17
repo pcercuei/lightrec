@@ -1048,7 +1048,7 @@ static struct block * generate_dispatcher(struct lightrec_state *state)
 	for (i = 0; i < NUM_REGS; i++)
 		jit_movr(JIT_V(i + FIRST_REG), JIT_V(i + FIRST_REG));
 
-#ifdef OPT_SH4_USE_GBR
+#if OPT_SH4_USE_GBR
 	jit_movr(_GBR, LIGHTREC_REG_STATE);
 #endif
 

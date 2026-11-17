@@ -25,7 +25,7 @@
 
 #define jit_add_state(u,v)	jit_addr(u,v,LIGHTREC_REG_STATE)
 
-#ifdef OPT_SH4_USE_GBR
+#if OPT_SH4_USE_GBR
 #undef jit_stxi_c
 #undef jit_stxi_s
 #undef jit_stxi_i
